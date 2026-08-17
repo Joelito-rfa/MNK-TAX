@@ -1,0 +1,50 @@
+# IDE
+.idea/
+*.iml
+.settings/
+.project
+.classpath
+.vscode/
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+boot*.log
+
+# Node / Frontend
+node_modules/
+dist/
+.env
+.env.local
+
+# Docker
+nginx/
+
+# Logs
+*.log
+boot.err.log
+boot.out.log
+boot2.err.log
+boot2.out.log
+boot3.err.log
+boot3.out.log
+boot4.err.log
+boot4.out.log
+boot5.err.log
+boot5.out.log
+boot6.err.log
+boot6.out.log
+boot7.err.log
+boot7.out.log
+boot8.err.log
+boot8.out.log
+boot9.err.log
+boot9.out.log
+
+# OS
+.DS_Store
+Thumbs.db

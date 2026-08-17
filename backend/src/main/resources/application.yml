@@ -1,0 +1,71 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: mnk-tax
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+    show-sql: ${JPA_SHOW_SQL:false}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  cache:
+    type: redis
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+mnk-tax:
+  jwt:
+    secret: ${JWT_SECRET:Y2hhbmdlLW1lLWludGVybmFsLXNlY3JldC1mb3ItbW5rLXRheC1wcm90b3R5cGUtMDAx}
+    access-token-ttl: ${JWT_ACCESS_TTL:3600}
+    refresh-token-ttl: ${JWT_REFRESH_TTL:604800}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5177,http://localhost:3000}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    requests-per-minute: ${RATE_LIMIT_PER_MINUTE:120}
+  receipt:
+    base-url: ${RECEIPT_BASE_URL:http://localhost:5177}
+    storage-dir: ${RECEIPT_STORAGE_DIR:./data/receipts}
+  document:
+    storage-dir: ${DOCUMENT_STORAGE_DIR:./data/documents}
+  seed-demo: ${SEED_DEMO:true}
+
+logging:
+  level:
+    com.mnktax: ${LOG_LEVEL:INFO}
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{correlationId}] %logger{36} - %msg%n"

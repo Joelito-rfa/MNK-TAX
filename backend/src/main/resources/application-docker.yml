@@ -1,0 +1,17 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://postgres:5432/mnktax}
+    username: ${DATABASE_USERNAME:mnktax}
+    password: ${DATABASE_PASSWORD:mnktax}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+mnk-tax:
+  receipt:
+    base-url: http://localhost:3000
