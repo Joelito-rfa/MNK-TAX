@@ -33,13 +33,66 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+let isRefreshing = false
+let failedQueue: Array<{
+  resolve: (value: unknown) => void
+  reject: (reason?: unknown) => void
+}> = []
+
+function processQueue(error: unknown) {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(undefined)
+    }
+  })
+  failedQueue = []
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError) => {
-    if (error.response?.status === 401 && window.location.pathname !== '/login') {
-      tokenStore.clear()
-      window.location.href = '/login'
+  async (error: AxiosError) => {
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
+
+    if (error.response?.status === 401 && !originalRequest._retry && window.location.pathname !== '/login') {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(() => api(originalRequest))
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      const refreshToken = tokenStore.refresh
+      if (!refreshToken) {
+        tokenStore.clear()
+        window.location.href = '/login'
+        isRefreshing = false
+        return Promise.reject(error)
+      }
+
+      try {
+        const res = await axios.post(
+          `${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/refresh`,
+          { refreshToken },
+          { headers: { 'Content-Type': 'application/json' } },
+        )
+        const data = res.data as { accessToken: string; refreshToken: string }
+        tokenStore.set(data.accessToken, data.refreshToken)
+        processQueue(null)
+        return api(originalRequest)
+      } catch (refreshError) {
+        processQueue(refreshError)
+        tokenStore.clear()
+        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     }
+
     return Promise.reject(error)
   },
 )
@@ -59,8 +112,25 @@ export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promi
   return res.data
 }
 
+export async function apiGetBlob(url: string): Promise<Blob> {
+  const res = await api.get<Blob>(url, { responseType: 'blob' })
+  return res.data
+}
+
 export async function apiPost<T>(url: string, data?: unknown, config?: AxiosRequestConfig): Promise<T> {
   const res = await api.post<T>(url, data, config)
+  return res.data
+}
+
+export async function apiUpload<T>(url: string, file: File, fieldName = 'file', extraFields?: Record<string, string>): Promise<T> {
+  const form = new FormData()
+  form.append(fieldName, file)
+  if (extraFields) {
+    Object.entries(extraFields).forEach(([k, v]) => form.append(k, v))
+  }
+  const res = await api.post<T>(url, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
   return res.data
 }
 
