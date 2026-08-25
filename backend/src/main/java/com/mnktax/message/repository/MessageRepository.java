@@ -51,11 +51,15 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     @Query("UPDATE Message m SET m.read = true, m.readAt = :now WHERE m.threadId = :threadId AND m.recipientId = :userId AND m.read = false")
     int markThreadAsRead(@Param("threadId") Long threadId, @Param("userId") Long userId, @Param("now") java.time.Instant now);
 
-    @Query("SELECT m FROM Message m WHERE m.recipientId = :userId AND m.archivedAt IS NULL AND " +
-           "(:search IS NULL OR :search = '' OR LOWER(m.subject) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+    @Query("SELECT m FROM Message m LEFT JOIN com.mnktax.taxpayer.entity.Taxpayer tp ON tp.id = m.taxpayerId " +
+           "WHERE m.recipientId = :userId AND m.archivedAt IS NULL AND " +
+           "(:search IS NULL OR :search = '' OR " +
+           "LOWER(m.subject) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
            "LOWER(m.content) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
            "LOWER(m.contextRef) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
-           "LOWER(m.senderName) LIKE LOWER(CONCAT('%',:search,'%'))) AND " +
+           "LOWER(m.senderName) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(tp.name) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(tp.nif) LIKE LOWER(CONCAT('%',:search,'%'))) AND " +
            "(:readStatus IS NULL OR :readStatus = '' OR " +
            "((:readStatus = 'UNREAD' AND m.read = false) OR (:readStatus = 'READ' AND m.read = true))) AND " +
            "(:processingStatus IS NULL OR :processingStatus = '' OR m.processingStatus = :processingStatus) AND " +
@@ -72,11 +76,15 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
                                 @Param("taxpayerId") Long taxpayerId,
                                 Pageable pageable);
 
-    @Query("SELECT m FROM Message m WHERE m.senderId = :userId AND m.archivedAt IS NULL AND " +
-           "(:search IS NULL OR :search = '' OR LOWER(m.subject) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+    @Query("SELECT m FROM Message m LEFT JOIN com.mnktax.taxpayer.entity.Taxpayer tp ON tp.id = m.taxpayerId " +
+           "WHERE m.senderId = :userId AND m.archivedAt IS NULL AND " +
+           "(:search IS NULL OR :search = '' OR " +
+           "LOWER(m.subject) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
            "LOWER(m.content) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
            "LOWER(m.contextRef) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
-           "LOWER(m.senderName) LIKE LOWER(CONCAT('%',:search,'%'))) AND " +
+           "LOWER(m.senderName) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(tp.name) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(tp.nif) LIKE LOWER(CONCAT('%',:search,'%'))) AND " +
            "(:processingStatus IS NULL OR :processingStatus = '' OR m.processingStatus = :processingStatus) AND " +
            "(:priority IS NULL OR m.priority = :priority) AND " +
            "(:contextType IS NULL OR m.contextType = :contextType) " +
