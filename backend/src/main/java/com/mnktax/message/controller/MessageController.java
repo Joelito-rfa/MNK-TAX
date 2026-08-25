@@ -64,8 +64,15 @@ public class MessageController {
     @Operation(summary = "Mes messages envoyés")
     public ResponseEntity<Page<MessageDto>> mySentMessages(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String processingStatus,
+            @RequestParam(required = false) String priority,
+            @RequestParam(required = false) String contextType,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(messageService.mySentMessages(search, pageable));
+        MessageFilterRequest filter = new MessageFilterRequest(search, null, processingStatus,
+                priority != null ? com.mnktax.message.entity.MessagePriority.valueOf(priority) : null,
+                contextType != null ? com.mnktax.message.entity.MessageContextType.valueOf(contextType) : null,
+                null);
+        return ResponseEntity.ok(messageService.mySentMessages(filter, pageable));
     }
 
     @GetMapping("/archived")

@@ -112,7 +112,14 @@ export default function Messages() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['messages', tab, page, search, filterRead, filterPriority, filterContext],
     queryFn: () => {
-      if (tab === 'sent') return apiGet<Page<Message>>(`/messages/sent?page=${page}&size=20&search=${encodeURIComponent(search)}`)
+      const sentParams = new URLSearchParams()
+      sentParams.set('page', String(page))
+      sentParams.set('size', '20')
+      if (search) sentParams.set('search', search)
+      if (filterRead) sentParams.set('readStatus', filterRead)
+      if (filterPriority) sentParams.set('priority', filterPriority)
+      if (filterContext) sentParams.set('contextType', filterContext)
+      if (tab === 'sent') return apiGet<Page<Message>>(`/messages/sent?${sentParams.toString()}`)
       if (tab === 'archived') return apiGet<Page<Message>>(`/messages/archived?page=${page}&size=20&search=${encodeURIComponent(search)}`)
       return apiGet<Page<Message>>(`/messages?${params.toString()}`)
     },
@@ -266,12 +273,45 @@ export default function Messages() {
           </div>
         )}
 
-        {(tab === 'sent' || tab === 'archived') && (
+        {tab === 'sent' && (
+          <div className="flex flex-wrap items-end gap-3 border-b border-slate-200 dark:border-slate-700/70 dark:border-slate-700/50 px-5 py-3">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Rechercher dans les envoyés..."
+              className="w-64"
+            />
+            <Select value={filterRead} onChange={(e) => { setFilterRead(e.target.value); setPage(0) }} className="w-40">
+              <option value="">Tous les statuts</option>
+              <option value="UNREAD">Non lus</option>
+              <option value="READ">Lus</option>
+            </Select>
+            <Select value={filterPriority} onChange={(e) => { setFilterPriority(e.target.value); setPage(0) }} className="w-40">
+              <option value="">Toutes priorités</option>
+              <option value="NORMAL">Normale</option>
+              <option value="IMPORTANT">Importante</option>
+              <option value="URGENT">Urgente</option>
+            </Select>
+            <Select value={filterContext} onChange={(e) => { setFilterContext(e.target.value); setPage(0) }} className="w-44">
+              <option value="">Tous les dossiers</option>
+              {Object.entries(contextLabels).map(([k, v]) => (
+                <option key={k} value={k}>{v}</option>
+              ))}
+            </Select>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilterRead(''); setFilterPriority(''); setFilterContext(''); setPage(0) }}>
+                Réinitialiser
+              </Button>
+            )}
+          </div>
+        )}
+
+        {tab === 'archived' && (
           <div className="flex items-end gap-3 border-b border-slate-200 dark:border-slate-700/70 dark:border-slate-700/50 px-5 py-3">
             <SearchInput
               value={search}
               onChange={setSearch}
-              placeholder={tab === 'sent' ? 'Rechercher dans les envoyés...' : 'Rechercher dans les archives...'}
+              placeholder="Rechercher dans les archives..."
               className="w-64"
             />
           </div>

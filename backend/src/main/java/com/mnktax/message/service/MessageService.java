@@ -111,11 +111,17 @@ public class MessageService {
     }
 
     @Transactional(readOnly = true)
-    public Page<MessageDto> mySentMessages(String search, Pageable pageable) {
+    public Page<MessageDto> mySentMessages(MessageFilterRequest filter, Pageable pageable) {
         Long userId = SecurityUtils.currentUserId();
         if (userId == null) return Page.empty();
-        return messageRepository.findSentByFilters(userId, search, pageable)
-                .map(m -> enrichDto(m, userId));
+        return messageRepository.findSentByFilters(
+                userId,
+                filter != null ? filter.search() : null,
+                filter != null ? filter.processingStatus() : null,
+                filter != null ? filter.priority() : null,
+                filter != null ? filter.contextType() : null,
+                pageable
+        ).map(m -> enrichDto(m, userId));
     }
 
     @Transactional(readOnly = true)
