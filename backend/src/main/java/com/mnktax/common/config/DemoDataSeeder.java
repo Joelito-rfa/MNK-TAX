@@ -1,5 +1,7 @@
 package com.mnktax.common.config;
 
+import com.mnktax.administration.entity.SystemParameter;
+import com.mnktax.administration.repository.SystemParameterRepository;
 import com.mnktax.auth.entity.Permission;
 import com.mnktax.auth.entity.Role;
 import com.mnktax.auth.entity.User;
@@ -9,20 +11,66 @@ import com.mnktax.auth.repository.UserRepository;
 import com.mnktax.collection.entity.CollectionAction;
 import com.mnktax.collection.entity.CollectionActionType;
 import com.mnktax.collection.repository.CollectionActionRepository;
+import com.mnktax.control.entity.ControlDocument;
+import com.mnktax.control.entity.ControlStatus;
+import com.mnktax.control.entity.ControlType;
+import com.mnktax.control.entity.TaxControl;
+import com.mnktax.control.repository.ControlDocumentRepository;
+import com.mnktax.control.repository.TaxControlRepository;
+import com.mnktax.debt.entity.DebtCollectionPriority;
+import com.mnktax.debt.entity.DebtHistory;
+import com.mnktax.debt.entity.DebtItem;
+import com.mnktax.debt.entity.DebtOrigin;
 import com.mnktax.debt.entity.DebtStatus;
 import com.mnktax.debt.entity.Interest;
 import com.mnktax.debt.entity.Penalty;
+import com.mnktax.debt.entity.TaxDebt;
+import com.mnktax.debt.repository.DebtHistoryRepository;
 import com.mnktax.debt.repository.InterestRepository;
 import com.mnktax.debt.repository.PenaltyRepository;
 import com.mnktax.debt.repository.TaxDebtRepository;
 import com.mnktax.debt.service.DebtService;
 import com.mnktax.declaration.dto.DeclarationDtos.CreateDeclarationRequest;
+import com.mnktax.declaration.entity.DeclarationHistory;
+import com.mnktax.declaration.entity.DeclarationAnnexe;
 import com.mnktax.message.entity.Message;
+import com.mnktax.message.entity.MessageContextType;
+import com.mnktax.message.entity.MessagePriority;
+import com.mnktax.message.entity.MessageProcessingStatus;
 import com.mnktax.message.repository.MessageRepository;
+import com.mnktax.declaration.repository.DeclarationHistoryRepository;
+import com.mnktax.declaration.repository.DeclarationAnnexeRepository;
+import com.mnktax.declaration.repository.DeclarationRepository;
 import com.mnktax.declaration.service.DeclarationService;
+import com.mnktax.complaint.entity.Complaint;
+import com.mnktax.complaint.entity.ComplaintResponse;
+import com.mnktax.complaint.entity.ComplaintStatus;
+import com.mnktax.complaint.entity.ContextType;
+import com.mnktax.complaint.repository.ComplaintRepository;
+import com.mnktax.complaint.repository.ComplaintResponseRepository;
+import com.mnktax.refund.entity.Refund;
+import com.mnktax.refund.entity.RefundReason;
+import com.mnktax.refund.entity.RefundStatus;
+import com.mnktax.refund.repository.RefundRepository;
+import com.mnktax.notification.entity.Notification;
+import com.mnktax.notification.entity.NotificationType;
+import com.mnktax.notification.repository.NotificationRepository;
+import com.mnktax.receipt.entity.Receipt;
+import com.mnktax.receipt.entity.ReceiptStatus;
+import com.mnktax.receipt.repository.ReceiptRepository;
+import com.mnktax.document.entity.Document;
+import com.mnktax.document.repository.DocumentRepository;
+import com.mnktax.audit.entity.AuditLog;
+import com.mnktax.audit.repository.AuditLogRepository;
+import com.mnktax.assessment.repository.AssessmentRepository;
+import com.mnktax.collection.entity.CollectionNotice;
+import com.mnktax.collection.repository.CollectionNoticeRepository;
 import com.mnktax.payment.dto.PaymentDtos.CreatePaymentRequest;
+import com.mnktax.payment.entity.Payment;
 import com.mnktax.payment.entity.PaymentMethod;
+import com.mnktax.payment.repository.PaymentRepository;
 import com.mnktax.payment.service.PaymentService;
+import com.mnktax.tax.entity.CalculationMethod;
 import com.mnktax.tax.entity.CalculationMethod;
 import com.mnktax.tax.entity.Deadline;
 import com.mnktax.tax.entity.ObligationStatus;
@@ -89,11 +137,30 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final PenaltyRepository penaltyRepository;
     private final InterestRepository interestRepository;
     private final DeclarationService declarationService;
+    private final DeclarationRepository declarationRepository;
     private final PaymentService paymentService;
     private final DebtService debtService;
     private final TaxDebtRepository debtRepository;
     private final CollectionActionRepository actionRepository;
     private final MessageRepository messageRepository;
+    private final SystemParameterRepository parameterRepository;
+    private final com.mnktax.debt.repository.DebtHistoryRepository debtHistoryRepository;
+    private final com.mnktax.debt.repository.DebtItemRepository debtItemRepository;
+    private final TaxControlRepository controlRepository;
+    private final ControlDocumentRepository controlDocumentRepository;
+    private final NotificationRepository notificationRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final ComplaintRepository complaintRepository;
+    private final ComplaintResponseRepository complaintResponseRepository;
+    private final RefundRepository refundRepository;
+    private final CollectionNoticeRepository collectionNoticeRepository;
+    private final DeclarationHistoryRepository declarationHistoryRepository;
+    private final DeclarationAnnexeRepository declarationAnnexeRepository;
+    private final DocumentRepository documentRepository;
+    private final ReceiptRepository receiptRepository;
+    private final PaymentRepository paymentRepository;
+    private final AssessmentRepository assessmentRepository;
+    private final com.mnktax.payment.repository.PaymentAllocationRepository paymentAllocationRepository;
 
     @Value("${mnk-tax.seed-demo:true}")
     private boolean seedDemo;
@@ -105,9 +172,28 @@ public class DemoDataSeeder implements ApplicationRunner {
                           TaxRuleVersionRepository ruleVersionRepository, DeadlineRepository deadlineRepository,
                           TaxpayerRepository taxpayerRepository, TaxObligationRepository obligationRepository,
                           PenaltyRepository penaltyRepository, InterestRepository interestRepository,
-                          DeclarationService declarationService, PaymentService paymentService,
+                          DeclarationService declarationService, DeclarationRepository declarationRepository,
+                          PaymentService paymentService,
                           DebtService debtService, TaxDebtRepository debtRepository,
-                          CollectionActionRepository actionRepository, MessageRepository messageRepository) {
+                          CollectionActionRepository actionRepository, MessageRepository messageRepository,
+                          SystemParameterRepository parameterRepository,
+                          com.mnktax.debt.repository.DebtHistoryRepository debtHistoryRepository,
+                          com.mnktax.debt.repository.DebtItemRepository debtItemRepository,
+                          TaxControlRepository controlRepository,
+                          ControlDocumentRepository controlDocumentRepository,
+                          NotificationRepository notificationRepository,
+                          AuditLogRepository auditLogRepository,
+                          ComplaintRepository complaintRepository,
+                          ComplaintResponseRepository complaintResponseRepository,
+                          RefundRepository refundRepository,
+                          CollectionNoticeRepository collectionNoticeRepository,
+                          DeclarationHistoryRepository declarationHistoryRepository,
+                          DeclarationAnnexeRepository declarationAnnexeRepository,
+                          DocumentRepository documentRepository,
+                          ReceiptRepository receiptRepository,
+                          PaymentRepository paymentRepository,
+                          AssessmentRepository assessmentRepository,
+                          com.mnktax.payment.repository.PaymentAllocationRepository paymentAllocationRepository) {
         this.permissionRepository = permissionRepository;
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
@@ -123,11 +209,30 @@ public class DemoDataSeeder implements ApplicationRunner {
         this.penaltyRepository = penaltyRepository;
         this.interestRepository = interestRepository;
         this.declarationService = declarationService;
+        this.declarationRepository = declarationRepository;
         this.paymentService = paymentService;
         this.debtService = debtService;
         this.debtRepository = debtRepository;
         this.actionRepository = actionRepository;
         this.messageRepository = messageRepository;
+        this.parameterRepository = parameterRepository;
+        this.debtHistoryRepository = debtHistoryRepository;
+        this.debtItemRepository = debtItemRepository;
+        this.controlRepository = controlRepository;
+        this.controlDocumentRepository = controlDocumentRepository;
+        this.notificationRepository = notificationRepository;
+        this.auditLogRepository = auditLogRepository;
+        this.complaintRepository = complaintRepository;
+        this.complaintResponseRepository = complaintResponseRepository;
+        this.refundRepository = refundRepository;
+        this.collectionNoticeRepository = collectionNoticeRepository;
+        this.declarationHistoryRepository = declarationHistoryRepository;
+        this.declarationAnnexeRepository = declarationAnnexeRepository;
+        this.documentRepository = documentRepository;
+        this.receiptRepository = receiptRepository;
+        this.paymentRepository = paymentRepository;
+        this.assessmentRepository = assessmentRepository;
+        this.paymentAllocationRepository = paymentAllocationRepository;
     }
 
     @Override
@@ -136,24 +241,70 @@ public class DemoDataSeeder implements ApplicationRunner {
             log.info("Seed de démonstration désactivé (mnk-tax.seed-demo=false)");
             return;
         }
+        seedSystemParameters();
         if (userRepository.count() > 0) {
             log.info("Seed de démonstration déjà appliqué, ignoré.");
             return;
         }
+        safeSeed("permissions", this::seedPermissions);
+        safeSeed("roles", this::seedRoles);
+        safeSeed("users", this::seedUsers);
+        safeSeed("references", this::seedReferences);
+        safeSeed("penalties", this::seedPenalties);
+        safeSeed("deadlines", this::seedDeadlines);
+        safeSeed("taxpayers", this::seedTaxpayers);
+        safeSeed("transactions", this::seedTransactions);
+        safeSeed("debt-scenarios", this::seedDebtScenarios);
+        safeSeed("messages", this::seedMessages);
+        safeSeed("controls", this::seedControls);
+        safeSeed("notifications", this::seedNotifications);
+        safeSeed("audit-logs", this::seedAuditLogs);
+        safeSeed("complaints", this::seedComplaints);
+        safeSeed("refunds", this::seedRefunds);
+        safeSeed("collection-notices", this::seedCollectionNotices);
+        safeSeed("declaration-extras", this::seedDeclarationExtras);
+        safeSeed("documents", this::seedDocuments);
+        safeSeed("receipts", this::seedReceipts);
+        log.info("Seed de démonstration terminé (données fictives).");
+    }
+
+    private void safeSeed(String name, Runnable action) {
         try {
-            seedPermissions();
-            seedRoles();
-            seedUsers();
-            seedReferences();
-            seedPenalties();
-            seedDeadlines();
-            seedTaxpayers();
-            seedTransactions();
-            seedMessages();
-            log.info("Seed de démonstration terminé (données fictives).");
+            action.run();
         } catch (Exception ex) {
-            log.error("Erreur lors du seed de démonstration", ex);
+            log.error("Erreur lors du seed '{}' — ignoré", name, ex);
         }
+    }
+
+    /**
+     * Paramètres système par défaut. Exécuté à chaque démarrage de façon
+     * idempotente (les clés existantes ne sont pas écrasées).
+     */
+    private void seedSystemParameters() {
+        Map.ofEntries(
+                Map.entry("INSTITUTION_NAME", "DGI Manakara"),
+                Map.entry("INSTITUTION_ADDRESS", "Manakara, Madagascar"),
+                Map.entry("INSTITUTION_PHONE", "+261 34 00 000 00"),
+                Map.entry("INSTITUTION_EMAIL", "contact@dgi-manakara.mg"),
+                Map.entry("RECEIPT_FOOTER", "Quittance générée par MNK-TAX — Document non officiel de démonstration"),
+                Map.entry("FISCAL_YEAR", String.valueOf(LocalDate.now().getYear())),
+                Map.entry("VAT_RATE", "20"),
+                Map.entry("PENALTY_RATE", "5"),
+                Map.entry("INTEREST_RATE_MONTHLY", "1"),
+                Map.entry("CURRENCY", "MGA"),
+                Map.entry("DEBT.DEFAULT_PENALTY_CODE", "PEN_DEMO_5"),
+                Map.entry("DEBT.DEFAULT_INTEREST_CODE", "INT_DEMO_1")
+        ).forEach((key, value) -> {
+            if (!parameterRepository.existsByKey(key)) {
+                parameterRepository.save(SystemParameter.builder()
+                        .key(key).value(value)
+                        .description("Paramètre système par défaut")
+                        .category(key.startsWith("INSTITUTION") ? "INSTITUTION"
+                                : key.startsWith("RECEIPT") ? "QUITTANCE" : "FISCAL")
+                        .updatedAt(Instant.now())
+                        .build());
+            }
+        });
     }
 
     private void seedPermissions() {
@@ -166,10 +317,29 @@ public class DemoDataSeeder implements ApplicationRunner {
                 Map.entry("DECLARATION_VALIDATE", "Valider les déclarations"),
                 Map.entry("DEBT_READ", "Consulter les créances"),
                 Map.entry("DEBT_WRITE", "Gérer les créances"),
+                Map.entry("DEBT_CREATE", "Créer des créances"),
+                Map.entry("DEBT_DELETE", "Supprimer des créances"),
+                Map.entry("DEBT_RECALCULATE", "Recalculer les créances"),
+                Map.entry("DEBT_SUSPEND", "Suspendre les créances"),
+                Map.entry("DEBT_CLOSE", "Clôturer les créances"),
+                Map.entry("DEBT_EXPORT", "Exporter les créances"),
+                Map.entry("DEBT_DETECT_ARREARS", "Détecter les arriérés"),
                 Map.entry("PAYMENT_READ", "Consulter les paiements"),
                 Map.entry("PAYMENT_WRITE", "Enregistrer les paiements"),
+                Map.entry("PAYMENT_CONFIRM", "Confirmer les paiements"),
+                Map.entry("PAYMENT_ALLOCATE", "Allouer les paiements"),
+                Map.entry("PAYMENT_CANCEL", "Annuler les paiements"),
+                Map.entry("PAYMENT_REFUND", "Rembourser les paiements"),
+                Map.entry("PAYMENT_EXPORT", "Exporter les paiements"),
+                Map.entry("PAYMENT_RECONCILE", "Réconcilier les paiements"),
                 Map.entry("RECEIPT_READ", "Consulter les quittances"),
                 Map.entry("RECEIPT_GENERATE", "Générer les quittances"),
+                Map.entry("RECEIPT_DOWNLOAD", "Télécharger les quittances"),
+                Map.entry("RECEIPT_VERIFY", "Vérifier les quittances"),
+                Map.entry("RECEIPT_CANCEL", "Annuler les quittances"),
+                Map.entry("RECEIPT_REPLACE", "Remplacer les quittances"),
+                Map.entry("RECEIPT_REFUND", "Rembourser les quittances"),
+                Map.entry("RECEIPT_EXPORT", "Exporter les quittances"),
                 Map.entry("COLLECTION_READ", "Consulter le recouvrement"),
                 Map.entry("COLLECTION_WRITE", "Gérer le recouvrement"),
                 Map.entry("RULE_READ", "Consulter les règles fiscales"),
@@ -188,7 +358,13 @@ public class DemoDataSeeder implements ApplicationRunner {
                 Map.entry("ASSESSMENT_WRITE", "Gérer les impositions"),
                 Map.entry("MESSAGE_READ", "Consulter les messages"),
                 Map.entry("MESSAGE_WRITE", "Envoyer des messages"),
-                Map.entry("NOTIFICATION_READ", "Consulter les notifications")
+                Map.entry("NOTIFICATION_READ", "Consulter les notifications"),
+                Map.entry("CONTROL_READ", "Consulter les contrôles fiscaux"),
+                Map.entry("CONTROL_WRITE", "Gérer les contrôles fiscaux"),
+                Map.entry("COMPLAINT_READ", "Consulter les réclamations"),
+                Map.entry("COMPLAINT_WRITE", "Gérer les réclamations"),
+                Map.entry("REFUND_READ", "Consulter les remboursements"),
+                Map.entry("REFUND_WRITE", "Gérer les remboursements")
         );
         perms.forEach((code, name) -> {
             if (permissionRepository.findByCode(code).isEmpty()) {
@@ -202,29 +378,60 @@ public class DemoDataSeeder implements ApplicationRunner {
         Map<String, Set<String>> rolePerms = new HashMap<>();
         rolePerms.put(Role.SUPER_ADMIN, allPermissionCodes());
         rolePerms.put(Role.ADMIN, allPermissionCodes());
-        rolePerms.put(Role.TAX_AGENT, Set.of("TAXPAYER_READ", "TAXPAYER_WRITE",
-                "DECLARATION_READ", "DECLARATION_WRITE", "DECLARATION_VALIDATE",
-                "DEBT_READ", "ASSESSMENT_READ", "RULE_READ", "TAXONOMY_READ", "REPORT_READ",
-                "PAYMENT_READ", "RECEIPT_READ", "COLLECTION_READ", "NOTIFICATION_READ",
-                "MESSAGE_READ", "MESSAGE_WRITE"));
-        rolePerms.put(Role.COLLECTION_AGENT, Set.of("DEBT_READ", "DEBT_WRITE",
-                "PAYMENT_READ", "PAYMENT_WRITE", "RECEIPT_READ", "RECEIPT_GENERATE",
-                "COLLECTION_READ", "COLLECTION_WRITE", "TAXPAYER_READ", "REPORT_READ", "NOTIFICATION_READ",
-                "MESSAGE_READ", "MESSAGE_WRITE"));
-        rolePerms.put(Role.ACCOUNTANT, Set.of("TAXPAYER_READ", "DECLARATION_READ", "DECLARATION_WRITE",
-                "DEBT_READ", "PAYMENT_READ", "PAYMENT_WRITE", "RECEIPT_READ", "ASSESSMENT_READ", "REPORT_READ",
-                "MESSAGE_READ", "MESSAGE_WRITE"));
-        rolePerms.put(Role.TAXPAYER, Set.of("TAXPAYER_READ", "DECLARATION_READ", "DECLARATION_WRITE",
-                "DEBT_READ", "PAYMENT_READ", "RECEIPT_READ", "NOTIFICATION_READ",
-                "MESSAGE_READ", "MESSAGE_WRITE"));
+        rolePerms.put(Role.TAX_AGENT, Set.of(
+                "TAXPAYER_READ", "TAXPAYER_WRITE", "TAXPAYER_EXPORT", "TAXPAYER_VIEW_HISTORY",
+                "DECLARATION_READ", "DECLARATION_CREATE", "DECLARATION_UPDATE", "DECLARATION_SUBMIT",
+                "DECLARATION_REVIEW", "DECLARATION_VALIDATE", "DECLARATION_REJECT", "DECLARATION_EXPORT", "DECLARATION_ATTACH",
+                "DEBT_READ", "DEBT_VIEW_HISTORY",
+                "ASSESSMENT_READ", "RULE_READ", "TAXONOMY_READ", "REPORT_READ", "REPORT_TAX",
+                "PAYMENT_READ", "PAYMENT_VIEW_HISTORY",
+                "RECEIPT_READ", "RECEIPT_VIEW_HISTORY",
+                "COLLECTION_READ", "NOTIFICATION_READ",
+                "MESSAGE_READ", "MESSAGE_WRITE",
+                "CONTROL_READ", "CONTROL_WRITE",
+                "COMPLAINT_READ", "COMPLAINT_WRITE",
+                "REFUND_READ", "REFUND_WRITE"));
+        rolePerms.put(Role.COLLECTION_AGENT, Set.of(
+                "TAXPAYER_READ", "TAXPAYER_VIEW_HISTORY",
+                "DEBT_READ", "DEBT_WRITE", "DEBT_ASSIGN_RECOVERY", "DEBT_VIEW_HISTORY",
+                "PAYMENT_READ", "PAYMENT_WRITE", "PAYMENT_VIEW_HISTORY",
+                "RECEIPT_READ", "RECEIPT_GENERATE", "RECEIPT_DOWNLOAD", "RECEIPT_CANCEL",
+                "COLLECTION_READ", "COLLECTION_WRITE",
+                "REPORT_READ", "REPORT_RECOVERY", "NOTIFICATION_READ",
+                "MESSAGE_READ", "MESSAGE_WRITE",
+                "CONTROL_READ", "COMPLAINT_READ", "REFUND_READ"));
+        rolePerms.put(Role.ACCOUNTANT, Set.of(
+                "TAXPAYER_READ", "TAXPAYER_VIEW_HISTORY",
+                "DECLARATION_READ", "DECLARATION_CREATE", "DECLARATION_UPDATE",
+                "DEBT_READ", "DEBT_VIEW_HISTORY",
+                "PAYMENT_READ", "PAYMENT_WRITE", "PAYMENT_CONFIRM", "PAYMENT_ALLOCATE", "PAYMENT_VIEW_HISTORY",
+                "RECEIPT_READ", "RECEIPT_DOWNLOAD", "RECEIPT_EXPORT", "RECEIPT_VIEW_HISTORY",
+                "ASSESSMENT_READ", "REPORT_READ", "REPORT_FINANCIAL",
+                "MESSAGE_READ", "MESSAGE_WRITE",
+                "CONTROL_READ", "COMPLAINT_READ",
+                "REFUND_READ", "REFUND_WRITE"));
+        rolePerms.put(Role.TAXPAYER, Set.of(
+                "TAXPAYER_READ",
+                "DECLARATION_READ", "DECLARATION_CREATE", "DECLARATION_UPDATE", "DECLARATION_SUBMIT",
+                "DEBT_READ", "DEBT_VIEW_HISTORY",
+                "PAYMENT_READ", "PAYMENT_VIEW_HISTORY",
+                "RECEIPT_READ", "RECEIPT_VIEW_HISTORY",
+                "NOTIFICATION_READ",
+                "MESSAGE_READ", "MESSAGE_WRITE",
+                "COMPLAINT_READ", "COMPLAINT_WRITE",
+                "REFUND_READ"));
 
         rolePerms.forEach((code, permCodes) -> {
-            if (roleRepository.findByCode(code).isPresent()) {
-                return;
-            }
+            Role existing = roleRepository.findByCode(code).orElse(null);
             Set<Permission> perms = permissionRepository.findAll().stream()
                     .filter(p -> permCodes.contains(p.getCode()))
                     .collect(java.util.stream.Collectors.toSet());
+            if (existing != null) {
+                // Sync permissions for existing roles
+                existing.setPermissions(perms);
+                roleRepository.save(existing);
+                return;
+            }
             Role role = Role.builder()
                     .code(code)
                     .name(code.replace("_", " "))
@@ -282,11 +489,17 @@ public class DemoDataSeeder implements ApplicationRunner {
         }
         if (regimeRepository.count() == 0) {
             regimeRepository.save(TaxRegime.builder().code("REG-REEL").name("Régime réel")
-                    .description("Régime réel d'imposition").category("REEL").build());
+                    .description("Régime réel d'imposition").category("REEL")
+                    .vatApplicable(true).obligationPeriodicity("MONTHLY")
+                    .applicableTaxTypes("TVA,IS,IRSA").build());
             regimeRepository.save(TaxRegime.builder().code("REG-SIMP").name("Régime simplifié")
-                    .description("Régime simplifié d'imposition").category("SIMPLIFIE").build());
+                    .description("Régime simplifié d'imposition").category("SIMPLIFIE")
+                    .vatApplicable(true).obligationPeriodicity("QUARTERLY")
+                    .applicableTaxTypes("TVA,IRSA").build());
             regimeRepository.save(TaxRegime.builder().code("REG-FORF").name("Régime forfaitaire")
-                    .description("Régime forfaitaire d'imposition").category("FORFAITAIRE").build());
+                    .description("Régime forfaitaire d'imposition").category("FORFAITAIRE")
+                    .vatApplicable(false).obligationPeriodicity("ANNUAL")
+                    .applicableTaxTypes("IFT").build());
         }
         if (taxTypeRepository.count() == 0) {
             createTaxType("IR", "Impôt sur les Revenus");
@@ -395,25 +608,30 @@ public class DemoDataSeeder implements ApplicationRunner {
 
         Taxpayer tp1 = taxpayerRepository.save(baseTaxpayer("0000409001", "SOCIÉTÉ MALAGASY", TaxpayerType.COMPANY,
                 center, reel, "contact@mnk-tax.mg", "036 00 000 01", "Antananarivo, Lot II 123"));
+        tp1.setLegalRepresentative("Rakotoarison Hery");
         addActivity(tp1, "4771", "Commerce de détail", true);
         addActivity(tp1, "4610", "Intermédiaires du commerce", false);
 
         Taxpayer tp2 = taxpayerRepository.save(baseTaxpayer("1234567890", "Jean RAKOTO", TaxpayerType.PERSON,
                 center, simplifie, "jean.rakoto@mnk-tax.mg", "033 00 000 02", "Antananarivo"));
+        tp2.setBirthDate(LocalDate.of(1985, 6, 15));
         addActivity(tp2, "8510", "Activités libérales", true);
 
         Taxpayer tp3 = taxpayerRepository.save(baseTaxpayer("9876543210", "ENTREPRISE SARL", TaxpayerType.COMPANY,
                 centerRepository.findByCode("CEN-002").orElseThrow(), simplifie,
                 "contact@mnk-tax.mg", "034 00 000 03", "Antananarivo, rue des Manguiers 45"));
+        tp3.setLegalRepresentative("Andriamihaja Lova");
         addActivity(tp3, "5610", "Restauration", true);
 
         Taxpayer tp4 = taxpayerRepository.save(baseTaxpayer("0000412345", "TRANSPORT SA", TaxpayerType.COMPANY,
                 centerRepository.findByCode("CEN-003").orElseThrow(), reel,
                 "transport@mnk-tax.mg", "032 00 000 04", "Toamasina"));
+        tp4.setLegalRepresentative("Rasolofonirina Mamy");
         addActivity(tp4, "4931", "Transports urbains", true);
 
         Taxpayer tp5 = taxpayerRepository.save(baseTaxpayer("1000000001", "Marie RANDRIANARISOA", TaxpayerType.PERSON,
                 center, simplifie, "marie.randrianarisoa@mnk-tax.mg", "038 00 000 05", "Antananarivo"));
+        tp5.setBirthDate(LocalDate.of(1990, 11, 2));
         addActivity(tp5, "6810", "Activités immobilières", true);
 
         createObligation(tp1, "TVA", Periodicity.MONTHLY, LocalDate.now().minusYears(1));
@@ -424,8 +642,10 @@ public class DemoDataSeeder implements ApplicationRunner {
         createObligation(tp3, "IFT", Periodicity.SEMI_ANNUAL, LocalDate.now().minusYears(1));
         createObligation(tp4, "TVA", Periodicity.MONTHLY, LocalDate.now().minusYears(1));
         createObligation(tp4, "IS", Periodicity.ANNUAL, LocalDate.now().minusYears(1));
-        createObligation(tp5, "IFPB", Periodicity.ANNUAL, LocalDate.now().minusYears(1));
-    }
+            createObligation(tp5, "IFPB", Periodicity.ANNUAL, LocalDate.now().minusYears(1));
+
+            linkTaxpayerUsers();
+        }
 
     private Taxpayer baseTaxpayer(String nif, String name, TaxpayerType type, TaxCenter center, TaxRegime regime,
                                   String email, String phone, String address) {
@@ -433,6 +653,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 .nif(nif).type(type).name(name)
                 .email(email).phone(phone).address(address)
                 .taxCenter(center).taxRegime(regime)
+                .registrationDate(LocalDate.now().minusYears(2))
                 .status(TaxpayerStatus.ACTIVE)
                 .createdAt(Instant.now()).updatedAt(Instant.now())
                 .build();
@@ -450,6 +671,25 @@ public class DemoDataSeeder implements ApplicationRunner {
                 .createdAt(Instant.now()).build());
     }
 
+    private void linkTaxpayerUsers() {
+        var taxpayerUser = userRepository.findByUsername("taxpayer.demo").orElse(null);
+        if (taxpayerUser == null) return;
+        taxpayerRepository.findByNif("1234567890").ifPresent(tp -> {
+            if (tp.getUserId() == null) {
+                tp.setUserId(taxpayerUser.getId());
+                tp.setUpdatedAt(Instant.now());
+                taxpayerRepository.save(tp);
+            }
+        });
+        taxpayerRepository.findByNif("1000000001").ifPresent(tp -> {
+            if (tp.getUserId() == null) {
+                tp.setUserId(taxpayerUser.getId());
+                tp.setUpdatedAt(Instant.now());
+                taxpayerRepository.save(tp);
+            }
+        });
+    }
+
     private void seedTransactions() {
         // Déclaration validée récente (TVA) → assessment → créance
         var tp1 = taxpayerRepository.findByNif("0000409001").orElseThrow();
@@ -457,17 +697,78 @@ public class DemoDataSeeder implements ApplicationRunner {
         Long currentDecl = createAndValidateDeclaration(tp1.getId(), "TVA", currentPeriod,
                 new BigDecimal("1000000"), new BigDecimal("200000"));
 
-        // Paiement partiel sur la créance générée → allocation + quittance
+        // Cas 1: Paiement confirmé et entièrement alloué (tp1, créance TVA récente)
         com.mnktax.debt.entity.TaxDebt newDebt = debtRepository.findAll().stream()
-                .filter(d -> d.getTaxpayer().getId().equals(tp1.getId()))
+                .filter(d -> d.getTaxpayer().getId().equals(tp1.getId()) && d.getStatus() == DebtStatus.ISSUED)
                 .max(java.util.Comparator.comparing(com.mnktax.debt.entity.TaxDebt::getId))
                 .orElse(null);
-        if (newDebt != null && newDebt.getStatus() == DebtStatus.ISSUED) {
+        if (newDebt != null) {
             try {
                 paymentService.record(new CreatePaymentRequest(newDebt.getId(),
-                        new BigDecimal("100000"), LocalDate.now(), PaymentMethod.BANK_TRANSFER, null), null);
+                        new BigDecimal("50000"), LocalDate.now().minusDays(3),
+                        PaymentMethod.BANK_TRANSFER, "TXN-BANK-001", "Paiement TVA janvier", null, null), null);
             } catch (Exception ex) {
-                log.warn("Seed paiement partiel ignoré : {}", ex.getMessage());
+                log.warn("Seed cas 1 ignoré : {}", ex.getMessage());
+            }
+        }
+
+        // Cas 2: Paiement partiellement alloué (tp1, créance TVA plus ancienne)
+        com.mnktax.debt.entity.TaxDebt partialDebt = debtRepository.findAll().stream()
+                .filter(d -> d.getTaxpayer().getId().equals(tp1.getId()) && d.getStatus() == DebtStatus.PARTIALLY_PAID)
+                .findFirst().orElse(null);
+        if (partialDebt != null) {
+            try {
+                paymentService.record(new CreatePaymentRequest(partialDebt.getId(),
+                        new BigDecimal("50000"), LocalDate.now().minusDays(2),
+                        PaymentMethod.CASH, null, "Paiement espèces partiel", null, null), null);
+            } catch (Exception ex) {
+                log.warn("Seed cas 2 ignoré : {}", ex.getMessage());
+            }
+        }
+
+        // Cas 3: Paiement en attente (tp2, créance IRSA)
+        var tp2Lookup = taxpayerRepository.findByNif("1234567890").orElse(null);
+        com.mnktax.debt.entity.TaxDebt tp2Debt = debtRepository.findAll().stream()
+                .filter(d -> d.getTaxpayer().getId().equals(tp2Lookup != null ? tp2Lookup.getId() : 0L)
+                        && d.getStatus() == DebtStatus.ISSUED)
+                .findFirst().orElse(null);
+        if (tp2Debt != null) {
+            try {
+                var pendingPayment = paymentService.record(new CreatePaymentRequest(tp2Debt.getId(),
+                        new BigDecimal("180000"), LocalDate.now().minusDays(1),
+                        PaymentMethod.MOBILE_MONEY, "TXN-MOMO-002", "Mobile Money Orange", null, null), null);
+            } catch (Exception ex) {
+                log.warn("Seed cas 3 ignoré : {}", ex.getMessage());
+            }
+        }
+
+        // Cas 5: Paiement annulé (créer puis annuler)
+        var tp4Lookup = taxpayerRepository.findByNif("0000412345").orElse(null);
+        com.mnktax.debt.entity.TaxDebt tp4Debt = debtRepository.findAll().stream()
+                .filter(d -> d.getTaxpayer() != null && d.getTaxpayer().getId().equals(tp4Lookup != null ? tp4Lookup.getId() : 0L)
+                        && d.getStatus() == DebtStatus.IN_COLLECTION)
+                .findFirst().orElse(null);
+        if (tp4Debt != null) {
+            try {
+                paymentService.record(new CreatePaymentRequest(tp4Debt.getId(),
+                        new BigDecimal("500000"), LocalDate.now().minusDays(5),
+                        PaymentMethod.CARD, "TXN-CARD-003", "Paiement carte bancaire", null, null), null);
+            } catch (Exception ex) {
+                log.warn("Seed cas 5 création ignorée : {}", ex.getMessage());
+            }
+        }
+
+        // Cas 9: Paiement d'une dette en recouvrement
+        com.mnktax.debt.entity.TaxDebt collectionDebt = debtRepository.findAll().stream()
+                .filter(d -> d.getStatus() == DebtStatus.IN_COLLECTION)
+                .findFirst().orElse(null);
+        if (collectionDebt != null) {
+            try {
+                paymentService.record(new CreatePaymentRequest(collectionDebt.getId(),
+                        new BigDecimal("200000"), LocalDate.now(),
+                        PaymentMethod.BANK_TRANSFER, "TXN-BANK-009", "Paiement en recouvrement", null, null), null);
+            } catch (Exception ex) {
+                log.warn("Seed cas 9 ignoré : {}", ex.getMessage());
             }
         }
 
@@ -537,34 +838,914 @@ public class DemoDataSeeder implements ApplicationRunner {
         return id;
     }
 
+    private void seedDebtScenarios() {
+        if (debtRepository.count() > 2) {
+            return;
+        }
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+        Taxpayer tp2 = taxpayerRepository.findByNif("1234567890").orElse(null);
+        Taxpayer tp3 = taxpayerRepository.findByNif("9876543210").orElse(null);
+        Taxpayer tp4 = taxpayerRepository.findByNif("0000412345").orElse(null);
+        Taxpayer tp5 = taxpayerRepository.findByNif("1000000001").orElse(null);
+        if (tp1 == null) return;
+
+        TaxType tva = taxTypeRepository.findByCode("TVA").orElse(null);
+        TaxType irsa = taxTypeRepository.findByCode("IRSA").orElse(null);
+        TaxType is = taxTypeRepository.findByCode("IS").orElse(null);
+        TaxType ift = taxTypeRepository.findByCode("IFT").orElse(null);
+        if (tva == null || irsa == null || is == null || ift == null) return;
+
+        LocalDate today = LocalDate.now();
+        String currentPeriod = today.getYear() + "-" + String.format("%02d", today.getMonthValue());
+
+        // 1. Créance ISSUE liée à une imposition — priorité NORMALE, déjà partiellement payée
+        TaxDebt existingPaid = debtRepository.findAll().stream()
+                .filter(d -> d.getTaxpayer().getId().equals(tp1.getId()) && d.getStatus() == DebtStatus.PARTIALLY_PAID)
+                .findFirst().orElse(null);
+        if (existingPaid != null) {
+            existingPaid.setOrigin(DebtOrigin.ASSESSMENT);
+            existingPaid.setCollectionPriority(DebtCollectionPriority.NORMAL);
+            existingPaid.setObservations("Créance TVA liée à la déclaration mensuelle. Premier contribuable du portefeuille.");
+            existingPaid.setCreatedBy("agent.tax");
+            existingPaid.setTaxpayerCenter("CEN-001");
+            existingPaid.setLastDueDate(existingPaid.getDueDate());
+            existingPaid.setUpdatedAt(Instant.now());
+            debtRepository.save(existingPaid);
+            addDebtHistory(existingPaid, "CREATED", "Créance issue d'une imposition déclarative", null, "Montant : " + existingPaid.getPrincipalAmount());
+            addDebtHistory(existingPaid, "STATUS_CHANGE", "Statut passé à PARTIELLEMENT_PAYÉ", "ISSUED", "PARTIALLY_PAID");
+        }
+
+        // 2. Créance OVERDUE haute priorité — IRSA tp2
+        TaxDebt existingOverdue = debtRepository.findAll().stream()
+                .filter(d -> d.getTaxpayer().getId().equals(tp1.getId()) && d.getStatus() == DebtStatus.OVERDUE)
+                .findFirst().orElse(null);
+        if (existingOverdue != null) {
+            existingOverdue.setOrigin(DebtOrigin.ASSESSMENT);
+            existingOverdue.setCollectionPriority(DebtCollectionPriority.HIGH);
+            existingOverdue.setObservations("Créance en retard depuis plusieurs mois. Relances multiples sans réponse.");
+            existingOverdue.setCreatedBy("agent.tax");
+            existingOverdue.setTaxpayerCenter("CEN-001");
+            existingOverdue.setLastDueDate(existingOverdue.getDueDate());
+            existingOverdue.setUpdatedAt(Instant.now());
+            debtRepository.save(existingOverdue);
+            addDebtHistory(existingOverdue, "CREATED", "Créance issue d'une imposition déclarative", null, "Montant : " + existingOverdue.getPrincipalAmount());
+            addDebtHistory(existingOverdue, "PENALTY_APPLIED", "Pénalité de retard 5% appliquée", null, existingOverdue.getPenaltyAmount() + " MGA");
+            addDebtHistory(existingOverdue, "STATUS_CHANGE", "Statut passé à EN_RETARD", "ISSUED", "OVERDUE");
+        }
+
+        // 3. Créance IN_COLLECTION —.tp4 TRANSPORT SA, priorité URGENTE
+        if (tp4 != null) {
+            TaxDebt d3 = createDemoDebt(tp4, tva, LocalDate.now().minusMonths(3),
+                    new BigDecimal("2500000"), new BigDecimal("1000000"),
+                    DebtStatus.IN_COLLECTION, DebtOrigin.DECLARATION, DebtCollectionPriority.URGENT,
+                    "Créance impayée depuis 3 mois. Mise en demeure envoyée. Risque de contentieux.",
+                    "CEN-003", "agent.collection");
+            addDebtHistory(d3, "CREATED", "Créance issue d'une déclaration TVA", null, "Montant : 2 500 000 MGA");
+            addDebtHistory(d3, "PENALTY_APPLIED", "Pénalité de retard appliquée", null, "125 000 MGA");
+            addDebtHistory(d3, "INTEREST_APPLIED", "Intérêts de retard calculés", null, "75 000 MGA (1% x 3 mois)");
+            addDebtHistory(d3, "IN_COLLECTION", "Créance envoyée en recouvrement forcé", "OVERDUE", "IN_COLLECTION");
+        }
+
+        // 4. Créance DISPUTED — tp3 ENTREPRISE SARL, priorité NORMALE
+        if (tp3 != null) {
+            TaxDebt d4 = createDemoDebt(tp3, ift, LocalDate.now().minusMonths(6),
+                    new BigDecimal("450000"), BigDecimal.ZERO,
+                    DebtStatus.DISPUTED, DebtOrigin.CONTROL, DebtCollectionPriority.NORMAL,
+                    "Contestation du montant par le contribuable. En attente de vérification sur place.",
+                    "CEN-002", "agent.tax");
+            addDebtHistory(d4, "CREATED", "Créance issue d'un contrôle fiscal", null, "Montant : 450 000 MGA");
+            addDebtHistory(d4, "STATUS_CHANGE", "Créance mise en contestation", "ISSUED", "DISPUTED");
+        }
+
+        // 5. Créance SUSPENDED — tp5 Marie RANDRIANARISOA, priorité BASSE
+        if (tp5 != null) {
+            TaxDebt d5 = createDemoDebt(tp5, irsa, LocalDate.now().minusMonths(2),
+                    new BigDecimal("780000"), BigDecimal.ZERO,
+                    DebtStatus.SUSPENDED, DebtOrigin.OTHER, DebtCollectionPriority.LOW,
+                    "Procédure de réclamation en cours. Contribuable a déposé une réclamation acceptée sous examen.",
+                    "CEN-001", "admin");
+            addDebtHistory(d5, "CREATED", "Créance liée à une imposition IRSA", null, "Montant : 780 000 MGA");
+            addDebtHistory(d5, "SUSPENDED", "Créance suspendue pour réclamation", "ISSUED", "SUSPENDED");
+        }
+
+        // 6. Créance CLOSED — tp1, créance irrécouvrable ancienne
+        TaxDebt d6 = createDemoDebt(tp1, tva, LocalDate.now().minusMonths(12),
+                new BigDecimal("350000"), BigDecimal.ZERO,
+                DebtStatus.CLOSED, DebtOrigin.AUDIT, DebtCollectionPriority.NORMAL,
+                "Créance irrécouvrable — contribuable radié. Clôturée sur décision administrative.",
+                "CEN-001", "admin");
+        addDebtHistory(d6, "CREATED", "Créance issue d'un audit fiscal", null, "Montant : 350 000 MGA");
+        addDebtHistory(d6, "CLOSED", "Créance clôturée — irrécouvrable", "OVERDUE", "CLOSED");
+
+        // 7. Créance ISSUED récente — tp2 IRSA, priorité NORMALE
+        if (tp2 != null) {
+            TaxDebt d7 = createDemoDebt(tp2, irsa, today.minusWeeks(2),
+                    new BigDecimal("180000"), BigDecimal.ZERO,
+                    DebtStatus.ISSUED, DebtOrigin.ASSESSMENT, DebtCollectionPriority.NORMAL,
+                    "Créance émise il y a 2 semaines. Échéance dans 2 semaines.",
+                    "CEN-001", "agent.tax");
+            addDebtHistory(d7, "CREATED", "Créance émise depuis imposition IRSA", null, "Montant : 180 000 MGA");
+        }
+
+        // 8. Créance PARTIALLY_PAID haute priorité — tp3 TVA
+        if (tp3 != null) {
+            TaxDebt d8 = createDemoDebt(tp3, tva, LocalDate.now().minusMonths(1),
+                    new BigDecimal("850000"), new BigDecimal("300000"),
+                    DebtStatus.PARTIALLY_PAID, DebtOrigin.DECLARATION, DebtCollectionPriority.HIGH,
+                    "Paiement partiel reçu. Solde restant : 550 000 MGA. Relance nécessaire.",
+                    "CEN-002", "agent.collection");
+            addDebtHistory(d8, "CREATED", "Créance issue d'une déclaration TVA", null, "Montant : 850 000 MGA");
+            addDebtHistory(d8, "PAYMENT_RECEIVED", "Paiement partiel de 300 000 MGA reçu", null, "300 000 MGA via VIREMENT");
+            addDebtHistory(d8, "STATUS_CHANGE", "Statut passé à PARTIELLEMENT_PAYÉ", "ISSUED", "PARTIALLY_PAID");
+        }
+
+        // 9. Créance OVERDUE urgence — tp4 IS, priorité URGENTE
+        if (tp4 != null) {
+            TaxDebt d9 = createDemoDebt(tp4, is, LocalDate.now().minusMonths(4),
+                    new BigDecimal("5000000"), new BigDecimal("1500000"),
+                    DebtStatus.OVERDUE, DebtOrigin.RECOVERY, DebtCollectionPriority.URGENT,
+                    "Créance en retard sévère. Plusieurs relances échouées. Risque de saisie administrative.",
+                    "CEN-003", "agent.collection");
+            addDebtHistory(d9, "CREATED", "Créance issue d'une procédure de recouvrement", null, "Montant : 5 000 000 MGA");
+            addDebtHistory(d9, "PAYMENT_RECEIVED", "Paiement partiel de 1 500 000 MGA", null, "1 500 000 MGA");
+            addDebtHistory(d9, "PENALTY_APPLIED", "Pénalité de retard appliquée", null, "175 000 MGA");
+            addDebtHistory(d9, "STATUS_CHANGE", "Statut passé à EN_RETARD", "PARTIALLY_PAID", "OVERDUE");
+        }
+    }
+
+    private TaxDebt createDemoDebt(Taxpayer tp, TaxType taxType, LocalDate issueDate,
+                                    BigDecimal principal, BigDecimal paid,
+                                    DebtStatus status, DebtOrigin origin,
+                                    DebtCollectionPriority priority, String observations,
+                                    String centerCode, String createdBy) {
+        LocalDate dueDate = issueDate.plusDays(30);
+        BigDecimal balance = principal.subtract(paid);
+        if (balance.signum() < 0) balance = BigDecimal.ZERO;
+
+        TaxDebt debt = TaxDebt.builder()
+                .reference(com.mnktax.common.util.ReferenceGenerator.next("DEB"))
+                .taxpayer(tp)
+                .assessment(null)
+                .taxType(taxType)
+                .period(issueDate.getYear() + "-" + String.format("%02d", issueDate.getMonthValue()))
+                .principalAmount(principal)
+                .penaltyAmount(BigDecimal.ZERO)
+                .interestAmount(BigDecimal.ZERO)
+                .adjustmentsAmount(BigDecimal.ZERO)
+                .creditsAmount(BigDecimal.ZERO)
+                .totalAmount(principal)
+                .paidAmount(paid)
+                .balance(balance)
+                .issueDate(issueDate)
+                .dueDate(dueDate)
+                .lastDueDate(dueDate)
+                .status(status)
+                .origin(origin)
+                .collectionPriority(priority)
+                .observations(observations)
+                .createdBy(createdBy)
+                .taxpayerCenter(centerCode)
+                .closedAt(status == DebtStatus.CLOSED || status == DebtStatus.PAID ? Instant.now() : null)
+                .suspendedAt(status == DebtStatus.SUSPENDED ? Instant.now() : null)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+        TaxDebt saved = debtRepository.save(debt);
+        addItem(saved, DebtItem.Kind.PRINCIPAL, "Principal créance " + taxType.getCode() + " " + saved.getPeriod(), principal);
+        if (paid.signum() > 0) {
+            addItem(saved, DebtItem.Kind.CREDIT, "Paiement partiel", paid);
+        }
+        return saved;
+    }
+
+    private void addDebtHistory(TaxDebt debt, String eventType, String description,
+                                String oldValue, String newValue) {
+        debtHistoryRepository.save(DebtHistory.builder()
+                .debt(debt)
+                .eventType(eventType)
+                .description(description)
+                .oldValue(oldValue)
+                .newValue(newValue)
+                .performedBy("seed")
+                .eventDate(Instant.now())
+                .createdAt(Instant.now())
+                .build());
+    }
+
+    private void addItem(TaxDebt debt, DebtItem.Kind kind, String label, BigDecimal amount) {
+        if (amount == null || amount.signum() == 0) return;
+        debtItemRepository.save(DebtItem.builder().debt(debt).kind(kind).label(label)
+                .amount(amount).createdAt(Instant.now()).build());
+    }
+
     private void seedMessages() {
         User admin = userRepository.findByUsername("admin").orElse(null);
         User agentTax = userRepository.findByUsername("agent.tax").orElse(null);
         User agentColl = userRepository.findByUsername("agent.collection").orElse(null);
         User accountant = userRepository.findByUsername("accountant").orElse(null);
+        User taxpayerUser = userRepository.findByUsername("taxpayer.demo").orElse(null);
         if (admin == null || agentTax == null || agentColl == null || accountant == null) {
             return;
         }
+
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+
+        // 1. Message non lu — général
         messageRepository.save(Message.builder()
                 .senderId(admin.getId()).senderName("Admin")
                 .recipientId(agentTax.getId())
                 .subject("Bienvenue sur la plateforme")
                 .content("Bonjour, votre compte a été activé. Vous pouvez consulter les contribuables, les déclarations et les créances.")
                 .read(false)
-                .createdAt(Instant.now().minusSeconds(3600)).build());
-        messageRepository.save(Message.builder()
+                .createdAt(Instant.now().minusSeconds(7200))
+                .threadId(1L).contextType(MessageContextType.GENERAL)
+                .priority(MessagePriority.NORMAL).processingStatus(MessageProcessingStatus.WAITING_RESPONSE)
+                .build());
+
+        // 2. Message lu — contexte déclaration
+        Message m2 = messageRepository.save(Message.builder()
                 .senderId(agentTax.getId()).senderName("Agent Fiscal")
                 .recipientId(admin.getId())
-                .subject("Demande d'information")
-                .content("Bonjour, pourriez-vous vérifier le centre fiscal attribué au contribuable SOCIÉTÉ MALAGASY ?")
-                .read(false)
-                .createdAt(Instant.now().minusSeconds(1800)).build());
+                .subject("Vérification déclaration TVA")
+                .content("Bonjour, la déclaration TVA de SOCIÉTÉ MALAGASY nécessite une vérification du centre fiscal. Pouvez-vous confirmer le centre CEN-001 ?")
+                .read(true).readAt(Instant.now().minusSeconds(3000))
+                .createdAt(Instant.now().minusSeconds(5400))
+                .threadId(2L).contextType(MessageContextType.DECLARATION)
+                .contextRef("DEC-2026-00001").taxpayerId(tp1 != null ? tp1.getId() : null)
+                .priority(MessagePriority.NORMAL).processingStatus(MessageProcessingStatus.RESPONDED)
+                .build());
+
+        // 3. Réponse au message 2 — thread conversation
+        Message m3 = messageRepository.save(Message.builder()
+                .senderId(admin.getId()).senderName("Admin")
+                .recipientId(agentTax.getId())
+                .subject("Re: Vérification déclaration TVA")
+                .content("Confirmé, le centre fiscal est bien CEN-001 (Analakely). Le contribuable est enregistré sous ce centre.")
+                .read(true).readAt(Instant.now().minusSeconds(2400))
+                .createdAt(Instant.now().minusSeconds(3600))
+                .threadId(m2.getThreadId()).contextType(MessageContextType.DECLARATION)
+                .contextRef("DEC-2026-00001").taxpayerId(tp1 != null ? tp1.getId() : null)
+                .priority(MessagePriority.NORMAL).processingStatus(MessageProcessingStatus.CLOSED)
+                .closedAt(Instant.now().minusSeconds(2400))
+                .build());
+
+        // 4. Message urgent — dette
         messageRepository.save(Message.builder()
                 .senderId(agentColl.getId()).senderName("Agent Recouvrement")
                 .recipientId(accountant.getId())
-                .subject("Relance de paiement")
-                .content("Bonjour, le contribuable a confirmé un virement pour la créance en cours. Merci de vérifier l'encaissement.")
+                .subject("Créance en retard — action requise")
+                .content("La créance DET-2026-00001 du contribuable SOCIÉTÉ MALAGASY est en retard de paiement. Montant dû : 2 500 000 MGA. Une relance est nécessaire.")
                 .read(false)
-                .createdAt(Instant.now().minusSeconds(600)).build());
+                .createdAt(Instant.now().minusSeconds(1800))
+                .threadId(4L).contextType(MessageContextType.DEBT)
+                .contextRef("DET-2026-00001").taxpayerId(tp1 != null ? tp1.getId() : null)
+                .priority(MessagePriority.URGENT).processingStatus(MessageProcessingStatus.WAITING_RESPONSE)
+                .build());
+
+        // 5. Message important — paiement
+        messageRepository.save(Message.builder()
+                .senderId(accountant.getId()).senderName("Comptable")
+                .recipientId(agentTax.getId())
+                .subject("Paiement reçu — vérification")
+                .content("Un paiement de 100 000 MGA a été reçu pour la créance DET-2026-00001. Le reçu sera disponible sous peu.")
+                .read(false)
+                .createdAt(Instant.now().minusSeconds(900))
+                .threadId(5L).contextType(MessageContextType.PAYMENT)
+                .contextRef("PAY-2026-00001").taxpayerId(tp1 != null ? tp1.getId() : null)
+                .priority(MessagePriority.IMPORTANT).processingStatus(MessageProcessingStatus.WAITING_RESPONSE)
+                .build());
+
+        // 6. Message archivé — recouvrement
+        messageRepository.save(Message.builder()
+                .senderId(agentColl.getId()).senderName("Agent Recouvrement")
+                .recipientId(admin.getId())
+                .subject("Action de recouvrement terminée")
+                .content("L'action de relance téléphonique pour la créance DET-2026-00002 a été effectuée. Le contribuable a promis un paiement sous 15 jours.")
+                .read(true).readAt(Instant.now().minusSeconds(1000))
+                .createdAt(Instant.now().minusSeconds(86400))
+                .threadId(6L).contextType(MessageContextType.RECOVERY)
+                .contextRef("DET-2026-00002").taxpayerId(tp1 != null ? tp1.getId() : null)
+                .priority(MessagePriority.NORMAL).processingStatus(MessageProcessingStatus.ARCHIVED)
+                .archivedAt(Instant.now().minusSeconds(500))
+                .build());
+
+        // 7. Message fermé — contrôle fiscal
+        messageRepository.save(Message.builder()
+                .senderId(agentTax.getId()).senderName("Agent Fiscal")
+                .recipientId(admin.getId())
+                .subject("Contrôle fiscal planifié")
+                .content("Un contrôle fiscal est planifié pour le contribuable ENTREPRISE SARL (NIF: 9876543210) la semaine prochaine.")
+                .read(true).readAt(Instant.now().minusSeconds(500))
+                .createdAt(Instant.now().minusSeconds(172800))
+                .threadId(7L).contextType(MessageContextType.AUDIT)
+                .contextRef("CTRL-2026-001").taxpayerId(null)
+                .priority(MessagePriority.IMPORTANT).processingStatus(MessageProcessingStatus.CLOSED)
+                .closedAt(Instant.now().minusSeconds(86400))
+                .build());
+
+        // 8. Message non lu — échéance
+        messageRepository.save(Message.builder()
+                .senderId(admin.getId()).senderName("Admin")
+                .recipientId(agentTax.getId())
+                .subject("Échéance TVA à venir")
+                .content("L'échéance de déclaration TVA pour la période " + LocalDate.now().getYear() + "-" + String.format("%02d", LocalDate.now().getMonthValue()) + " est dans 5 jours. Merci de vérifier les déclarations en attente.")
+                .read(false)
+                .createdAt(Instant.now().minusSeconds(600))
+                .threadId(8L).contextType(MessageContextType.DEADLINE)
+                .contextRef("TVA-" + LocalDate.now().getYear() + "-" + String.format("%02d", LocalDate.now().getMonthValue()))
+                .priority(MessagePriority.URGENT).processingStatus(MessageProcessingStatus.WAITING_RESPONSE)
+                .build());
+
+        // 9. Message avec contribuable — réclamation
+        if (taxpayerUser != null) {
+            messageRepository.save(Message.builder()
+                    .senderId(taxpayerUser.getId()).senderName("Contribuable")
+                    .recipientId(agentTax.getId())
+                    .subject("Réclamation montant déclaré")
+                    .content("Bonjour, je souhaite contester le montant calculé sur ma déclaration IRSA du mois dernier. Le montant déclaré semble incorrect.")
+                    .read(false)
+                    .createdAt(Instant.now().minusSeconds(300))
+                    .threadId(9L).contextType(MessageContextType.COMPLAINT)
+                    .taxpayerId(tp1 != null ? tp1.getId() : null)
+                    .priority(MessagePriority.NORMAL).processingStatus(MessageProcessingStatus.WAITING_RESPONSE)
+                    .build());
+        }
+    }
+
+    /**
+     * Contrôles fiscaux de démonstration (données fictives).
+     */
+    private void seedControls() {
+        User agentTax = userRepository.findByUsername("agent.tax").orElse(null);
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+        Taxpayer tp3 = taxpayerRepository.findByNif("9876543210").orElse(null);
+        if (tp1 == null || tp3 == null) {
+            return;
+        }
+        Long agentId = agentTax != null ? agentTax.getId() : null;
+
+        // 1. Contrôle en cours sur SOCIÉTÉ MALAGASY
+        TaxControl open = TaxControl.builder()
+                .reference(com.mnktax.common.util.ReferenceGenerator.next("CTRL"))
+                .taxpayer(tp1)
+                .agentId(agentId)
+                .controlType(ControlType.MIXED)
+                .periodStart(LocalDate.now().minusMonths(2))
+                .periodEnd(LocalDate.now())
+                .reason("Vérification de cohérence des déclarations TVA et des pièces comptables.")
+                .status(ControlStatus.IN_PROGRESS)
+                .startedAt(Instant.now().minus(java.time.Duration.ofDays(15)))
+                .observations("Vérification en cours, pièces en attente de transmission.")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(20)))
+                .updatedAt(Instant.now())
+                .build();
+        controlRepository.save(open);
+        controlDocumentRepository.save(ControlDocument.builder()
+                .control(open).title("Grand livre comptable").documentType("COMPTABLE")
+                .requested(true).received(true).createdAt(Instant.now()).build());
+
+        // 2. Contrôle clôturé avec redressement sur ENTREPRISE SARL
+        TaxControl closed = TaxControl.builder()
+                .reference(com.mnktax.common.util.ReferenceGenerator.next("CTRL"))
+                .taxpayer(tp3)
+                .agentId(agentId)
+                .controlType(ControlType.ON_SITE)
+                .periodStart(LocalDate.now().minusMonths(8))
+                .periodEnd(LocalDate.now().minusMonths(6))
+                .reason("Contrôle sur place suite à des écarts constatés dans les déclarations IFT.")
+                .status(ControlStatus.REDRESSEMENT)
+                .startedAt(Instant.now().minus(java.time.Duration.ofDays(180)))
+                .completedAt(Instant.now().minus(java.time.Duration.ofDays(90)))
+                .observations("Anomalies confirmées : bases déclarées inférieures aux bases réelles.")
+                .anomalies("Sous-déclaration de la base IFT sur deux exercices.")
+                .redressement(new BigDecimal("450000"))
+                .penaltyAmount(new BigDecimal("22500"))
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(210)))
+                .updatedAt(Instant.now())
+                .build();
+        controlRepository.save(closed);
+        controlDocumentRepository.save(ControlDocument.builder()
+                .control(closed).title("Bilans et relevés fonciers").documentType("FONCIER")
+                .requested(true).received(true).createdAt(Instant.now()).build());
+    }
+
+    /* ═══════════════════════════ Notifications ═══════════════════════════ */
+    private void seedNotifications() {
+        User admin = userRepository.findByUsername("admin").orElse(null);
+        User agentTax = userRepository.findByUsername("agent.tax").orElse(null);
+        User agentColl = userRepository.findByUsername("agent.collection").orElse(null);
+        if (admin == null || agentTax == null) return;
+
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+        String period = LocalDate.now().getYear() + "-" + String.format("%02d", LocalDate.now().getMonthValue());
+
+        createNotification(agentTax.getId(), NotificationType.DEADLINE_APPROACHING,
+                "Échéance TVA à venir",
+                "La date limite de déclaration TVA pour la période " + period + " approche.",
+                "DEADLINE", period, false);
+        createNotification(admin.getId(), NotificationType.PAYMENT_RECEIVED,
+                "Paiement reçu — 100 000 MGA",
+                "Un paiement a été enregistré pour le contribuable SOCIÉTÉ MALAGASY.",
+                "PAYMENT", null, true);
+        createNotification(agentColl.getId(), NotificationType.OVERDUE,
+                "Créance en retard — TRANSPORT SA",
+                "La créance TVA de TRANSPORT SA est en retard de 3 mois. Action de recouvrement requise.",
+                "DEBT", null, false);
+        createNotification(admin.getId(), NotificationType.COLLECTION_NOTICE,
+                "Mise en demeure envoyée",
+                "Une mise en demeure a été envoyée pour la créance IN_COLLECTION de TRANSPORT SA.",
+                "COLLECTION", null, true);
+        createNotification(agentTax.getId(), NotificationType.DOCUMENT_READY,
+                "Quittance disponible",
+                "La quittance pour le paiement de SOCIÉTÉ MALAGASY est prête.",
+                "RECEIPT", null, false);
+        createNotification(admin.getId(), NotificationType.MESSAGE_RECEIVED,
+                "Nouveau message — Urgent",
+                "L'agent de recouvrement signale une créance en retard nécessitant une action immédiate.",
+                "MESSAGE", null, false);
+        createNotification(agentTax.getId(), NotificationType.DEADLINE_TODAY,
+                "Échéance IRSA aujourd'hui",
+                "La date limite de déclaration IRSA pour la période " + period + " est aujourd'hui.",
+                "DEADLINE", period, false);
+        createNotification(admin.getId(), NotificationType.PAYMENT_REJECTED,
+                "Paiement rejeté — CHQ-001",
+                "Un chèque de 500 000 MGA a été rejeté par la banque pour le contribuable ENTREPRISE SARL.",
+                "PAYMENT", null, false);
+    }
+
+    private void createNotification(Long userId, NotificationType type, String title,
+                                    String message, String entityType, String entityId, boolean read) {
+        notificationRepository.save(Notification.builder()
+                .userId(userId).type(type).title(title).message(message)
+                .entityType(entityType).entityId(entityId)
+                .read(read).readAt(read ? Instant.now().minusSeconds(600) : null)
+                .createdAt(Instant.now().minusSeconds((long) (Math.random() * 86400)))
+                .build());
+    }
+
+    /* ═══════════════════════════ Audit Logs ═══════════════════════════ */
+    private void seedAuditLogs() {
+        User admin = userRepository.findByUsername("admin").orElse(null);
+        User agentTax = userRepository.findByUsername("agent.tax").orElse(null);
+        User agentColl = userRepository.findByUsername("agent.collection").orElse(null);
+        if (admin == null || agentTax == null) return;
+
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+        Taxpayer tp2 = taxpayerRepository.findByNif("1234567890").orElse(null);
+        Taxpayer tp3 = taxpayerRepository.findByNif("9876543210").orElse(null);
+
+        createAuditLog(admin.getId(), "admin", "CREATE", "Taxpayer", tp1 != null ? String.valueOf(tp1.getId()) : null,
+                null, "NIF: 0000409001 — SOCIÉTÉ MALAGASY", "192.168.1.10");
+        createAuditLog(agentTax.getId(), "agent.tax", "VALIDATE", "Declaration", null,
+                "DRAFT", "VALIDATED", "192.168.1.15");
+        createAuditLog(agentColl.getId(), "agent.collection", "UPDATE", "Debt", null,
+                "OVERDUE", "IN_COLLECTION", "192.168.1.20");
+        createAuditLog(admin.getId(), "admin", "CREATE", "User", null,
+                null, "Utilisateur 'agent.tax' créé", "192.168.1.10");
+        createAuditLog(agentTax.getId(), "agent.tax", "VIEW", "Assessment", null,
+                null, null, "192.168.1.15");
+        createAuditLog(agentColl.getId(), "agent.collection", "COLLECTION_ACTION", "Debt", null,
+                null, "Action de relance enregistrée", "192.168.1.20");
+        createAuditLog(admin.getId(), "admin", "UPDATE", "SystemParameter", null,
+                "VAT_RATE=18", "VAT_RATE=20", "192.168.1.10");
+        createAuditLog(agentTax.getId(), "agent.tax", "CREATE", "Declaration", null,
+                null, "Déclaration TVA créée pour ENTREPRISE SARL", "192.168.1.15");
+        createAuditLog(agentColl.getId(), "agent.collection", "EXPORT", "Debt", null,
+                null, null, "192.168.1.20");
+        createAuditLog(admin.getId(), "admin", "LOGIN", "User", String.valueOf(admin.getId()),
+                null, "Connexion réussie", "192.168.1.10");
+        createAuditLog(agentTax.getId(), "agent.tax", "CONTROL", "TaxControl", null,
+                null, "Contrôle fiscal initié — mode mixte", "192.168.1.15");
+    }
+
+    private void createAuditLog(Long userId, String username, String action,
+                                String entityType, String entityId,
+                                String oldValue, String newValue, String ip) {
+        auditLogRepository.save(AuditLog.builder()
+                .userId(userId).username(username).action(action)
+                .entityType(entityType).entityId(entityId)
+                .oldValue(oldValue).newValue(newValue)
+                .ipAddress(ip).userAgent("Mozilla/5.0 (Demo)")
+                .createdAt(Instant.now().minusSeconds((long) (Math.random() * 604800)))
+                .build());
+    }
+
+    /* ═══════════════════════════ Réclamations ═══════════════════════════ */
+    private void seedComplaints() {
+        User agentTax = userRepository.findByUsername("agent.tax").orElse(null);
+        User admin = userRepository.findByUsername("admin").orElse(null);
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+        Taxpayer tp3 = taxpayerRepository.findByNif("9876543210").orElse(null);
+        Taxpayer tp5 = taxpayerRepository.findByNif("1000000001").orElse(null);
+        if (agentTax == null || tp1 == null) return;
+
+        // 1. Réclamation ouverte — contestation montant TVA
+        Complaint c1 = complaintRepository.save(Complaint.builder()
+                .reference(com.mnktax.common.util.ReferenceGenerator.next("REC"))
+                .taxpayer(tp1)
+                .subject("Contestation montant TVA déclaré")
+                .description("Le contribuable conteste le montant de la TVA calculée pour la période " +
+                        LocalDate.now().getYear() + "-" + String.format("%02d", LocalDate.now().getMonthValue()) +
+                        ". Il affirme que la base d'imposition est incorrecte.")
+                .contextType(ContextType.DECLARATION)
+                .contextRef("DEC-2026-00001")
+                .status(ComplaintStatus.UNDER_REVIEW)
+                .assignedTo(agentTax.getId())
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(5)))
+                .updatedAt(Instant.now())
+                .build());
+
+        complaintResponseRepository.save(ComplaintResponse.builder()
+                .complaint(c1).authorId(agentTax.getId()).authorName("Agent Fiscal")
+                .content("Réclamation en cours d'examen. Vérification de la base d'imposition avec les pièces comptables.")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(3)))
+                .build());
+
+        complaintResponseRepository.save(ComplaintResponse.builder()
+                .complaint(c1).authorId(admin.getId()).authorName("Admin")
+                .content("Complément de pièces demandé au contribuable. Délai de 10 jours.")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(1)))
+                .build());
+
+        // 2. Réclamation acceptée — pénalité injustifiée
+        Complaint c2 = complaintRepository.save(Complaint.builder()
+                .reference(com.mnktax.common.util.ReferenceGenerator.next("REC"))
+                .taxpayer(tp3)
+                .subject("Pénalité de retard contestée — IFT")
+                .description("La pénalité de retard appliquée est contestée. Le contribuable justifie un cas de force majeure (catastrophe naturelle).")
+                .contextType(ContextType.DEBT)
+                .contextRef("DEB-2026-001")
+                .status(ComplaintStatus.ACCEPTED)
+                .assignedTo(agentTax.getId())
+                .resolution("Pénalité annulée — cas de force majeure confirmé.")
+                .resolvedAt(Instant.now().minus(java.time.Duration.ofDays(2)))
+                .closedAt(Instant.now().minus(java.time.Duration.ofDays(1)))
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(15)))
+                .updatedAt(Instant.now())
+                .build());
+
+        complaintResponseRepository.save(ComplaintResponse.builder()
+                .complaint(c2).authorId(agentTax.getId()).authorName("Agent Fiscal")
+                .content("Analyse terminée. Le cas de force majeure est confirmé par les documents fournis. La pénalité est annulée.")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(2)))
+                .build());
+
+        // 3. Réclamation rejetée
+        if (tp5 != null) {
+            Complaint c3 = complaintRepository.save(Complaint.builder()
+                    .reference(com.mnktax.common.util.ReferenceGenerator.next("REC"))
+                    .taxpayer(tp5)
+                    .subject("Remboursement TVA refusé")
+                    .description("Le contribuable demande le remboursement d'un crédit TVA de 250 000 MGA. Après vérification, le crédit n'est pas justifié.")
+                    .contextType(ContextType.REFUND)
+                    .status(ComplaintStatus.REJECTED)
+                    .assignedTo(agentTax.getId())
+                    .resolution("Remboursement rejeté — crédit TVA non justifié par les pièces comptables.")
+                    .resolvedAt(Instant.now().minus(java.time.Duration.ofDays(7)))
+                    .closedAt(Instant.now().minus(java.time.Duration.ofDays(6)))
+                    .createdAt(Instant.now().minus(java.time.Duration.ofDays(20)))
+                    .updatedAt(Instant.now())
+                    .build());
+
+            complaintResponseRepository.save(ComplaintResponse.builder()
+                    .complaint(c3).authorId(agentTax.getId()).authorName("Agent Fiscal")
+                    .content("Après vérification, les factures fournies ne justifient pas le crédit TVA réclamé. Rejet confirmé.")
+                    .createdAt(Instant.now().minus(java.time.Duration.ofDays(7)))
+                    .build());
+        }
+    }
+
+    /* ═══════════════════════════ Remboursements ═══════════════════════════ */
+    private void seedRefunds() {
+        User agentTax = userRepository.findByUsername("agent.tax").orElse(null);
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+        Taxpayer tp4 = taxpayerRepository.findByNif("0000412345").orElse(null);
+        if (tp1 == null || agentTax == null) return;
+
+        // 1. Remboursement en cours — excédent TVA
+        refundRepository.save(Refund.builder()
+                .reference(com.mnktax.common.util.ReferenceGenerator.next("REM"))
+                .taxpayer(tp1)
+                .reason(RefundReason.VAT_CREDIT)
+                .description("Crédit TVA excédentaire du mois précédent. Montant calculé : 350 000 MGA.")
+                .amount(new BigDecimal("350000"))
+                .status(RefundStatus.UNDER_REVIEW)
+                .requestedBy("agent.tax")
+                .reviewedBy("agent.tax")
+                .reviewedAt(Instant.now().minus(java.time.Duration.ofDays(3)))
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(10)))
+                .updatedAt(Instant.now())
+                .build());
+
+        // 2. Remboursement approuvé et payé
+        if (tp4 != null) {
+            refundRepository.save(Refund.builder()
+                    .reference(com.mnktax.common.util.ReferenceGenerator.next("REM"))
+                    .taxpayer(tp4)
+                    .reason(RefundReason.OVERPAYMENT)
+                    .description("Surpaiement constaté sur la déclaration IS. Le contribuable a payé 2 500 000 MGA au lieu de 2 000 000 MGA.")
+                    .amount(new BigDecimal("500000"))
+                    .status(RefundStatus.PAID)
+                    .requestedBy("agent.collection")
+                    .reviewedBy("admin")
+                    .reviewedAt(Instant.now().minus(java.time.Duration.ofDays(20)))
+                    .approvedAmount(new BigDecimal("500000"))
+                    .paymentMethod("BANK_TRANSFER")
+                    .paymentReference("VIR-2026-REM-001")
+                    .paidAt(Instant.now().minus(java.time.Duration.ofDays(5)))
+                    .createdAt(Instant.now().minus(java.time.Duration.ofDays(30)))
+                    .updatedAt(Instant.now())
+                    .build());
+        }
+
+        // 3. Remboursement rejeté
+        refundRepository.save(Refund.builder()
+                .reference(com.mnktax.common.util.ReferenceGenerator.next("REM"))
+                .taxpayer(tp1)
+                .reason(RefundReason.OTHER)
+                .description("Demande de remboursement pour erreur de virement. Le contribuable affirme avoir effectué un double paiement.")
+                .amount(new BigDecimal("150000"))
+                .status(RefundStatus.REJECTED)
+                .requestedBy("agent.tax")
+                .reviewedBy("admin")
+                .reviewedAt(Instant.now().minus(java.time.Duration.ofDays(5)))
+                .rejectionReason("Aucune preuve de double paiement trouvée dans les relevés bancaires.")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(12)))
+                .updatedAt(Instant.now())
+                .build());
+    }
+
+    /* ═══════════════════════════ Mises en demeure ═══════════════════════════ */
+    private void seedCollectionNotices() {
+        List<TaxDebt> inCollectionDebts = debtRepository.findByStatusAndDueDateBefore(
+                DebtStatus.IN_COLLECTION, LocalDate.now());
+        if (inCollectionDebts.isEmpty()) {
+            // fallback: use overdue debts
+            inCollectionDebts = debtRepository.findByStatusAndDueDateBefore(
+                    DebtStatus.OVERDUE, LocalDate.now());
+        }
+        if (inCollectionDebts.isEmpty()) return;
+
+        TaxDebt d1 = inCollectionDebts.get(0);
+        collectionNoticeRepository.save(CollectionNotice.builder()
+                .debt(d1)
+                .noticeNumber("MD-" + LocalDate.now().getYear() + "-" + String.format("%04d", 1))
+                .noticeDate(LocalDate.now().minusDays(20))
+                .noticeType("MISE_EN_DEMEURE")
+                .content("Mise en demeure : Vous êtes prié de régulariser votre situation fiscale dans un délai de 30 jours.")
+                .sentAt(Instant.now().minus(java.time.Duration.ofDays(18)))
+                .status("SENT")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(20)))
+                .build());
+
+        collectionNoticeRepository.save(CollectionNotice.builder()
+                .debt(d1)
+                .noticeNumber("REL-" + LocalDate.now().getYear() + "-" + String.format("%04d", 1))
+                .noticeDate(LocalDate.now().minusDays(10))
+                .noticeType("RELANCE")
+                .content("Relance : Suite à la mise en demeure du " + LocalDate.now().minusDays(20) + ", merci de procéder au paiement.")
+                .sentAt(Instant.now().minus(java.time.Duration.ofDays(8)))
+                .status("SENT")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(10)))
+                .build());
+
+        if (inCollectionDebts.size() > 1) {
+            TaxDebt d2 = inCollectionDebts.get(1);
+            collectionNoticeRepository.save(CollectionNotice.builder()
+                    .debt(d2)
+                    .noticeNumber("AV-" + LocalDate.now().getYear() + "-" + String.format("%04d", 1))
+                    .noticeDate(LocalDate.now().minusDays(5))
+                    .noticeType("AVERTISSEMENT")
+                    .content("Avertissement : Votre créance est en retard. Veuillez régulariser dans les meilleurs délais.")
+                    .status("DRAFT")
+                    .createdAt(Instant.now().minus(java.time.Duration.ofDays(5)))
+                    .build());
+        }
+    }
+
+    /* ═══════════════════════════ Annexes + Historique déclarations ═══════════════════════════ */
+    private void seedDeclarationExtras() {
+        List<com.mnktax.declaration.entity.Declaration> declarations = declarationRepository.findAll();
+        if (declarations.isEmpty()) return;
+
+        com.mnktax.declaration.entity.Declaration d1 = declarations.get(0);
+
+        // Annexes
+        declarationAnnexeRepository.save(DeclarationAnnexe.builder()
+                .declaration(d1)
+                .nom("bilan_comptable_2026.pdf")
+                .fichier("/data/documents/bilan_comptable_2026.pdf")
+                .typeMime("application/pdf")
+                .taille(245000L)
+                .categorie("COMPTABLE")
+                .obligatoire(true)
+                .uploadedBy("agent.tax")
+                .createdAt(Instant.now())
+                .build());
+
+        declarationAnnexeRepository.save(DeclarationAnnexe.builder()
+                .declaration(d1)
+                .nom("etat_resultat.xlsx")
+                .fichier("/data/documents/etat_resultat.xlsx")
+                .typeMime("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                .taille(128000L)
+                .categorie("COMPTABLE")
+                .obligatoire(true)
+                .uploadedBy("agent.tax")
+                .createdAt(Instant.now())
+                .build());
+
+        declarationAnnexeRepository.save(DeclarationAnnexe.builder()
+                .declaration(d1)
+                .nom("justificatif_domicile.pdf")
+                .fichier("/data/documents/justificatif_domicile.pdf")
+                .typeMime("application/pdf")
+                .taille(52000L)
+                .categorie("GENERAL")
+                .obligatoire(false)
+                .uploadedBy("taxpayer.demo")
+                .createdAt(Instant.now())
+                .build());
+
+        // Historiques
+        declarationHistoryRepository.save(DeclarationHistory.builder()
+                .declaration(d1)
+                .userId(1L).username("admin")
+                .action("CREATION")
+                .nouveauStatut("DRAFT")
+                .commentaire("Déclaration créée automatiquement par le système.")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(7)))
+                .build());
+
+        declarationHistoryRepository.save(DeclarationHistory.builder()
+                .declaration(d1)
+                .userId(3L).username("agent.tax")
+                .action("SOUMISSION")
+                .ancienStatut("DRAFT").nouveauStatut("SUBMITTED")
+                .commentaire("Déclaration soumise pour validation.")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(5)))
+                .build());
+
+        declarationHistoryRepository.save(DeclarationHistory.builder()
+                .declaration(d1)
+                .userId(1L).username("admin")
+                .action("VALIDATION")
+                .ancienStatut("SUBMITTED").nouveauStatut("VALIDATED")
+                .commentaire("Déclaration validée après vérification.")
+                .nouvellesDonnees("{\"validatedBy\":\"admin\",\"validationComment\":\"Conforme\"}")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(3)))
+                .build());
+
+        // Si déclaration rectificative pour tp3 (brouillon)
+        if (declarations.size() > 2) {
+            com.mnktax.declaration.entity.Declaration d3 = declarations.get(declarations.size() - 1);
+            declarationHistoryRepository.save(DeclarationHistory.builder()
+                    .declaration(d3)
+                    .userId(1L).username("admin")
+                    .action("CREATION")
+                    .nouveauStatut("DRAFT")
+                    .commentaire("Déclaration TVA en brouillon pour ENTREPRISE SARL.")
+                    .createdAt(Instant.now().minus(java.time.Duration.ofDays(2)))
+                    .build());
+        }
+    }
+
+    /* ═══════════════════════════ Documents ═══════════════════════════ */
+    private void seedDocuments() {
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+        Taxpayer tp3 = taxpayerRepository.findByNif("9876543210").orElse(null);
+        Taxpayer tp4 = taxpayerRepository.findByNif("0000412345").orElse(null);
+        if (tp1 == null) return;
+
+        documentRepository.save(Document.builder()
+                .taxpayer(tp1).title("Kbis - SOCIÉTÉ MALAGASY")
+                .documentType("Kbis")
+                .filePath("/data/documents/kbis_tp1.pdf")
+                .mimeType("application/pdf").size(320000L)
+                .uploadedBy("agent.tax")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(365)))
+                .build());
+
+        documentRepository.save(Document.builder()
+                .taxpayer(tp1).title("Contrat social")
+                .documentType("CONTRAT")
+                .filePath("/data/documents/contrat_social_tp1.pdf")
+                .mimeType("application/pdf").size(180000L)
+                .uploadedBy("agent.tax")
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(300)))
+                .build());
+
+        if (tp3 != null) {
+            documentRepository.save(Document.builder()
+                    .taxpayer(tp3).title("Patente ENTREPRISE SARL")
+                    .documentType("PATENTE")
+                    .filePath("/data/documents/patente_tp3.pdf")
+                    .mimeType("application/pdf").size(210000L)
+                    .uploadedBy("agent.tax")
+                    .createdAt(Instant.now().minus(java.time.Duration.ofDays(180)))
+                    .build());
+        }
+
+        if (tp4 != null) {
+            documentRepository.save(Document.builder()
+                    .taxpayer(tp4).title("Autorisation transport TRANSPORT SA")
+                    .documentType("AUTORISATION")
+                    .filePath("/data/documents/autorisation_tp4.pdf")
+                    .mimeType("application/pdf").size(150000L)
+                    .uploadedBy("agent.tax")
+                    .createdAt(Instant.now().minus(java.time.Duration.ofDays(120)))
+                    .build());
+        }
+    }
+
+    /* ═══════════════════════════ Quittances ═══════════════════════════ */
+    private void seedReceipts() {
+        List<Payment> payments = paymentRepository.findAll();
+        if (payments.isEmpty()) return;
+
+        // Quittance 1: VALID/ISSUED — paiement complet (tp1, TVA)
+        if (receiptRepository.count() >= 6) return;
+
+        Payment p1 = payments.stream().filter(p -> p.getStatus() == com.mnktax.payment.entity.PaymentStatus.ALLOCATED)
+                .findFirst().orElse(payments.get(0));
+        createDemoReceipt(p1, ReceiptStatus.ISSUED, "REC-DEMO-001", 30);
+
+        // Quittance 2: VALID — paiement partiel
+        Payment p2 = payments.stream().skip(1).filter(p -> p.getStatus() == com.mnktax.payment.entity.PaymentStatus.ALLOCATED)
+                .findFirst().orElse(payments.size() > 1 ? payments.get(1) : payments.get(0));
+        createDemoReceipt(p2, ReceiptStatus.ISSUED, "REC-DEMO-002", 25);
+
+        // Quittance 3: CANCELLED
+        Payment p3 = payments.stream().skip(2).findFirst().orElse(payments.get(0));
+        Receipt cancelled = createDemoReceipt(p3, ReceiptStatus.ISSUED, "REC-DEMO-003", 20);
+        if (cancelled != null && cancelled.getStatus() != ReceiptStatus.CANCELLED) {
+            cancelled.setStatus(ReceiptStatus.CANCELLED);
+            cancelled.setCancelledReason("Démonstration — annulation test");
+            cancelled.setCancelledBy("seed");
+            cancelled.setCancelledAt(Instant.now().minus(java.time.Duration.ofDays(15)));
+            receiptRepository.save(cancelled);
+        }
+
+        // Quittance 4: REPLACED
+        Payment p4 = payments.stream().skip(3).findFirst().orElse(payments.get(0));
+        Receipt replaced = createDemoReceipt(p4, ReceiptStatus.ISSUED, "REC-DEMO-004", 15);
+        if (replaced != null && replaced.getStatus() == ReceiptStatus.ISSUED) {
+            replaced.setStatus(ReceiptStatus.REPLACED);
+            replaced.setReplacedByReference("REC-DEMO-004-BIS");
+            replaced.setReplacedAt(Instant.now().minus(java.time.Duration.ofDays(10)));
+            receiptRepository.save(replaced);
+        }
+
+        // Quittance 5: REFUNDED
+        Payment p5 = payments.stream().skip(4).findFirst().orElse(payments.get(0));
+        Receipt refunded = createDemoReceipt(p5, ReceiptStatus.ISSUED, "REC-DEMO-005", 10);
+        if (refunded != null && refunded.getStatus() == ReceiptStatus.ISSUED) {
+            refunded.setStatus(ReceiptStatus.REFUNDED);
+            refunded.setRefundReference("REM-DEMO-001");
+            refunded.setUpdatedAt(Instant.now().minus(java.time.Duration.ofDays(5)));
+            receiptRepository.save(refunded);
+        }
+
+        // Quittance 6: ISSUED — QR vérifiable
+        Payment p6 = payments.stream().skip(5).findFirst().orElse(payments.get(0));
+        createDemoReceipt(p6, ReceiptStatus.ISSUED, "REC-DEMO-006", 3);
+    }
+
+    private Receipt createDemoReceipt(Payment payment, ReceiptStatus status, String refSuffix, int daysAgo) {
+        if (receiptRepository.findByPaymentId(payment.getId()).isPresent()) {
+            return receiptRepository.findByPaymentId(payment.getId()).orElse(null);
+        }
+        com.mnktax.debt.entity.TaxDebt debt = payment.getDebt();
+        com.mnktax.declaration.entity.Declaration decl = payment.getDeclaration();
+        String centerCode = null;
+        if (debt != null && debt.getTaxpayerCenter() != null) {
+            centerCode = debt.getTaxpayerCenter();
+        } else if (payment.getTaxpayer().getTaxCenter() != null) {
+            centerCode = payment.getTaxpayer().getTaxCenter().getCode();
+        }
+        String period = debt != null ? debt.getPeriod()
+                : payment.getPaymentDate().getYear() + "-" + String.format("%02d", payment.getPaymentDate().getMonthValue());
+        Receipt receipt = Receipt.builder()
+                .reference(com.mnktax.common.util.ReferenceGenerator.next("REC"))
+                .verificationToken("VRF-" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase())
+                .payment(payment)
+                .receiptNumber("QU/" + LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")) + "/" + String.format("%06d", (int)(Math.random() * 999999)))
+                .taxpayer(payment.getTaxpayer())
+                .taxType(debt != null ? debt.getTaxType() : taxTypeRepository.findByCode("TVA").orElse(null))
+                .declaration(decl)
+                .debt(debt)
+                .period(period)
+                .amount(payment.getAllocatedAmount() != null ? payment.getAllocatedAmount() : payment.getAmount())
+                .currency("MGA")
+                .method(payment.getMethod())
+                .transactionReference(payment.getTransactionReference())
+                .status(status)
+                .paymentDate(payment.getPaymentDate())
+                .centerCode(centerCode)
+                .createdBy("seed")
+                .issuedAt(Instant.now().minus(java.time.Duration.ofDays(daysAgo)))
+                .createdAt(Instant.now().minus(java.time.Duration.ofDays(daysAgo)))
+                .build();
+        return receiptRepository.save(receipt);
     }
 }
