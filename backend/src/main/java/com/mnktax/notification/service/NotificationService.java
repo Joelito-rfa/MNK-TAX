@@ -11,12 +11,19 @@ import com.mnktax.notification.entity.Notification;
 import com.mnktax.notification.entity.NotificationType;
 import com.mnktax.notification.repository.NotificationRepository;
 import com.mnktax.tax.entity.Deadline;
+import com.mnktax.tax.entity.DeclarationObligationStatus;
+import com.mnktax.tax.entity.PaymentObligationStatus;
+import com.mnktax.tax.entity.TaxObligation;
 import com.mnktax.tax.repository.DeadlineRepository;
+import com.mnktax.tax.service.TaxObligationService;
+import com.mnktax.taxpayer.entity.Taxpayer;
+import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,15 +48,21 @@ public class NotificationService {
     private final TaxDebtRepository debtRepository;
     private final DebtService debtService;
     private final UserRepository userRepository;
+    private final TaxObligationService obligationService;
+    private final TaxpayerRepository taxpayerRepository;
 
     public NotificationService(NotificationRepository notificationRepository,
                                DeadlineRepository deadlineRepository, TaxDebtRepository debtRepository,
-                               DebtService debtService, UserRepository userRepository) {
+                               @Lazy DebtService debtService, UserRepository userRepository,
+                               @Lazy TaxObligationService obligationService,
+                               TaxpayerRepository taxpayerRepository) {
         this.notificationRepository = notificationRepository;
         this.deadlineRepository = deadlineRepository;
         this.debtRepository = debtRepository;
         this.debtService = debtService;
         this.userRepository = userRepository;
+        this.obligationService = obligationService;
+        this.taxpayerRepository = taxpayerRepository;
     }
 
     public Page<Notification> myNotifications(Pageable pageable) {
@@ -84,11 +97,61 @@ public class NotificationService {
     }
 
     @Transactional
+    public void markRead(Long id) {
+        Long userId = SecurityUtils.currentUserId();
+        if (userId == null) return;
+        Notification n = notificationRepository.findById(id).orElse(null);
+        if (n != null && n.getUserId().equals(userId) && !n.isRead()) {
+            n.setRead(true);
+            n.setReadAt(Instant.now());
+            notificationRepository.save(n);
+        }
+    }
+
+    @Transactional
     public void notifyPaymentReceived(Long taxpayerUserId, String paymentRef, String taxpayerNif, java.math.BigDecimal amount) {
         if (taxpayerUserId == null) return;
         saveIfNotDuplicate(taxpayerUserId, NotificationType.PAYMENT_RECEIVED,
                 "Paiement reçu - " + paymentRef,
                 "Un paiement de " + amount + " MGA a été enregistré pour le contribuable " + taxpayerNif + " (réf: " + paymentRef + ").",
+                "PAYMENT", paymentRef);
+    }
+
+    @Transactional
+    public void notifyPaymentConfirmed(Long taxpayerUserId, String paymentRef, String taxpayerNif, java.math.BigDecimal amount) {
+        if (taxpayerUserId == null) return;
+        saveIfNotDuplicate(taxpayerUserId, NotificationType.PAYMENT_RECEIVED,
+                "Paiement confirmé - " + paymentRef,
+                "Le paiement " + paymentRef + " de " + amount + " MGA a été confirmé pour le contribuable " + taxpayerNif + ".",
+                "PAYMENT", paymentRef);
+    }
+
+    @Transactional
+    public void notifyPaymentCancelled(Long taxpayerUserId, String paymentRef, String taxpayerNif, String reason) {
+        if (taxpayerUserId == null) return;
+        saveIfNotDuplicate(taxpayerUserId, NotificationType.PAYMENT_REJECTED,
+                "Paiement annulé - " + paymentRef,
+                "Le paiement " + paymentRef + " du contribuable " + taxpayerNif + " a été annulé. Motif : " + (reason != null ? reason : "non précisé") + ".",
+                "PAYMENT", paymentRef);
+    }
+
+    @Transactional
+    public void notifyPaymentRejected(Long taxpayerUserId, String paymentRef, String taxpayerNif, String reason) {
+        if (taxpayerUserId == null) return;
+        saveIfNotDuplicate(taxpayerUserId, NotificationType.PAYMENT_REJECTED,
+                "Paiement rejeté - " + paymentRef,
+                "Le paiement " + paymentRef + " du contribuable " + taxpayerNif + " a été rejeté. Motif : " + (reason != null ? reason : "non précisé") + ".",
+                "PAYMENT", paymentRef);
+    }
+
+    @Transactional
+    public void notifyPaymentPartial(Long taxpayerUserId, String paymentRef, String taxpayerNif,
+                                     java.math.BigDecimal amount, java.math.BigDecimal allocated) {
+        if (taxpayerUserId == null) return;
+        saveIfNotDuplicate(taxpayerUserId, NotificationType.PAYMENT_RECEIVED,
+                "Paiement partiel - " + paymentRef,
+                "Un paiement partiel de " + amount + " MGA a été enregistré pour le contribuable " + taxpayerNif
+                        + ". Montant alloué : " + allocated + " MGA.",
                 "PAYMENT", paymentRef);
     }
 
@@ -146,6 +209,16 @@ public class NotificationService {
                 "DEBT", debtRef);
     }
 
+    /**
+     * Notification ciblée à un contribuable spécifique.
+     */
+    @Transactional
+    public void notifyTaxpayer(Long userId, NotificationType type, String title, String message,
+                               String entityType, String entityId) {
+        if (userId == null) return;
+        saveIfNotDuplicate(userId, type, title, message, entityType, entityId);
+    }
+
     private void saveIfNotDuplicate(Long userId, NotificationType type, String title, String message,
                                    String entityType, String entityId) {
         boolean already = notificationRepository
@@ -167,22 +240,16 @@ public class NotificationService {
     }
 
     /**
-     * Tâche quotidienne : détecte les impayés (OVERDUE) et génère les
-     * notifications d'échéances (J-30, J-15, J-7, J-3, J-1, J+1).
+     * Tâche quotidienne : notifications d'échéances aux agents
+     * + notifications ciblées aux contribuables via les obligations.
      */
     @Scheduled(cron = "${mnk-tax.scheduler.deadline-cron:0 0 7 * * *}")
     @Transactional
     public void dailyDeadlineCheck() {
         LocalDate today = LocalDate.now();
-        try {
-            int overdue = debtService.markOverdue(today);
-            if (overdue > 0) {
-                log.info("{} créances passées en OVERDUE", overdue);
-            }
-        } catch (Exception ex) {
-            log.error("Echec détection impayés", ex);
-        }
-        List<Deadline> deadlines = deadlineRepository.findAllByOrderByDeclarationDeadlineAsc();
+
+        // Notifications d'échéances globales aux agents
+        List<Deadline> deadlines = deadlineRepository.findAllFetchTaxType();
         for (Deadline deadline : deadlines) {
             long days = ChronoUnit.DAYS.between(today, deadline.getDeclarationDeadline());
             if (days == 0) {
@@ -201,7 +268,8 @@ public class NotificationService {
                         "DEADLINE", String.valueOf(deadline.getId()));
             }
         }
-        // Notifications de retard
+
+        // Notifications de retard aux agents
         List<TaxDebt> overdueDebts = debtRepository.findByStatusAndDueDateBefore(DebtStatus.OVERDUE, today);
         for (TaxDebt debt : overdueDebts) {
             notifyAgents(NotificationType.OVERDUE,
@@ -209,6 +277,33 @@ public class NotificationService {
                     "La créance " + debt.getReference() + " du contribuable " + debt.getTaxpayer().getNif()
                             + " est en retard. Solde : " + debt.getBalance() + " MGA.",
                     "DEBT", String.valueOf(debt.getId()));
+        }
+
+        // Notifications ciblées aux contribuables : déclarations non soumises
+        List<TaxObligation> missedDecls = obligationService.findMissedDeclarations(today);
+        for (TaxObligation obl : missedDecls) {
+            Long taxpayerUserId = obl.getTaxpayer().getUserId();
+            if (taxpayerUserId == null) continue;
+            notifyTaxpayer(taxpayerUserId, NotificationType.DEADLINE_APPROACHING,
+                    "Déclaration en retard - " + obl.getTaxType().getCode(),
+                    "Vous n'avez pas soumis votre déclaration " + obl.getTaxType().getName()
+                            + " pour la période " + obl.getPeriod()
+                            + ". L'échéance était le " + obl.getDeclarationDeadline() + ".",
+                    "OBLIGATION", String.valueOf(obl.getId()));
+        }
+
+        // Notifications ciblées aux contribuables : paiements en retard
+        List<TaxObligation> overduePayments = obligationService.findOverduePayments(today);
+        for (TaxObligation obl : overduePayments) {
+            if (obl.getPaymentStatus() == PaymentObligationStatus.OVERDUE) continue;
+            Long taxpayerUserId = obl.getTaxpayer().getUserId();
+            if (taxpayerUserId == null) continue;
+            notifyTaxpayer(taxpayerUserId, NotificationType.OVERDUE,
+                    "Paiement en retard - " + obl.getTaxType().getCode(),
+                    "Le paiement pour " + obl.getTaxType().getName()
+                            + " période " + obl.getPeriod()
+                            + " est en retard. Échéance : " + obl.getPaymentDeadline() + ".",
+                    "OBLIGATION", String.valueOf(obl.getId()));
         }
     }
 

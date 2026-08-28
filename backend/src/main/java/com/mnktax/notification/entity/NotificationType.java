@@ -7,5 +7,6 @@ public enum NotificationType {
     PAYMENT_REJECTED,
     OVERDUE,
     COLLECTION_NOTICE,
-    DOCUMENT_READY
+    DOCUMENT_READY,
+    MESSAGE_RECEIVED
 }
