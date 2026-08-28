@@ -1142,7 +1142,7 @@ export default function Taxpayers() {
       {/* ── Taxpayer Profile Drawer ── */}
       {selectedTaxpayer !== null && (
         <div
-          className="fixed inset-0 z-50 bg-black/30"
+          className="fixed inset-0 z-50 bg-black/60"
           onClick={() => setSelectedTaxpayer(null)}
         >
           <div

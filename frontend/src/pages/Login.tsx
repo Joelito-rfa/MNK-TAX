@@ -126,25 +126,41 @@ export default function Login() {
             <h1 className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">{t('sidebar.brand')}</h1>
           </div>
 
-          {/* Language switcher on mobile */}
-          <div className="mb-6 flex justify-center gap-2 lg:hidden">
-            {languages.map((lang) => (
+          <div className="mb-6 flex justify-end lg:justify-between items-center gap-4">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('login.title')}</h2>
+            <div className="relative">
               <button
-                key={lang.code}
-                onClick={() => setLocale(lang.code)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
-                  locale === lang.code
-                    ? 'bg-brand-100 text-brand-700 shadow-sm ring-1 ring-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:ring-brand-800'
-                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'
-                }`}
+                onClick={() => setLangOpen(!langOpen)}
+                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                aria-label={t('login.language')}
               >
-                <span className="text-xl leading-none">{lang.flag}</span>
-                <span>{lang.label}</span>
+                <Globe className="h-4 w-4" />
+                <span className="text-lg leading-none">{languages.find((l) => l.code === locale)?.flag}</span>
               </button>
-            ))}
+              {langOpen && (
+                <div className="absolute right-0 z-10 mt-2 w-48 animate-scale-in rounded-2xl border border-slate-200/80 bg-white shadow-popover dark:border-slate-700/50 dark:bg-slate-800">
+                  <div className="p-1.5">
+                    {languages.map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => { setLocale(lang.code); setLangOpen(false) }}
+                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+                          locale === lang.code
+                            ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+                            : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <span className="text-xl leading-none">{lang.flag}</span>
+                        <span>{lang.label}</span>
+                        {locale === lang.code && <span className="ml-auto text-brand-500 dark:text-brand-400">✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('login.title')}</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('login.subtitle')}</p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>

@@ -10,6 +10,8 @@ import com.mnktax.document.repository.DocumentRepository;
 import com.mnktax.taxpayer.entity.Taxpayer;
 import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,8 @@ import java.util.UUID;
 
 @Service
 public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
 
     private final DocumentRepository documentRepository;
     private final TaxpayerRepository taxpayerRepository;
@@ -91,7 +95,8 @@ public class DocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Document", id));
         try {
             Files.deleteIfExists(Path.of(document.getFilePath()));
-        } catch (IOException ignored) {
+        } catch (IOException e) {
+            log.warn("Impossible de supprimer le fichier {}: {}", document.getFilePath(), e.getMessage());
         }
         documentRepository.delete(document);
         auditService.record("DELETE", "DOCUMENT", String.valueOf(id), null, null, http);

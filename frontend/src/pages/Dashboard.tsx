@@ -772,7 +772,7 @@ function WelcomeBanner({
               <ChevronDown className={`h-4 w-4 transition-transform ${periodOpen ? 'rotate-180' : ''}`} />
             </button>
             {periodOpen && (
-              <div className="absolute right-0 z-[60] mt-2 w-64 overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl">
+              <div className="absolute right-0 z-[60] mt-2 w-64 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl">
                 <div className="px-4 py-3 border-b border-slate-100">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Sélectionner une période</p>
                 </div>
@@ -807,7 +807,7 @@ function WelcomeBanner({
               <ChevronDown className={`h-4 w-4 transition-transform ${dlOpen ? 'rotate-180' : ''}`} />
             </button>
             {dlOpen && (
-              <div className="absolute right-0 z-[60] mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <div className="absolute right-0 z-[60] mt-2 w-56 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
                 <div className="p-1.5">
                   <button
                     onClick={() => { onDownload(); setDlOpen(false) }}

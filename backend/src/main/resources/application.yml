@@ -61,6 +61,8 @@ mnk-tax:
     storage-dir: ${RECEIPT_STORAGE_DIR:./data/receipts}
   document:
     storage-dir: ${DOCUMENT_STORAGE_DIR:./data/documents}
+  avatar:
+    storage-dir: ${AVATAR_STORAGE_DIR:./data/avatars}
   seed-demo: ${SEED_DEMO:true}
 
 logging:
