@@ -48,3 +48,4 @@ boot9.out.log
 # OS
 .DS_Store
 Thumbs.db
+.aider*
