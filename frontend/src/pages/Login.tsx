@@ -12,10 +12,10 @@ import FallingMoney from '../components/FallingMoney'
 import FiscalAnimation from '../components/FiscalAnimation'
 import { Globe } from 'lucide-react'
 
-const languages: { code: Locale; label: string; flag: string }[] = [
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'mg', label: 'Malagasy', flag: '🇲🇬' },
-  { code: 'en', label: 'English', flag: '🇬🇧' },
+const languages: { code: Locale; label: string; initial: string; color: string }[] = [
+  { code: 'fr', label: 'Français', initial: 'FR', color: 'bg-blue-600' },
+  { code: 'mg', label: 'Malagasy', initial: 'MG', color: 'bg-emerald-600' },
+  { code: 'en', label: 'English', initial: 'EN', color: 'bg-rose-600' },
 ]
 
 const schema = z.object({
@@ -76,6 +76,41 @@ export default function Login() {
 
   return (
     <div className="relative flex min-h-screen bg-slate-50 dark:bg-[#0f1117]">
+      {/* Language switcher at top right */}
+      <div className="absolute top-4 right-4 z-20" ref={langRef}>
+        <button
+          onClick={() => setLangOpen(!langOpen)}
+          className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+          aria-label={t('login.language')}
+        >
+          <Globe className="h-4 w-4" />
+          {(() => { const l = languages.find((x) => x.code === locale); return l ? (
+            <span className={`flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-bold text-white ${l.color}`}>{l.initial}</span>
+          ) : null })()}
+        </button>
+        {langOpen && (
+          <div className="absolute right-0 z-10 mt-2 w-48 animate-scale-in rounded-2xl border border-slate-200/80 bg-white shadow-popover dark:border-slate-700/50 dark:bg-slate-800">
+            <div className="p-1.5">
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => { setLocale(lang.code); setLangOpen(false) }}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+                    locale === lang.code
+                      ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white ${lang.color}`}>{lang.initial}</span>
+                  <span>{lang.label}</span>
+                  {locale === lang.code && <span className="ml-auto text-brand-500 dark:text-brand-400">✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Fond animé global du site */}
       <div className="site-bg site-bg-static" aria-hidden="true">
         <span className="site-bg-orb site-bg-orb-1" />
@@ -137,40 +172,7 @@ export default function Login() {
             <h1 className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">{t('sidebar.brand')}</h1>
           </div>
 
-          <div className="mb-6 flex justify-end lg:justify-between items-center gap-4">
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('login.title')}</h2>
-            <div className="relative" ref={langRef}>
-              <button
-                onClick={() => setLangOpen(!langOpen)}
-                className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-                aria-label={t('login.language')}
-              >
-                <Globe className="h-4 w-4" />
-                <span className="text-lg leading-none">{languages.find((l) => l.code === locale)?.flag}</span>
-              </button>
-              {langOpen && (
-                <div className="absolute right-0 z-10 mt-2 w-48 animate-scale-in rounded-2xl border border-slate-200/80 bg-white shadow-popover dark:border-slate-700/50 dark:bg-slate-800">
-                  <div className="p-1.5">
-                    {languages.map((lang) => (
-                      <button
-                        key={lang.code}
-                        onClick={() => { setLocale(lang.code); setLangOpen(false) }}
-                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
-                          locale === lang.code
-                            ? 'bg-brand-50 font-semibold text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-                            : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        <span className="text-xl leading-none">{lang.flag}</span>
-                        <span>{lang.label}</span>
-                        {locale === lang.code && <span className="ml-auto text-brand-500 dark:text-brand-400">✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('login.title')}</h2>
 
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('login.subtitle')}</p>
 

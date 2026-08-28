@@ -117,10 +117,10 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
     }
   }
 
-  const languages: { code: Locale; label: string; flag: string }[] = [
-    { code: 'fr', label: 'Français', flag: '🇫🇷' },
-    { code: 'mg', label: 'Malagasy', flag: '🇲🇬' },
-    { code: 'en', label: 'English', flag: '🇬🇧' },
+  const languages: { code: Locale; label: string; initial: string; color: string }[] = [
+    { code: 'fr', label: 'Français', initial: 'FR', color: 'bg-blue-600' },
+    { code: 'mg', label: 'Malagasy', initial: 'MG', color: 'bg-emerald-600' },
+    { code: 'en', label: 'English', initial: 'EN', color: 'bg-rose-600' },
   ]
 
   return (
@@ -275,7 +275,9 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
                 onClick={() => setOpenMenu(openMenu === 'lang' ? null : 'lang')}
                 className="flex items-center gap-1.5 rounded-xl px-2 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
               >
-                <span className="text-lg leading-none">{languages.find((l) => l.code === locale)?.flag}</span>
+                {(() => { const l = languages.find((x) => x.code === locale); return l ? (
+                  <span className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white ${l.color}`}>{l.initial}</span>
+                ) : null })()}
               </button>
               {openMenu === 'lang' && (
                 <DropdownPanel onClose={() => setOpenMenu(null)} width="w-48">
@@ -290,7 +292,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
                             : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
                         }`}
                       >
-                        <span className="text-xl leading-none">{lang.flag}</span>
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white ${lang.color}`}>{lang.initial}</span>
                         <span>{lang.label}</span>
                         {locale === lang.code && <span className="ml-auto text-brand-500 dark:text-brand-400">✓</span>}
                       </button>

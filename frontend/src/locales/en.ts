@@ -7,6 +7,7 @@ export const en: Record<string, string> = {
   // ── Login ──
   'login.title': 'Login',
   'login.subtitle': 'Access your tax management workspace.',
+  'login.language': 'Language',
   'login.username': 'Username',
   'login.username.placeholder': 'e.g. admin',
   'login.password': 'Password',

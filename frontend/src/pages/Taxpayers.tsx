@@ -728,8 +728,8 @@ export default function Taxpayers() {
                         </button>
                         {menuOpen === t.id && (
                           <>
-                            <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setMenuOpen(null)} />
-                            <div className="absolute right-0 top-full z-40 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/50 dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/50">
+                            <div className="fixed inset-0 z-30 bg-black/80" onClick={() => setMenuOpen(null)} />
+                            <div className="absolute right-0 top-full z-40 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/50 dark:border-slate-700 dark:shadow-slate-900/50">
                               <div className="space-y-0.5">
                                 <button
                                   onClick={(e) => {
@@ -737,29 +737,29 @@ export default function Taxpayers() {
                                     setSelectedTaxpayer(t.id)
                                     setMenuOpen(null)
                                   }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
                                 >
-                                  <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le profil
+                                  <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-500" /> Voir le profil
                                 </button>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     window.location.href = `/taxpayers/${t.id}`
                                   }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
                                 >
-                                  <FileText className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les détails
+                                  <FileText className="h-4 w-4 shrink-0 text-slate-500" /> Voir les détails
                                 </button>
-                                <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                                <div className="my-1 border-t border-slate-100" />
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     copyToClipboard(t.nif, toast)
                                     setMenuOpen(null)
                                   }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
                                 >
-                                  <Copy className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Copier le NIF
+                                  <Copy className="h-4 w-4 shrink-0 text-slate-500" /> Copier le NIF
                                 </button>
                                 {t.status === 'ACTIVE' && (
                                   <button
@@ -770,7 +770,7 @@ export default function Taxpayers() {
                                       }
                                       setMenuOpen(null)
                                     }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-amber-600 transition-colors hover:bg-amber-50"
                                   >
                                     <Shield className="h-4 w-4 shrink-0" /> Suspendre
                                   </button>
@@ -782,7 +782,7 @@ export default function Taxpayers() {
                                       statusMutation.mutate({ id: t.id, status: 'ACTIVE' })
                                       setMenuOpen(null)
                                     }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50"
                                   >
                                     <Check className="h-4 w-4 shrink-0" /> Réactiver
                                   </button>

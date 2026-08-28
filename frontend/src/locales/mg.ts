@@ -7,6 +7,7 @@ export const mg: Record<string, string> = {
   // ── Login ──
   'login.title': 'Fidirana',
   'login.subtitle': 'Miditra ao amin\'ny toeram-piasana famanganam-bola anao.',
+  'login.language': 'Fiteny',
   'login.username': 'Anarana mpampiasa',
   'login.username.placeholder': 'oh: admin',
   'login.password': 'Tenimiafina',
