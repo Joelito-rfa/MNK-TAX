@@ -26,7 +26,24 @@ public final class ReportDtos {
             List<Map<String, Object>> debtsByStatus,
             List<Map<String, Object>> collectionByTaxType,
             List<Map<String, Object>> paymentsByTaxType,
-            List<Map<String, Object>> overdueByTaxType
+            List<Map<String, Object>> overdueByTaxType,
+            long newTaxpayers,
+            long newDeclarations,
+            long declarationsToProcess,
+            List<Map<String, Object>> recentActivity,
+            List<Map<String, Object>> nextCollectionActions,
+            BigDecimal periodCollected,
+            long periodPaymentCount,
+            long periodDeclarationCount,
+            long periodTaxpayerCount,
+            List<Map<String, Object>> topTaxpayersByCollected,
+            List<Map<String, Object>> debtsByStatusDetail,
+            long receiptCount,
+            BigDecimal receiptTotalAmount,
+            long todayReceiptCount,
+            List<Map<String, Object>> taxpayersByMonth,
+            List<Map<String, Object>> declarationsByMonth,
+            List<Map<String, Object>> receiptsByMonth
     ) {
     }
 

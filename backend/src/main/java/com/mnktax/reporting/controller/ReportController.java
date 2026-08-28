@@ -1,10 +1,19 @@
 package com.mnktax.reporting.controller;
 
 import com.mnktax.auth.security.Permissions;
+import com.mnktax.declaration.dto.DeclarationDtos.DeclarationDto;
+import com.mnktax.declaration.repository.DeclarationRepository;
 import com.mnktax.debt.dto.DebtDtos.TaxDebtDto;
 import com.mnktax.debt.service.DebtService;
 import com.mnktax.payment.dto.PaymentDtos.PaymentDto;
 import com.mnktax.payment.service.PaymentService;
+import com.mnktax.reporting.service.ReportService;
+import com.mnktax.reporting.service.ReportService.DebtReportStats;
+import com.mnktax.reporting.service.ReportService.DeclarationReportStats;
+import com.mnktax.reporting.service.ReportService.ReportStats;
+import com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerSummaryDto;
+import com.mnktax.taxpayer.entity.TaxpayerStatus;
+import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.Page;
@@ -22,16 +31,49 @@ import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/reports")
-@Tag(name = "Rapports", description = "Rapports de recouvrement et de paiements")
+@Tag(name = "Rapports", description = "Rapports fiscaux et financiers")
 public class ReportController {
 
     private final DebtService debtService;
     private final PaymentService paymentService;
+    private final ReportService reportService;
+    private final DeclarationRepository declarationRepository;
+    private final TaxpayerRepository taxpayerRepository;
 
-    public ReportController(DebtService debtService, PaymentService paymentService) {
+    public ReportController(DebtService debtService, PaymentService paymentService,
+                            ReportService reportService, DeclarationRepository declarationRepository,
+                            TaxpayerRepository taxpayerRepository) {
         this.debtService = debtService;
         this.paymentService = paymentService;
+        this.reportService = reportService;
+        this.declarationRepository = declarationRepository;
+        this.taxpayerRepository = taxpayerRepository;
     }
+
+    /* ── Statistiques globales ── */
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
+    @Operation(summary = "Statistiques globales pour la page rapports")
+    public ResponseEntity<ReportStats> stats() {
+        return ResponseEntity.ok(reportService.getStats());
+    }
+
+    @GetMapping("/stats/declarations")
+    @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
+    @Operation(summary = "Statistiques des déclarations")
+    public ResponseEntity<DeclarationReportStats> declarationStats() {
+        return ResponseEntity.ok(reportService.getDeclarationStats());
+    }
+
+    @GetMapping("/stats/debts")
+    @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
+    @Operation(summary = "Statistiques des créances")
+    public ResponseEntity<DebtReportStats> debtStats() {
+        return ResponseEntity.ok(reportService.getDebtStats());
+    }
+
+    /* ── Rapports de données ── */
 
     @GetMapping("/collection")
     @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
@@ -42,7 +84,8 @@ public class ReportController {
                                                        @PageableDefault(size = 50) Pageable pageable) {
         com.mnktax.debt.entity.DebtStatus s = status == null || status.isBlank()
                 ? null : com.mnktax.debt.entity.DebtStatus.valueOf(status);
-        return ResponseEntity.ok(debtService.search(s, taxTypeCode, null, taxpayerId, false, null, pageable));
+        return ResponseEntity.ok(debtService.search(s, taxTypeCode, null, taxpayerId,
+                null, null, null, false, null, pageable));
     }
 
     @GetMapping("/payments")
@@ -53,6 +96,34 @@ public class ReportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @PageableDefault(size = 50) Pageable pageable) {
-        return ResponseEntity.ok(paymentService.search(null, taxpayerId, null, from, to, null, pageable));
+        return ResponseEntity.ok(paymentService.search(null, taxpayerId, null, from, to, null, null, null, null, null, pageable));
+    }
+
+    @GetMapping("/declarations")
+    @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
+    @Operation(summary = "Rapport des déclarations")
+    public ResponseEntity<Page<DeclarationDto>> declarations(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String taxTypeCode,
+            @RequestParam(required = false) Long taxpayerId,
+            @PageableDefault(size = 50) Pageable pageable) {
+        com.mnktax.declaration.entity.DeclarationStatus s = status == null || status.isBlank()
+                ? null : com.mnktax.declaration.entity.DeclarationStatus.valueOf(status);
+        return ResponseEntity.ok(
+                declarationRepository.search(s, taxTypeCode, null, taxpayerId, null, null, null, pageable)
+                        .map(DeclarationDto::from));
+    }
+
+    @GetMapping("/taxpayers")
+    @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
+    @Operation(summary = "Rapport des contribuables")
+    public ResponseEntity<Page<TaxpayerSummaryDto>> taxpayers(
+            @RequestParam(required = false) String status,
+            @PageableDefault(size = 50) Pageable pageable) {
+        TaxpayerStatus s = status == null || status.isBlank()
+                ? null : TaxpayerStatus.valueOf(status);
+        return ResponseEntity.ok(
+                taxpayerRepository.search(null, null, s, null, null, null, null, pageable)
+                        .map(TaxpayerSummaryDto::from));
     }
 }
