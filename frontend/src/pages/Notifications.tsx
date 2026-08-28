@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BellRing, CheckCheck } from 'lucide-react'
+import { CheckCheck } from 'lucide-react'
 import { apiGet, apiPost } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { fmtDateTime } from '../lib/format'
 import type { Notification, Page } from '../types'
-import { Badge, Button, Card, EmptyState, PageHeader, Pagination, Spinner, StatCard, Table, Td, Th } from '../components/ui'
+import { Avatar } from '../components/Avatar'
+import { Badge, Button, Card, EmptyState, PageHeader, Pagination, Spinner, Table, Td, Th } from '../components/ui'
 import { useToast } from '../components/Toast'
 
 const typeLabels: Record<string, string> = {
@@ -17,6 +19,7 @@ const typeLabels: Record<string, string> = {
 }
 
 export default function Notifications() {
+  const { user, avatarUrl } = useAuth()
   const [page, setPage] = useState(0)
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -34,7 +37,6 @@ export default function Notifications() {
     },
   })
 
-  const unread = data?.content.filter((n) => !n.read).length ?? 0
 
   return (
     <div className="space-y-6">
@@ -48,11 +50,6 @@ export default function Notifications() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <StatCard label="Notifications affichées" value={data?.totalElements ?? '—'} icon={<BellRing className="h-5 w-5" />} tone="brand" sub="selon les filtres" />
-        <StatCard label="Non lues" value={unread} icon={<BellRing className="h-5 w-5" />} tone="rose" sub="sur la page" />
-      </div>
-
       <Card>
         {isLoading ? (
           <Spinner />
@@ -61,7 +58,7 @@ export default function Notifications() {
         ) : (
           <>
             <Table>
-              <thead className="border-b border-slate-100 bg-slate-50/60">
+              <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
                 <tr>
                   <Th>Type</Th>
                   <Th>Titre</Th>
@@ -70,14 +67,21 @@ export default function Notifications() {
                   <Th>Statut</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                 {data.content.map((n) => (
-                  <tr key={n.id} className={`transition hover:bg-slate-50/60 ${n.read ? 'opacity-60' : ''}`}>
+                  <tr key={n.id} className={`transition hover:bg-slate-50/60 dark:hover:bg-slate-700/50 ${n.read ? 'opacity-60' : ''}`}>
                     <Td>
-                      <Badge tone={n.read ? 'slate' : 'indigo'}>{typeLabels[n.type] ?? n.type}</Badge>
+                      <span className="flex items-center gap-2.5">
+                        <Avatar
+                          name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`}
+                          src={avatarUrl}
+                          className="shrink-0"
+                        />
+                        <Badge tone={n.read ? 'slate' : 'indigo'}>{typeLabels[n.type] ?? n.type}</Badge>
+                      </span>
                     </Td>
                     <Td className="font-medium">{n.title}</Td>
-                    <Td className="max-w-80 truncate text-sm text-slate-600">{n.message || '—'}</Td>
+                    <Td className="max-w-80 truncate text-sm text-slate-600 dark:text-slate-400">{n.message || '—'}</Td>
                     <Td>{fmtDateTime(n.createdAt)}</Td>
                     <Td>{n.read ? 'Lu' : <span className="inline-flex h-2 w-2 rounded-full bg-brand-600" />}</Td>
                   </tr>

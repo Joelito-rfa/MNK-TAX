@@ -45,41 +45,6 @@ const permCategories: Record<string, string[]> = {
   'Audit': ['AUDIT_READ', 'NOTIFICATION_READ'],
 }
 
-const permLabels: Record<string, string> = {
-  READ: 'Lire', WRITE: 'Modifier', CREATE: 'Créer', DELETE: 'Supprimer',
-  UPDATE: 'Modifier', VALIDATE: 'Valider', REJECT: 'Rejeter', CANCEL: 'Annuler',
-  SUBMIT: 'Soumettre', REVIEW: 'Vérifier', CORRECT: 'Corriger', EXPORT: 'Exporter',
-  ATTACH: 'Joindre des fichiers', SUSPEND: 'Suspendre', CLOSE: 'Fermer',
-  CONFIRM: 'Confirmer', ALLOCATE: 'Allouer', REFUND: 'Rembourser',
-  RECONCILE: 'Réconcilier', GENERATE: 'Générer', DOWNLOAD: 'Télécharger',
-  VERIFY: 'Vérifier', REPLACE: 'Remplacer', MANAGE: 'Gérer',
-  VIEW_HISTORY: 'Historique', DETECT_ARREARS: 'Détecter les arriérés',
-  ASSIGN_RECOVERY: 'Assigner en recouvrement', ASSIGN: 'Attribuer',
-  RESET_PASSWORD: 'Réinitialiser le mot de passe', DISABLE: 'Désactiver',
-  FINANCIAL: 'Financiers', TAX: 'Fiscaux', RECOVERY: 'Recouvrement',
-  HISTORY: 'Historique', READ_ALL: 'Tout lire',
-}
-
-function permLabel(code: string): string {
-  const action = code.split('_').pop() ?? ''
-  return permLabels[action] ?? code
-}
-
-function getPermCategory(code: string): string {
-  const resource = code.split('_')[0]
-  const map: Record<string, string> = {
-    TAXPAYER: 'Contribuables', DECLARATION: 'Déclarations', DEBT: 'Créances',
-    PAYMENT: 'Paiements', RECEIPT: 'Quittances', COLLECTION: 'Recouvrement',
-    MESSAGE: 'Messages', CONTROL: 'Contrôles fiscaux', COMPLAINT: 'Réclamations',
-    REFUND: 'Remboursements', DEADLINE: 'Calendrier / Obligations', OBLIGATION: 'Calendrier / Obligations',
-    RULE: 'Règles fiscales', TAX: 'Règles fiscales', TAXONOMY: 'Référentiels',
-    ASSESSMENT: 'Impositions', REPORT: 'Rapports', USER: 'Administration',
-    ROLE: 'Administration', PERMISSION: 'Administration', PARAMETER: 'Administration',
-    SYSTEM: 'Administration', AUDIT: 'Audit', NOTIFICATION: 'Audit',
-  }
-  return map[resource] ?? 'Autres'
-}
-
 /* ─────────── Main component ─────────── */
 
 export default function Roles() {
