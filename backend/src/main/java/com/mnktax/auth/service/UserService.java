@@ -3,6 +3,7 @@ package com.mnktax.auth.service;
 import com.mnktax.audit.service.AuditService;
 import com.mnktax.auth.dto.ChangePasswordRequest;
 import com.mnktax.auth.dto.CreateUserRequest;
+import com.mnktax.auth.dto.UpdateProfileRequest;
 import com.mnktax.auth.dto.UserDto;
 import com.mnktax.auth.entity.Role;
 import com.mnktax.auth.entity.User;
@@ -11,14 +12,22 @@ import com.mnktax.auth.repository.UserRepository;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class UserService {
@@ -27,6 +36,13 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+
+    private static final long MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+    private static final Set<String> ALLOWED_AVATAR_TYPES = Set.of(
+            "image/png", "image/jpeg", "image/webp", "image/gif");
+
+    @Value("${mnk-tax.avatar.storage-dir:./data/avatars}")
+    private String avatarStorageDir;
 
     public UserService(UserRepository userRepository, RoleRepository roleRepository,
                        PasswordEncoder passwordEncoder, AuditService auditService) {
@@ -38,13 +54,8 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public Page<UserDto> search(String query, Pageable pageable) {
-        Page<User> users;
-        if (query == null || query.isBlank()) {
-            users = userRepository.findAll(pageable);
-        } else {
-            users = userRepository.findAll(pageable); // recherche simple sur toutes les pages
-        }
-        return users.map(UserDto::from);
+        String q = (query == null || query.isBlank()) ? null : query.trim();
+        return userRepository.search(q, pageable).map(UserDto::from);
     }
 
     @Transactional(readOnly = true)
@@ -113,6 +124,119 @@ public class UserService {
     }
 
     @Transactional
+    public void delete(Long id, HttpServletRequest httpRequest) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+        if (user.getRoles().stream().anyMatch(Role::isSystem) || user.getUsername().equals("admin")) {
+            throw new BusinessException("FORBIDDEN", "Cet utilisateur système ne peut pas être supprimé.");
+        }
+        UserDto old = UserDto.from(user);
+        deleteAvatarFile(user.getAvatarPath());
+        userRepository.delete(user);
+        auditService.record("DELETE", "USER", String.valueOf(id), old, null, httpRequest);
+    }
+
+    @Transactional
+    public UserDto uploadAvatar(Long userId, MultipartFile file, HttpServletRequest httpRequest) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("EMPTY_FILE", "Le fichier est vide.");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_AVATAR_TYPES.contains(contentType.toLowerCase())) {
+            throw new BusinessException("INVALID_AVATAR", "Format non supporté. Utilisez PNG, JPEG, WEBP ou GIF.");
+        }
+        if (file.getSize() > MAX_AVATAR_BYTES) {
+            throw new BusinessException("AVATAR_TOO_LARGE", "L'image ne doit pas dépasser 2 Mo.");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId));
+        try {
+            Path dir = Path.of(avatarStorageDir).toAbsolutePath();
+            Files.createDirectories(dir);
+            String extension = extensionOf(contentType);
+            String filename = "avatar_" + user.getId() + "_" + UUID.randomUUID().toString().substring(0, 8) + extension;
+            Path target = dir.resolve(filename);
+            file.transferTo(target);
+
+            deleteAvatarFile(user.getAvatarPath());
+            user.setAvatarPath(target.toString());
+            user.setUpdatedAt(Instant.now());
+            User saved = userRepository.save(user);
+            auditService.record("UPDATE", "AVATAR", String.valueOf(userId), null, filename, httpRequest);
+            return UserDto.from(saved);
+        } catch (IOException ex) {
+            throw new BusinessException("UPLOAD_ERROR", "Erreur de sauvegarde de l'avatar : " + ex.getMessage());
+        }
+    }
+
+    @Transactional
+    public UserDto deleteAvatar(Long userId, HttpServletRequest httpRequest) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId));
+        deleteAvatarFile(user.getAvatarPath());
+        user.setAvatarPath(null);
+        user.setUpdatedAt(Instant.now());
+        User saved = userRepository.save(user);
+        auditService.record("DELETE", "AVATAR", String.valueOf(userId), null, null, httpRequest);
+        return UserDto.from(saved);
+    }
+
+    private void deleteAvatarFile(String path) {
+        if (path == null || path.isBlank()) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(Path.of(path));
+        } catch (IOException ignored) {
+        }
+    }
+
+    private String extensionOf(String contentType) {
+        return switch (contentType.toLowerCase()) {
+            case "image/png" -> ".png";
+            case "image/jpeg" -> ".jpg";
+            case "image/webp" -> ".webp";
+            case "image/gif" -> ".gif";
+            default -> "";
+        };
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Path> avatarFile(Long userId) {
+        return userRepository.findById(userId)
+                .map(User::getAvatarPath)
+                .filter(path -> path != null && !path.isBlank())
+                .map(Path::of)
+                .filter(Files::exists);
+    }
+
+    @Transactional
+    public UserDto updateProfile(Long userId, UpdateProfileRequest request, HttpServletRequest httpRequest) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId));
+        UserDto old = UserDto.from(user);
+        if (request.email() != null && !request.email().isBlank() && !request.email().equalsIgnoreCase(user.getEmail())) {
+            if (userRepository.existsByEmail(request.email())) {
+                throw new BusinessException("DUPLICATE", "L'email existe déjà.");
+            }
+            user.setEmail(request.email());
+        }
+        if (request.firstName() != null) {
+            user.setFirstName(blankToNull(request.firstName()));
+        }
+        if (request.lastName() != null) {
+            user.setLastName(blankToNull(request.lastName()));
+        }
+        if (request.phone() != null) {
+            user.setPhone(blankToNull(request.phone()));
+        }
+        user.setUpdatedAt(Instant.now());
+        User saved = userRepository.save(user);
+        auditService.record("UPDATE", "PROFILE", String.valueOf(userId), old, UserDto.from(saved), httpRequest);
+        return UserDto.from(saved);
+    }
+
+    @Transactional
     public void changePassword(Long userId, ChangePasswordRequest request, HttpServletRequest httpRequest) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId));
@@ -126,7 +250,11 @@ public class UserService {
         auditService.record("PASSWORD_CHANGE", "USER", String.valueOf(userId), null, null, httpRequest);
     }
 
-    private void resolveRoles(User user, java.util.Set<String> roleCodes) {
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void resolveRoles(User user, Set<String> roleCodes) {
         if (roleCodes == null || roleCodes.isEmpty()) {
             throw new BusinessException("VALIDATION_ERROR", "Au moins un rôle est requis.");
         }

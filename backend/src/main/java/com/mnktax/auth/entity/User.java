@@ -60,6 +60,9 @@ public class User {
     @Column(length = 30)
     private String phone;
 
+    @Column(name = "avatar_path", length = 500)
+    private String avatarPath;
+
     @Column(nullable = false)
     private boolean enabled;
 

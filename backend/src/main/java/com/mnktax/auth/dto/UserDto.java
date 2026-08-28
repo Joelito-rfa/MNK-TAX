@@ -15,6 +15,7 @@ public record UserDto(
         String firstName,
         String lastName,
         String phone,
+        boolean hasAvatar,
         boolean enabled,
         boolean mfaEnabled,
         Instant lastLoginAt,
@@ -35,7 +36,8 @@ public record UserDto(
                 .sorted()
                 .toList();
         return new UserDto(user.getId(), user.getUsername(), user.getEmail(), user.getFirstName(),
-                user.getLastName(), user.getPhone(), user.isEnabled(), user.isMfaEnabled(),
+                user.getLastName(), user.getPhone(), user.getAvatarPath() != null && !user.getAvatarPath().isBlank(),
+                user.isEnabled(), user.isMfaEnabled(),
                 user.getLastLoginAt(), user.getCreatedAt(), roles, permissions);
     }
 }

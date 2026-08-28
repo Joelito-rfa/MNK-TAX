@@ -4,10 +4,15 @@ import com.mnktax.audit.service.AuditService;
 import com.mnktax.auth.dto.LoginRequest;
 import com.mnktax.auth.dto.LoginResponse;
 import com.mnktax.auth.dto.RefreshRequest;
+import com.mnktax.auth.dto.RegisterRequest;
+import com.mnktax.auth.dto.RegistrationRequestDto;
 import com.mnktax.auth.dto.UserDto;
 import com.mnktax.auth.entity.RefreshToken;
+import com.mnktax.auth.entity.RegistrationRequest;
 import com.mnktax.auth.entity.User;
 import com.mnktax.auth.repository.RefreshTokenRepository;
+import com.mnktax.auth.repository.RegistrationRequestRepository;
+import com.mnktax.auth.repository.RoleRepository;
 import com.mnktax.auth.repository.UserRepository;
 import com.mnktax.auth.security.CustomUserDetails;
 import com.mnktax.auth.security.JwtService;
@@ -21,7 +26,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
 
@@ -32,16 +41,22 @@ public class AuthService {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final RegistrationRequestRepository registrationRequestRepository;
+    private final RoleRepository roleRepository;
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
 
     public AuthService(AuthenticationManager authenticationManager, JwtService jwtService,
                        UserRepository userRepository, RefreshTokenRepository refreshTokenRepository,
+                       RegistrationRequestRepository registrationRequestRepository,
+                       RoleRepository roleRepository,
                        AuditService auditService, PasswordEncoder passwordEncoder) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.registrationRequestRepository = registrationRequestRepository;
+        this.roleRepository = roleRepository;
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
     }
@@ -96,6 +111,98 @@ public class AuthService {
             refreshTokenRepository.revokeAllForUser(user.getId());
             auditService.record("LOGOUT", "USER", String.valueOf(user.getId()), user.getUsername(), null, httpRequest);
         });
+    }
+
+    @Transactional
+    public void register(RegisterRequest request, HttpServletRequest httpRequest) {
+        if (registrationRequestRepository.existsByEmailAndStatus(request.email(), "PENDING")) {
+            throw new BusinessException("DUPLICATE", "Une demande d'accès est déjà en cours pour cet email.");
+        }
+        if (userRepository.existsByEmail(request.email())) {
+            throw new BusinessException("DUPLICATE", "Un compte existe déjà avec cet email.");
+        }
+
+        RegistrationRequest registration = RegistrationRequest.builder()
+                .name(request.name())
+                .email(request.email())
+                .organization(request.organization())
+                .role(request.role())
+                .message(request.message())
+                .status("PENDING")
+                .createdAt(Instant.now())
+                .build();
+
+        registrationRequestRepository.save(registration);
+        auditService.record("REGISTER_REQUEST", "USER", request.email(), null, request, httpRequest);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RegistrationRequestDto> listRegistrationRequests(String status, Pageable pageable) {
+        String s = (status == null || status.isBlank()) ? null : status.trim().toUpperCase();
+        Page<com.mnktax.auth.entity.RegistrationRequest> page;
+        if (s != null) {
+            page = registrationRequestRepository.findByStatus(s, pageable);
+        } else {
+            page = registrationRequestRepository.findAll(pageable);
+        }
+        return page.map(RegistrationRequestDto::from);
+    }
+
+    @Transactional
+    public RegistrationRequestDto approveRegistrationRequest(Long id, String adminUsername, HttpServletRequest httpRequest) {
+        com.mnktax.auth.entity.RegistrationRequest request = registrationRequestRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("NOT_FOUND", "Demande d'inscription introuvable."));
+        if (!"PENDING".equals(request.getStatus())) {
+            throw new BusinessException("INVALID_STATE", "Cette demande a déjà été traitée.");
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new BusinessException("DUPLICATE", "Un compte existe déjà avec cet email.");
+        }
+
+        request.setStatus("APPROVED");
+        request.setReviewedBy(adminUsername);
+        request.setReviewedAt(Instant.now());
+        registrationRequestRepository.save(request);
+
+        User user = User.builder()
+                .username(request.getEmail().split("@")[0])
+                .email(request.getEmail())
+                .password(passwordEncoder.encode("Temp@" + UUID.randomUUID().toString().substring(0, 8)))
+                .firstName(request.getName())
+                .enabled(true)
+                .mustChangePassword(true)
+                .mfaEnabled(false)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .roles(new HashSet<>())
+                .build();
+
+        roleRepository.findByCode("TAXPAYER").ifPresent(user.getRoles()::add);
+        userRepository.save(user);
+
+        auditService.record("APPROVE_REGISTRATION", "REGISTRATION_REQUEST", String.valueOf(id),
+                null, request, httpRequest);
+
+        return RegistrationRequestDto.from(request);
+    }
+
+    @Transactional
+    public RegistrationRequestDto rejectRegistrationRequest(Long id, String adminUsername, HttpServletRequest httpRequest) {
+        com.mnktax.auth.entity.RegistrationRequest request = registrationRequestRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("NOT_FOUND", "Demande d'inscription introuvable."));
+        if (!"PENDING".equals(request.getStatus())) {
+            throw new BusinessException("INVALID_STATE", "Cette demande a déjà été traitée.");
+        }
+
+        request.setStatus("REJECTED");
+        request.setReviewedBy(adminUsername);
+        request.setReviewedAt(Instant.now());
+        registrationRequestRepository.save(request);
+
+        auditService.record("REJECT_REGISTRATION", "REGISTRATION_REQUEST", String.valueOf(id),
+                null, request, httpRequest);
+
+        return RegistrationRequestDto.from(request);
     }
 
     @Transactional

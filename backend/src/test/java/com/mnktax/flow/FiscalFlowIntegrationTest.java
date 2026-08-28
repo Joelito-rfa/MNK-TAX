@@ -108,7 +108,8 @@ class FiscalFlowIntegrationTest {
                 .code("CEN-TEST").name("Centre test - DÉMO").address("Test (fictif)")
                 .createdAt(Instant.now()).build());
         TaxRegime regime = regimeRepository.save(TaxRegime.builder()
-                .code("REG-TEST").name("Régime test - DÉMO").category("REEL").build());
+                .code("REG-TEST").name("Régime test - DÉMO").category("REEL")
+                .vatApplicable(true).build());
         TaxType tva = taxTypeRepository.save(TaxType.builder()
                 .code("TVA").name("TVA - DÉMO").category("DEMO").active(true).build());
         TaxRule rule = ruleRepository.save(TaxRule.builder()
@@ -155,12 +156,14 @@ class FiscalFlowIntegrationTest {
         String period = LocalDate.now().getYear() + "-" + LocalDate.now().format(DateTimeFormatter.ofPattern("MM"));
         DeclarationDto declaration = declarationService.create(
                 new CreateDeclarationRequest(company.getId(), "TVA", period,
-                        new BigDecimal("1000000"), new BigDecimal("200000"), List.of()), null);
+                        null, null,
+                        new BigDecimal("1000000"), new BigDecimal("200000"), null,
+                        null, null, null, List.of()), null);
         declarationService.submit(declaration.id(), null);
         DeclarationDto validated = declarationService.validate(declaration.id(),
                 new ValidateRequest("Test automatique"), null);
 
-        assertEquals(DeclarationStatus.VALIDATED, validated.status());
+        assertEquals(DeclarationStatus.LIQUIDEE, validated.status());
         assertEquals(0, validated.calculatedTax().compareTo(new BigDecimal("200000.00")));
 
         Assessment assessment = assessmentRepository.findByDeclarationId(validated.id()).orElseThrow();
@@ -173,7 +176,7 @@ class FiscalFlowIntegrationTest {
 
         // Paiement partiel → allocation auto (principal) + quittance
         PaymentDto partial = paymentService.record(new CreatePaymentRequest(debt.getId(),
-                new BigDecimal("50000"), LocalDate.now(), PaymentMethod.BANK_TRANSFER, null), null);
+                new BigDecimal("50000"), LocalDate.now(), PaymentMethod.BANK_TRANSFER, null, null, null, null), null);
         assertEquals(PaymentStatus.ALLOCATED, partial.status());
         assertNotNull(partial.receiptReference());
 
@@ -183,7 +186,7 @@ class FiscalFlowIntegrationTest {
         assertEquals(0, afterPartial.getBalance().compareTo(new BigDecimal("150000.00")));
 
         PaymentDto full = paymentService.record(new CreatePaymentRequest(debt.getId(),
-                new BigDecimal("150000"), LocalDate.now(), PaymentMethod.CASH, null), null);
+                new BigDecimal("150000"), LocalDate.now(), PaymentMethod.CASH, null, null, null, null), null);
         assertNotNull(full.receiptReference());
 
         TaxDebt paid = debtRepository.findByIdForUpdate(debt.getId()).orElseThrow();
@@ -197,14 +200,14 @@ class FiscalFlowIntegrationTest {
         assertEquals(0, receipt.getAmount().compareTo(new BigDecimal("150000.00")));
         assertNotNull(receipt.getQrCodePath());
 
-        // Vérification publique de la quittance
-        var verification = receiptService.verify(receipt.getReference());
+        // Vérification publique de la quittance (par token)
+        var verification = receiptService.verify(receipt.getVerificationToken());
         assertEquals(receipt.getReference(), verification.reference());
 
         // Une dette payée ne peut plus recevoir de paiement
         assertThrows(BusinessException.class, () -> paymentService.record(
                 new CreatePaymentRequest(debt.getId(), new BigDecimal("1000"),
-                        LocalDate.now(), PaymentMethod.CASH, null), null));
+                        LocalDate.now(), PaymentMethod.CASH, null, null, null, null), null));
     }
 
     @Test
@@ -213,14 +216,16 @@ class FiscalFlowIntegrationTest {
         String period = LocalDate.now().getYear() + "-" + LocalDate.now().format(DateTimeFormatter.ofPattern("MM"));
         DeclarationDto d = declarationService.create(
                 new CreateDeclarationRequest(company.getId(), "TVA", period,
-                        new BigDecimal("1000000"), new BigDecimal("200000"), List.of()), null);
+                        null, null,
+                        new BigDecimal("1000000"), new BigDecimal("200000"), null,
+                        null, null, null, List.of()), null);
         declarationService.submit(d.id(), null);
         declarationService.validate(d.id(), new ValidateRequest("Test"), null);
 
         TaxDebt debt = debtRepository.findByTaxpayerIdOrderByIdDesc(company.getId()).get(0);
         BusinessException ex = assertThrows(BusinessException.class, () -> paymentService.record(
                 new CreatePaymentRequest(debt.getId(), new BigDecimal("999999999"),
-                        LocalDate.now(), PaymentMethod.CASH, null), null));
+                        LocalDate.now(), PaymentMethod.CASH, null, null, null, null), null));
         assertEquals("PAYMENT_EXCEEDS_BALANCE", ex.getCode());
     }
 
@@ -229,15 +234,17 @@ class FiscalFlowIntegrationTest {
     void overdueDebtAccruesPenaltyAndInterest() {
         DeclarationDto d = declarationService.create(
                 new CreateDeclarationRequest(company.getId(), "TVA", "2025-11",
-                        new BigDecimal("500000"), new BigDecimal("100000"), List.of()), null);
+                        null, null,
+                        new BigDecimal("500000"), new BigDecimal("100000"), null,
+                        null, null, null, List.of()), null);
         declarationService.submit(d.id(), null);
         declarationService.validate(d.id(), new ValidateRequest("Test"), null);
 
         TaxDebt debt = debtRepository.findByTaxpayerIdOrderByIdDesc(company.getId()).get(0);
         assertEquals(LocalDate.of(2025, 11, 25), debt.getDueDate());
 
-        int marked = debtService.markOverdue(LocalDate.now());
-        assertTrue(marked >= 1);
+        var marked = debtService.markOverdue(LocalDate.now());
+        assertTrue(marked.updated() >= 1);
 
         TaxDebt overdue = debtRepository.findByIdForUpdate(debt.getId()).orElseThrow();
         assertEquals(DebtStatus.OVERDUE, overdue.getStatus());
@@ -254,13 +261,15 @@ class FiscalFlowIntegrationTest {
         String period = LocalDate.now().getYear() + "-" + LocalDate.now().format(DateTimeFormatter.ofPattern("MM"));
         DeclarationDto d = declarationService.create(
                 new CreateDeclarationRequest(company.getId(), "TVA", period,
-                        new BigDecimal("1000000"), new BigDecimal("200000"), List.of()), null);
+                        null, null,
+                        new BigDecimal("1000000"), new BigDecimal("200000"), null,
+                        null, null, null, List.of()), null);
         declarationService.submit(d.id(), null);
         declarationService.validate(d.id(), new ValidateRequest("Test"), null);
         TaxDebt debt = debtRepository.findByTaxpayerIdOrderByIdDesc(company.getId()).get(0);
 
         paymentService.record(new CreatePaymentRequest(debt.getId(), new BigDecimal("50000"),
-                LocalDate.now(), PaymentMethod.MOBILE_MONEY, null), null);
+                LocalDate.now(), PaymentMethod.MOBILE_MONEY, null, null, null, null), null);
 
         List<Receipt> receipts = receiptRepository.findByTaxpayerIdOrderByIdDesc(company.getId());
         assertEquals(1, receipts.size());
