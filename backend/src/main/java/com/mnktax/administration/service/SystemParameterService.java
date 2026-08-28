@@ -24,7 +24,7 @@ public class SystemParameterService {
     }
 
     public List<SystemParameter> findAll() {
-        return parameterRepository.findAll();
+        return parameterRepository.findAllByOrderByCategoryAscKeyAsc();
     }
 
     public Optional<SystemParameter> findByKey(String key) {

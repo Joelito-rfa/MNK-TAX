@@ -32,6 +32,8 @@ import com.mnktax.debt.repository.TaxDebtRepository;
 import com.mnktax.debt.service.DebtService;
 import com.mnktax.declaration.dto.DeclarationDtos.CreateDeclarationRequest;
 import com.mnktax.declaration.entity.DeclarationHistory;
+import com.mnktax.tax.entity.DeclarationObligationStatus;
+import com.mnktax.tax.entity.PaymentObligationStatus;
 import com.mnktax.declaration.entity.DeclarationAnnexe;
 import com.mnktax.message.entity.Message;
 import com.mnktax.message.entity.MessageContextType;
@@ -668,6 +670,8 @@ public class DemoDataSeeder implements ApplicationRunner {
         TaxType type = taxTypeRepository.findByCode(taxTypeCode).orElseThrow();
         obligationRepository.save(TaxObligation.builder().taxpayer(tp).taxType(type)
                 .periodicity(periodicity).startDate(start).status(ObligationStatus.ACTIVE)
+                .declarationStatus(DeclarationObligationStatus.NOT_SUBMITTED)
+                .paymentStatus(PaymentObligationStatus.UNPAID)
                 .createdAt(Instant.now()).build());
     }
 
