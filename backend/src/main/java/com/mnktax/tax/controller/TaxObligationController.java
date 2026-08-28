@@ -7,6 +7,7 @@ import com.mnktax.tax.dto.ObligationDtos.UpdateObligationRequest;
 import com.mnktax.tax.service.TaxObligationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -43,16 +44,18 @@ public class TaxObligationController {
     @PostMapping
     @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_WRITE + "')")
     @Operation(summary = "Créer une obligation fiscale")
-    public ResponseEntity<ObligationDto> create(@Valid @RequestBody CreateObligationRequest request) {
-        return ResponseEntity.ok(obligationService.create(request));
+    public ResponseEntity<ObligationDto> create(@Valid @RequestBody CreateObligationRequest request,
+                                                HttpServletRequest http) {
+        return ResponseEntity.ok(obligationService.create(request, http));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_WRITE + "')")
     @Operation(summary = "Mettre à jour une obligation fiscale")
     public ResponseEntity<ObligationDto> update(@PathVariable Long id,
-                                                @Valid @RequestBody UpdateObligationRequest request) {
-        return ResponseEntity.ok(obligationService.update(id, request));
+                                                @Valid @RequestBody UpdateObligationRequest request,
+                                                HttpServletRequest http) {
+        return ResponseEntity.ok(obligationService.update(id, request, http));
     }
 
     @DeleteMapping("/{id}")
@@ -61,5 +64,15 @@ public class TaxObligationController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         obligationService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/generate")
+    @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_WRITE + "')")
+    @Operation(summary = "Auto-générer les obligations depuis le régime du contribuable")
+    public ResponseEntity<List<ObligationDto>> generateFromRegime(
+            @RequestParam Long taxpayerId,
+            @RequestParam Long regimeId,
+            HttpServletRequest http) {
+        return ResponseEntity.ok(obligationService.generateFromRegime(taxpayerId, regimeId, http));
     }
 }

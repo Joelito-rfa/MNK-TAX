@@ -19,8 +19,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "tax_obligations", indexes = {
@@ -46,6 +47,14 @@ public class TaxObligation {
     @JoinColumn(name = "tax_type_id", nullable = false)
     private TaxType taxType;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tax_regime_id")
+    private TaxRegime taxRegime;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tax_center_id")
+    private TaxCenter taxCenter;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Periodicity periodicity;
@@ -56,10 +65,33 @@ public class TaxObligation {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    @Column(length = 10)
+    private String period;
+
+    @Column(name = "declaration_deadline")
+    private LocalDate declarationDeadline;
+
+    @Column(name = "payment_deadline")
+    private LocalDate paymentDeadline;
+
+    @Column(name = "expected_amount", precision = 19, scale = 2)
+    private BigDecimal expectedAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "declaration_status", nullable = false, length = 20)
+    private DeclarationObligationStatus declarationStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 20)
+    private PaymentObligationStatus paymentStatus;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ObligationStatus status;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
 }

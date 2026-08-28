@@ -124,18 +124,111 @@ public final class CollectionDtos {
             );
         }
 
-        private static String resolveCollectionStatus(TaxDebt debt) {
-            if (debt.getStatus() == DebtStatus.PAID) return "PAYE";
-            if (debt.getStatus() == DebtStatus.CANCELLED) return "ANNULE";
+    }
 
-            boolean isOverdue = debt.getDueDate().isBefore(LocalDate.now());
-            boolean hasNotice = debt.getStatus() == DebtStatus.IN_COLLECTION;
+    private static String resolveCollectionStatus(TaxDebt debt) {
+        if (debt.getStatus() == DebtStatus.PAID) return "PAYE";
+        if (debt.getStatus() == DebtStatus.CANCELLED) return "ANNULE";
 
-            if (hasNotice) return "MISE_EN_DEMEURE";
-            if (isOverdue && debt.getBalance().signum() > 0) return "EN_RETARD";
-            if (debt.getPaidAmount().signum() > 0 && debt.getBalance().signum() > 0) return "RELANCE_EN_COURS";
-            if (debt.getBalance().signum() > 0) return "EN_ATTENTE";
-            return "EN_ATTENTE";
+        boolean isOverdue = debt.getDueDate().isBefore(LocalDate.now());
+        boolean hasNotice = debt.getStatus() == DebtStatus.IN_COLLECTION;
+
+        if (hasNotice) return "MISE_EN_DEMEURE";
+        if (isOverdue && debt.getBalance().signum() > 0) return "EN_RETARD";
+        if (debt.getPaidAmount().signum() > 0 && debt.getBalance().signum() > 0) return "RELANCE_EN_COURS";
+        if (debt.getBalance().signum() > 0) return "EN_ATTENTE";
+        return "EN_ATTENTE";
+    }
+
+    // ── Detail DTO ──────────────────────────────────────────
+
+    public record TaxpayerInfo(
+            Long id,
+            String nif,
+            String name,
+            String phone,
+            String email,
+            String address,
+            String taxCenterCode,
+            String taxCenterName,
+            String taxRegimeCode
+    ) {
+        public static TaxpayerInfo from(com.mnktax.taxpayer.entity.Taxpayer t) {
+            return new TaxpayerInfo(
+                    t.getId(),
+                    t.getNif(),
+                    t.getName(),
+                    t.getPhone(),
+                    t.getEmail(),
+                    t.getAddress(),
+                    t.getTaxCenter() != null ? t.getTaxCenter().getCode() : null,
+                    t.getTaxCenter() != null ? t.getTaxCenter().getName() : null,
+                    t.getTaxRegime() != null ? t.getTaxRegime().getCode() : null
+            );
+        }
+    }
+
+    public record CollectionDetailDto(
+            Long id,
+            String reference,
+            String taxTypeCode,
+            String taxTypeName,
+            String period,
+            BigDecimal principalAmount,
+            BigDecimal penaltyAmount,
+            BigDecimal interestAmount,
+            BigDecimal totalAmount,
+            BigDecimal paidAmount,
+            BigDecimal balance,
+            LocalDate issueDate,
+            LocalDate dueDate,
+            String debtStatus,
+            String collectionStatus,
+            String collectionPriority,
+            String origin,
+            String observations,
+            int daysOverdue,
+            TaxpayerInfo taxpayer,
+            List<CollectionActionDto> actions,
+            List<CollectionNoticeDto> notices
+    ) {
+        public static CollectionDetailDto from(
+                com.mnktax.debt.entity.TaxDebt debt,
+                List<CollectionActionDto> actions,
+                List<CollectionNoticeDto> notices) {
+
+            int daysOverdue = 0;
+            if (debt.getDueDate().isBefore(java.time.LocalDate.now())
+                    && debt.getStatus() != com.mnktax.debt.entity.DebtStatus.PAID
+                    && debt.getStatus() != com.mnktax.debt.entity.DebtStatus.CANCELLED) {
+                daysOverdue = (int) java.time.temporal.ChronoUnit.DAYS.between(
+                        debt.getDueDate(), java.time.LocalDate.now());
+            }
+
+            return new CollectionDetailDto(
+                    debt.getId(),
+                    debt.getReference(),
+                    debt.getTaxType().getCode(),
+                    debt.getTaxType().getName(),
+                    debt.getPeriod(),
+                    debt.getPrincipalAmount(),
+                    debt.getPenaltyAmount(),
+                    debt.getInterestAmount(),
+                    debt.getTotalAmount(),
+                    debt.getPaidAmount(),
+                    debt.getBalance(),
+                    debt.getIssueDate(),
+                    debt.getDueDate(),
+                    debt.getStatus().name(),
+                    resolveCollectionStatus(debt),
+                    debt.getCollectionPriority().name(),
+                    debt.getOrigin().name(),
+                    debt.getObservations(),
+                    daysOverdue,
+                    TaxpayerInfo.from(debt.getTaxpayer()),
+                    actions,
+                    notices
+            );
         }
     }
 

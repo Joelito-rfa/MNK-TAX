@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -84,4 +85,12 @@ public interface DeclarationRepository extends JpaRepository<Declaration, Long> 
 
     @Query("SELECT COALESCE(SUM(d.montantPaye), 0) FROM Declaration d WHERE d.status = 'PAYEE' AND d.period LIKE CONCAT(:periodPrefix, '%')")
     BigDecimal sumPaidAmountByPeriod(@Param("periodPrefix") String periodPrefix);
+
+    @Query("SELECT COUNT(d) FROM Declaration d WHERE d.createdAt >= :since")
+    long countCreatedSince(@Param("since") Instant since);
+
+    @Query("SELECT COUNT(d) FROM Declaration d WHERE d.createdAt >= :from AND d.createdAt < :to")
+    long countCreatedBetween(@Param("from") Instant from, @Param("to") Instant to);
+
+    List<Declaration> findTop10ByOrderByCreatedAtDesc();
 }

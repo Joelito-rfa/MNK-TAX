@@ -3,6 +3,7 @@ package com.mnktax.collection.service;
 import com.mnktax.audit.service.AuditService;
 import com.mnktax.collection.dto.CollectionDtos.CollectionActionDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionDebtRowDto;
+import com.mnktax.collection.dto.CollectionDtos.CollectionDetailDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionHistoryDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionNoticeDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionStatsDto;
@@ -132,16 +133,30 @@ public class CollectionService {
         return new CollectionHistoryDto(actions, notices);
     }
 
+    // ── Detail ───────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public CollectionDetailDto detail(Long debtId) {
+        TaxDebt debt = debtRepository.findById(debtId)
+                .orElseThrow(() -> new ResourceNotFoundException("Créance", debtId));
+        List<CollectionActionDto> actions = actionRepository.findByDebtIdOrderByActionDateDesc(debtId)
+                .stream().map(CollectionActionDto::from).toList();
+        List<CollectionNoticeDto> notices = noticeRepository.findByDebtIdOrderByNoticeDateDesc(debtId)
+                .stream().map(CollectionNoticeDto::from).toList();
+        return CollectionDetailDto.from(debt, actions, notices);
+    }
+
     // ── Collection debts table ───────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<CollectionDebtRowDto> getCollectionDebts(String status, String taxTypeCode, String period,
                                                           String q, Pageable pageable) {
         DebtStatus debtStatus = mapToDebtStatus(status);
-        return debtRepository.search(debtStatus, taxTypeCode, period, null, false,
+        return debtRepository.search(debtStatus, taxTypeCode, period, null,
+                        null, null, null, false,
                         LocalDate.now(), blankToNull(q), pageable)
                 .map(debt -> {
-                    CollectionAction lastAction = actionRepository.findLatestByDebtId(debt.getId()).orElse(null);
+                    CollectionAction lastAction = actionRepository.findTopByDebtIdOrderByActionDateDescCreatedAtDesc(debt.getId()).orElse(null);
                     String nextAct = null;
                     LocalDate nextActDate = null;
                     if (lastAction != null) {
@@ -162,8 +177,9 @@ public class CollectionService {
 
     @Transactional(readOnly = true)
     public CollectionStatsDto stats(String status, String taxTypeCode, String period, String q) {
-        BigDecimal totalCollected = debtRepository.totalCollected();
-        BigDecimal totalOutstanding = debtRepository.totalOutstanding();
+        String qBlank = (q == null || q.isBlank()) ? null : q.trim();
+        BigDecimal totalCollected = debtRepository.totalCollectedFiltered(taxTypeCode, period, qBlank);
+        BigDecimal totalOutstanding = debtRepository.totalOutstandingFiltered(taxTypeCode, period, qBlank);
 
         double collectionRate = 0.0;
         BigDecimal totalExigible = totalCollected.add(totalOutstanding);
@@ -198,6 +214,9 @@ public class CollectionService {
                 request.amount(),
                 request.paymentDate(),
                 method,
+                null,
+                null,
+                null,
                 null
         );
 

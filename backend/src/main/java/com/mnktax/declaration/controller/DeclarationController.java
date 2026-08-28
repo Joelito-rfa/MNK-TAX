@@ -44,13 +44,6 @@ public class DeclarationController {
                 taxpayerId, exercice, rectificative, q, pageable));
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('" + Permissions.DECLARATION_READ + "')")
-    @Operation(summary = "Détail d'une déclaration")
-    public ResponseEntity<DeclarationDto> get(@PathVariable Long id) {
-        return ResponseEntity.ok(declarationService.get(id));
-    }
-
     @GetMapping("/statistics")
     @PreAuthorize("hasAuthority('" + Permissions.DECLARATION_READ + "')")
     @Operation(summary = "Statistiques des déclarations")
@@ -65,6 +58,13 @@ public class DeclarationController {
     public ResponseEntity<List<CalendarEntryDto>> calendar(
             @RequestParam(defaultValue = "2026") int year) {
         return ResponseEntity.ok(declarationService.calendar(year));
+    }
+
+    @GetMapping("/{id:\\d+}")
+    @PreAuthorize("hasAuthority('" + Permissions.DECLARATION_READ + "')")
+    @Operation(summary = "Détail d'une déclaration")
+    public ResponseEntity<DeclarationDto> get(@PathVariable Long id) {
+        return ResponseEntity.ok(declarationService.get(id));
     }
 
     @PostMapping

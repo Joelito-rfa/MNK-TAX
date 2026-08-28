@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public final class TaxpayerDtos {
@@ -16,8 +17,7 @@ public final class TaxpayerDtos {
     }
 
     public record CreateTaxpayerRequest(
-            @NotBlank(message = "Le NIF est requis.")
-            @com.mnktax.common.validation.ValidNif
+            @Size(max = 10, message = "Le NIF doit contenir au maximum 10 chiffres.")
             String nif,
             @NotNull(message = "Le type est requis.") TaxpayerType type,
             @NotBlank(message = "Le nom est requis.") @Size(max = 200) String name,
@@ -27,6 +27,9 @@ public final class TaxpayerDtos {
             @Size(max = 30) String phone,
             @Email(message = "Email invalide.") @Size(max = 120) String email,
             @Size(max = 255) String address,
+            LocalDate birthDate,
+            @Size(max = 200) String legalRepresentative,
+            LocalDate registrationDate,
             Long taxCenterId,
             Long taxRegimeId,
             List<AddressDto> addresses,
@@ -43,6 +46,9 @@ public final class TaxpayerDtos {
             @Size(max = 30) String phone,
             @Email(message = "Email invalide.") @Size(max = 120) String email,
             @Size(max = 255) String address,
+            LocalDate birthDate,
+            @Size(max = 200) String legalRepresentative,
+            LocalDate registrationDate,
             Long taxCenterId,
             Long taxRegimeId,
             @NotNull(message = "Le statut est requis.") TaxpayerStatus status
@@ -58,17 +64,19 @@ public final class TaxpayerDtos {
 
     public record TaxpayerSummaryDto(Long id, String nif, TaxpayerType type, String name, String businessName,
                                      String phone, String email, TaxpayerStatus status,
-                                     String taxCenterCode, String taxRegimeCode) {
+                                     String taxCenterCode, String taxRegimeCode, java.time.Instant createdAt) {
         public static TaxpayerSummaryDto from(Taxpayer t) {
             return new TaxpayerSummaryDto(t.getId(), t.getNif(), t.getType(),
                     t.getName(), t.getBusinessName(), t.getPhone(), t.getEmail(), t.getStatus(),
                     t.getTaxCenter() == null ? null : t.getTaxCenter().getCode(),
-                    t.getTaxRegime() == null ? null : t.getTaxRegime().getCode());
+                    t.getTaxRegime() == null ? null : t.getTaxRegime().getCode(),
+                    t.getCreatedAt());
         }
     }
 
     public record TaxpayerDetailDto(Long id, String nif, TaxpayerType type, String name, String businessName,
                                     String firstName, String lastName, String phone, String email, String address,
+                                    LocalDate birthDate, String legalRepresentative, LocalDate registrationDate,
                                     TaxpayerStatus status, Long taxCenterId, String taxCenterCode, String taxCenterName,
                                     Long taxRegimeId, String taxRegimeCode, String taxRegimeName,
                                     List<AddressDto> addresses, List<ActivityDto> activities,
@@ -76,7 +84,8 @@ public final class TaxpayerDtos {
         public static TaxpayerDetailDto from(Taxpayer t, long obligationsCount) {
             return new TaxpayerDetailDto(t.getId(), t.getNif(), t.getType(), t.getName(),
                     t.getBusinessName(), t.getFirstName(), t.getLastName(), t.getPhone(), t.getEmail(),
-                    t.getAddress(), t.getStatus(),
+                    t.getAddress(), t.getBirthDate(), t.getLegalRepresentative(), t.getRegistrationDate(),
+                    t.getStatus(),
                     t.getTaxCenter() == null ? null : t.getTaxCenter().getId(),
                     t.getTaxCenter() == null ? null : t.getTaxCenter().getCode(),
                     t.getTaxCenter() == null ? null : t.getTaxCenter().getName(),
@@ -89,5 +98,17 @@ public final class TaxpayerDtos {
                             a.getDescription(), a.isPrimary())).toList(),
                     obligationsCount);
         }
+    }
+
+    public record TaxpayerStatsDto(
+            long total,
+            long active,
+            long inactive,
+            long suspended,
+            long closed,
+            long withDebt,
+            long overdueDebts,
+            long pendingDeclarations
+    ) {
     }
 }

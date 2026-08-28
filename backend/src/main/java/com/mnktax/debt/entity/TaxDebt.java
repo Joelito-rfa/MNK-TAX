@@ -31,7 +31,10 @@ import java.time.LocalDate;
         @Index(name = "idx_debt_taxpayer", columnList = "taxpayer_id"),
         @Index(name = "idx_debt_status", columnList = "status"),
         @Index(name = "idx_debt_due_date", columnList = "due_date"),
-        @Index(name = "idx_debt_assessment", columnList = "assessment_id")
+        @Index(name = "idx_debt_assessment", columnList = "assessment_id"),
+        @Index(name = "idx_debt_origin", columnList = "origin"),
+        @Index(name = "idx_debt_priority", columnList = "collection_priority"),
+        @Index(name = "idx_debt_center", columnList = "taxpayer_center")
 })
 @Getter
 @Setter
@@ -95,6 +98,29 @@ public class TaxDebt {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private DebtStatus status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origin", nullable = false, length = 30)
+    private DebtOrigin origin;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "collection_priority", nullable = false, length = 15)
+    private DebtCollectionPriority collectionPriority;
+
+    @Column(name = "observations")
+    private String observations;
+
+    @Column(name = "created_by", length = 100)
+    private String createdBy;
+
+    @Column(name = "last_due_date")
+    private LocalDate lastDueDate;
+
+    @Column(name = "suspended_at")
+    private Instant suspendedAt;
+
+    @Column(name = "taxpayer_center", length = 40)
+    private String taxpayerCenter;
 
     @Column(name = "closed_at")
     private Instant closedAt;

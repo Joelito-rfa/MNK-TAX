@@ -1,7 +1,12 @@
 package com.mnktax.debt.controller;
 
 import com.mnktax.auth.security.Permissions;
+import com.mnktax.debt.dto.DebtDtos.DebtHistoryDto;
+import com.mnktax.debt.dto.DebtDtos.DebtStatsDto;
+import com.mnktax.debt.dto.DebtDtos.MarkOverdueResult;
 import com.mnktax.debt.dto.DebtDtos.TaxDebtDto;
+import com.mnktax.debt.entity.DebtCollectionPriority;
+import com.mnktax.debt.entity.DebtOrigin;
 import com.mnktax.debt.entity.DebtStatus;
 import com.mnktax.debt.service.DebtService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -24,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -44,9 +50,13 @@ public class DebtController {
                                                  @RequestParam(required = false) String taxTypeCode,
                                                  @RequestParam(required = false) String period,
                                                  @RequestParam(required = false) Long taxpayerId,
+                                                 @RequestParam(required = false) DebtOrigin origin,
+                                                 @RequestParam(required = false) DebtCollectionPriority priority,
+                                                 @RequestParam(required = false) String center,
                                                  @RequestParam(required = false) String q,
                                                  @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(debtService.search(status, taxTypeCode, period, taxpayerId, false, q, pageable));
+        return ResponseEntity.ok(debtService.search(status, taxTypeCode, period, taxpayerId,
+                origin, priority, center, false, q, pageable));
     }
 
     @GetMapping("/overdue")
@@ -54,7 +64,7 @@ public class DebtController {
     @Operation(summary = "Créances en retard (OVERDUE / en recouvrement / échues non payées)")
     public ResponseEntity<Page<TaxDebtDto>> overdue(@RequestParam(required = false) String q,
                                                     @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(debtService.search(null, null, null, null, true, q, pageable));
+        return ResponseEntity.ok(debtService.search(null, null, null, null, null, null, null, true, q, pageable));
     }
 
     @GetMapping("/{id}")
@@ -64,14 +74,27 @@ public class DebtController {
         return ResponseEntity.ok(debtService.get(id));
     }
 
+    @GetMapping("/{id}/history")
+    @PreAuthorize("hasAuthority('" + Permissions.DEBT_READ + "')")
+    @Operation(summary = "Historique d'événements d'une créance")
+    public ResponseEntity<List<DebtHistoryDto>> history(@PathVariable Long id) {
+        return ResponseEntity.ok(debtService.getHistory(id));
+    }
+
+    @GetMapping("/stats")
+    @PreAuthorize("hasAuthority('" + Permissions.DEBT_READ + "')")
+    @Operation(summary = "Statistiques détaillées des créances")
+    public ResponseEntity<DebtStatsDto> stats() {
+        return ResponseEntity.ok(debtService.stats());
+    }
+
     @PostMapping("/mark-overdue")
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
     @Operation(summary = "Déclencher la détection manuelle des impayés",
             description = "Passe les créances échues en OVERDUE et applique pénalités/intérêts configurés.")
-    public ResponseEntity<Map<String, Integer>> markOverdue(
+    public ResponseEntity<MarkOverdueResult> markOverdue(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
-        int count = debtService.markOverdue(asOf == null ? LocalDate.now() : asOf);
-        return ResponseEntity.ok(Map.of("updated", count));
+        return ResponseEntity.ok(debtService.markOverdue(asOf == null ? LocalDate.now() : asOf));
     }
 
     @PatchMapping("/{id}/adjustment")
@@ -99,6 +122,60 @@ public class DebtController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/{id}/suspend")
+    @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
+    @Operation(summary = "Suspendre une créance (litige, procédure en cours)")
+    public ResponseEntity<Void> suspend(@PathVariable Long id, @RequestBody(required = false) SuspendRequest request) {
+        debtService.suspend(id, request != null ? request.reason() : null);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/resume")
+    @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
+    @Operation(summary = "Réactiver une créance suspendue")
+    public ResponseEntity<Void> resume(@PathVariable Long id) {
+        debtService.resume(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/close")
+    @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
+    @Operation(summary = "Clôturer une créance (irrécouvrable, régularisée, autre motif)")
+    public ResponseEntity<Void> close(@PathVariable Long id, @RequestBody(required = false) CloseRequest request) {
+        debtService.close(id, request != null ? request.reason() : null);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/priority")
+    @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
+    @Operation(summary = "Modifier la priorité de recouvrement")
+    public ResponseEntity<Void> updatePriority(@PathVariable Long id,
+                                               @RequestBody PriorityRequest request) {
+        debtService.updatePriority(id, request.priority());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/observations")
+    @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
+    @Operation(summary = "Mettre à jour les observations")
+    public ResponseEntity<Void> updateObservations(@PathVariable Long id,
+                                                   @RequestBody ObservationsRequest request) {
+        debtService.updateObservations(id, request.observations());
+        return ResponseEntity.noContent().build();
+    }
+
     public record AdjustmentRequest(String label, BigDecimal amount) {
+    }
+
+    public record SuspendRequest(String reason) {
+    }
+
+    public record CloseRequest(String reason) {
+    }
+
+    public record PriorityRequest(DebtCollectionPriority priority) {
+    }
+
+    public record ObservationsRequest(String observations) {
     }
 }

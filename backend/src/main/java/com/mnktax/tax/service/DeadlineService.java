@@ -33,7 +33,7 @@ public class DeadlineService {
 
     @Transactional(readOnly = true)
     public List<DeadlineDto> list() {
-        return deadlineRepository.findAllByOrderByDeclarationDeadlineAsc().stream()
+        return deadlineRepository.findAllFetchTaxType().stream()
                 .map(DeadlineDto::from)
                 .toList();
     }
@@ -63,7 +63,7 @@ public class DeadlineService {
 
     @Transactional(readOnly = true)
     public List<DeadlineDto> upcoming(LocalDate from, int limit) {
-        return deadlineRepository.findByDeclarationDeadlineGreaterThanEqualOrderByDeclarationDeadlineAsc(from)
+        return deadlineRepository.findUpcoming(from)
                 .stream().limit(limit).map(DeadlineDto::from).toList();
     }
 }

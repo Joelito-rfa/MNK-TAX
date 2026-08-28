@@ -3,9 +3,11 @@ package com.mnktax.taxpayer.controller;
 import com.mnktax.auth.security.Permissions;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.CreateTaxpayerRequest;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerDetailDto;
+import com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerStatsDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerSummaryDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.UpdateTaxpayerRequest;
 import com.mnktax.taxpayer.entity.TaxpayerStatus;
+import com.mnktax.taxpayer.entity.TaxpayerType;
 import com.mnktax.taxpayer.service.TaxpayerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,17 +44,25 @@ public class TaxpayerController {
     @Operation(summary = "Rechercher des contribuables (nom, NIF, activité, centre, statut)")
     public ResponseEntity<Page<TaxpayerSummaryDto>> search(
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) TaxpayerType type,
             @RequestParam(required = false) TaxpayerStatus status,
             @RequestParam(required = false) Long taxCenterId,
             @RequestParam(required = false) Long taxRegimeId,
             @RequestParam(required = false) String activityCode,
             @RequestParam(required = false) String taxTypeCode,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(taxpayerService.search(q, status, taxCenterId, taxRegimeId,
+        return ResponseEntity.ok(taxpayerService.search(q, type, status, taxCenterId, taxRegimeId,
                 activityCode, taxTypeCode, pageable));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/stats")
+    @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_READ + "')")
+    @Operation(summary = "Statistiques du registre des contribuables")
+    public ResponseEntity<TaxpayerStatsDto> stats() {
+        return ResponseEntity.ok(taxpayerService.stats());
+    }
+
+    @GetMapping("/{id:\\d+}")
     @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_READ + "')")
     @Operation(summary = "Dossier complet d'un contribuable")
     public ResponseEntity<TaxpayerDetailDto> get(@PathVariable Long id) {

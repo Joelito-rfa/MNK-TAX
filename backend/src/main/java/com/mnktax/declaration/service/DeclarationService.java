@@ -15,15 +15,18 @@ import com.mnktax.declaration.entity.DeclarationStatus;
 import com.mnktax.declaration.repository.DeclarationHistoryRepository;
 import com.mnktax.declaration.repository.DeclarationRepository;
 import com.mnktax.notification.service.NotificationService;
+import com.mnktax.tax.entity.DeclarationObligationStatus;
 import com.mnktax.tax.entity.TaxCenter;
 import com.mnktax.tax.entity.TaxType;
 import com.mnktax.tax.repository.TaxCenterRepository;
 import com.mnktax.tax.repository.TaxTypeRepository;
+import com.mnktax.tax.service.TaxObligationService;
 import com.mnktax.taxpayer.entity.Taxpayer;
 import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -50,6 +53,7 @@ public class DeclarationService {
     private final AssessmentService assessmentService;
     private final AuditService auditService;
     private final NotificationService notificationService;
+    private final TaxObligationService obligationService;
     private final ObjectMapper objectMapper;
 
     public DeclarationService(DeclarationRepository declarationRepository,
@@ -60,6 +64,7 @@ public class DeclarationService {
                               AssessmentService assessmentService,
                               AuditService auditService,
                               NotificationService notificationService,
+                              @Lazy TaxObligationService obligationService,
                               ObjectMapper objectMapper) {
         this.declarationRepository = declarationRepository;
         this.historyRepository = historyRepository;
@@ -69,6 +74,7 @@ public class DeclarationService {
         this.assessmentService = assessmentService;
         this.auditService = auditService;
         this.notificationService = notificationService;
+        this.obligationService = obligationService;
         this.objectMapper = objectMapper;
     }
 
@@ -144,6 +150,7 @@ public class DeclarationService {
     public DeclarationDto create(CreateDeclarationRequest request, HttpServletRequest http) {
         Taxpayer taxpayer = taxpayerRepository.findById(request.taxpayerId())
                 .orElseThrow(() -> new ResourceNotFoundException("Contribuable", request.taxpayerId()));
+        requireOpen(taxpayer);
         TaxType taxType = taxTypeRepository.findByCode(request.taxTypeCode())
                 .orElseThrow(() -> new ResourceNotFoundException("Type d'impôt", request.taxTypeCode()));
 
@@ -242,7 +249,9 @@ public class DeclarationService {
         Declaration saved = declarationRepository.save(declaration);
         addHistory(saved, "SOUMISSION", DeclarationStatus.DRAFT.name(), DeclarationStatus.SUBMITTED.name(),
                 "Déclaration soumise", http);
-        notificationService.notifyDeclarationSubmitted(null, saved.getReference());
+        notificationService.notifyDeclarationSubmitted(saved.getTaxpayer().getUserId(), saved.getReference());
+        obligationService.syncDeclarationStatus(saved.getTaxpayer().getId(),
+                saved.getTaxType().getCode(), saved.getPeriod(), DeclarationObligationStatus.SUBMITTED);
         auditService.record("SUBMIT", "DECLARATION", String.valueOf(id),
                 DeclarationStatus.DRAFT, DeclarationStatus.SUBMITTED, http);
         return DeclarationDto.from(saved);
@@ -278,11 +287,14 @@ public class DeclarationService {
         saved.setCalculatedTax(assessment.getNetTax());
         saved.setTotalAPayer(assessment.getNetTax());
         saved.setResteAPayer(assessment.getNetTax());
+        saved.setStatus(DeclarationStatus.LIQUIDEE);
         declarationRepository.save(saved);
 
-        addHistory(saved, "VALIDATION", DeclarationStatus.SUBMITTED.name(), DeclarationStatus.VALIDATED.name(),
-                "Déclaration validée" + (request != null && request.comment() != null ? " : " + request.comment() : ""), http);
-        notificationService.notifyDeclarationValidated(null, saved.getReference(), assessment.getNetTax());
+        addHistory(saved, "LIQUIDATION", DeclarationStatus.VALIDATED.name(), DeclarationStatus.LIQUIDEE.name(),
+                "Déclaration liquidée — imposition " + assessment.getReference() + " générée", http);
+        notificationService.notifyDeclarationValidated(saved.getTaxpayer().getUserId(), saved.getReference(), assessment.getNetTax());
+        obligationService.syncDeclarationStatus(saved.getTaxpayer().getId(),
+                saved.getTaxType().getCode(), saved.getPeriod(), DeclarationObligationStatus.VALIDATED);
         auditService.record("VALIDATE", "DECLARATION", String.valueOf(id),
                 DeclarationStatus.SUBMITTED, DeclarationStatus.VALIDATED, http);
         auditService.record("ASSESSMENT_GENERATED", "DECLARATION", String.valueOf(id),
@@ -303,7 +315,9 @@ public class DeclarationService {
         Declaration saved = declarationRepository.save(declaration);
         addHistory(saved, "REJET", DeclarationStatus.SUBMITTED.name(), DeclarationStatus.REJECTED.name(),
                 "Rejet : " + request.motif(), http);
-        notificationService.notifyDeclarationRejected(null, saved.getReference(), request.motif());
+        notificationService.notifyDeclarationRejected(saved.getTaxpayer().getUserId(), saved.getReference(), request.motif());
+        obligationService.syncDeclarationStatus(saved.getTaxpayer().getId(),
+                saved.getTaxType().getCode(), saved.getPeriod(), DeclarationObligationStatus.REJECTED);
         auditService.record("REJECT", "DECLARATION", String.valueOf(id),
                 DeclarationStatus.SUBMITTED, DeclarationStatus.REJECTED, http);
         return DeclarationDto.from(saved);
@@ -442,6 +456,19 @@ public class DeclarationService {
     public void addAnnexe(Long declarationId, String nom, String fichier, String typeMime,
                           Long taille, String categorie, boolean obligatoire, HttpServletRequest http) {
         Declaration declaration = find(declarationId);
+        com.mnktax.declaration.entity.DeclarationAnnexe annexe =
+                com.mnktax.declaration.entity.DeclarationAnnexe.builder()
+                        .declaration(declaration)
+                        .nom(nom)
+                        .fichier(fichier)
+                        .typeMime(typeMime)
+                        .taille(taille)
+                        .categorie(categorie)
+                        .obligatoire(obligatoire)
+                        .createdAt(Instant.now())
+                        .build();
+        declaration.getAnnexes().add(annexe);
+        declarationRepository.save(declaration);
         DeclarationHistory hist = DeclarationHistory.builder()
                 .declaration(declaration)
                 .username(SecurityUtils.currentUsername())
@@ -450,6 +477,16 @@ public class DeclarationService {
                 .createdAt(Instant.now())
                 .build();
         historyRepository.save(hist);
+    }
+
+    /**
+     * Un contribuable clôturé ne peut plus déposer de nouvelles déclarations.
+     */
+    private void requireOpen(Taxpayer taxpayer) {
+        if (taxpayer.getStatus() == com.mnktax.taxpayer.entity.TaxpayerStatus.CLOSED) {
+            throw new BusinessException("TAXPAYER_CLOSED",
+                    "Le contribuable est clôturé : impossible de créer une nouvelle déclaration.");
+        }
     }
 
     private Declaration find(Long id) {
@@ -515,8 +552,13 @@ public class DeclarationService {
 
     private long computeObligationsNonDeclarees() {
         try {
-            // Count total active obligations minus declarations already submitted/validated
-            return 0;
+            long totalActive = obligationService.countActive();
+            long submittedOrValidated = declarationRepository.countByStatus(DeclarationStatus.SUBMITTED)
+                    + declarationRepository.countByStatus(DeclarationStatus.UNDER_REVIEW)
+                    + declarationRepository.countByStatus(DeclarationStatus.VALIDATED)
+                    + declarationRepository.countByStatus(DeclarationStatus.LIQUIDEE)
+                    + declarationRepository.countByStatus(DeclarationStatus.PAYEE);
+            return Math.max(0, totalActive - submittedOrValidated);
         } catch (Exception e) {
             log.debug("Erreur calcul obligations: {}", e.getMessage());
             return 0;

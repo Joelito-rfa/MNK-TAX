@@ -33,12 +33,7 @@ public interface CollectionActionRepository extends JpaRepository<CollectionActi
     @Query("SELECT COUNT(a) FROM CollectionAction a")
     long countAll();
 
-    @Query("""
-            SELECT a FROM CollectionAction a
-            WHERE a.debt.id = :debtId
-            ORDER BY a.actionDate DESC, a.createdAt DESC
-            """)
-    Optional<CollectionAction> findLatestByDebtId(@Param("debtId") Long debtId);
+    Optional<CollectionAction> findTopByDebtIdOrderByActionDateDescCreatedAtDesc(Long debtId);
 
     @Query("""
             SELECT a FROM CollectionAction a
@@ -46,4 +41,6 @@ public interface CollectionActionRepository extends JpaRepository<CollectionActi
             ORDER BY a.nextActionDate ASC
             """)
     List<CollectionAction> findWithPendingNextActions();
+
+    List<CollectionAction> findTop10ByOrderByCreatedAtDesc();
 }

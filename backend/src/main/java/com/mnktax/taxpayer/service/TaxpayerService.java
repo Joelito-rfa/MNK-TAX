@@ -4,6 +4,10 @@ import com.mnktax.audit.service.AuditService;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.NifValidator;
+import com.mnktax.debt.entity.DebtStatus;
+import com.mnktax.debt.repository.TaxDebtRepository;
+import com.mnktax.declaration.entity.DeclarationStatus;
+import com.mnktax.declaration.repository.DeclarationRepository;
 import com.mnktax.tax.entity.TaxCenter;
 import com.mnktax.tax.entity.TaxRegime;
 import com.mnktax.tax.repository.TaxCenterRepository;
@@ -13,12 +17,14 @@ import com.mnktax.taxpayer.dto.TaxpayerDtos.ActivityDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.AddressDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.CreateTaxpayerRequest;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerDetailDto;
+import com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerStatsDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerSummaryDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.UpdateTaxpayerRequest;
 import com.mnktax.taxpayer.entity.Taxpayer;
 import com.mnktax.taxpayer.entity.TaxpayerActivity;
 import com.mnktax.taxpayer.entity.TaxpayerAddress;
 import com.mnktax.taxpayer.entity.TaxpayerStatus;
+import com.mnktax.taxpayer.entity.TaxpayerType;
 import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
@@ -35,24 +41,47 @@ public class TaxpayerService {
     private final TaxCenterRepository taxCenterRepository;
     private final TaxRegimeRepository taxRegimeRepository;
     private final TaxObligationRepository obligationRepository;
+    private final TaxDebtRepository debtRepository;
+    private final DeclarationRepository declarationRepository;
     private final AuditService auditService;
 
     public TaxpayerService(TaxpayerRepository taxpayerRepository, TaxCenterRepository taxCenterRepository,
                            TaxRegimeRepository taxRegimeRepository, TaxObligationRepository obligationRepository,
+                           TaxDebtRepository debtRepository, DeclarationRepository declarationRepository,
                            AuditService auditService) {
         this.taxpayerRepository = taxpayerRepository;
         this.taxCenterRepository = taxCenterRepository;
         this.taxRegimeRepository = taxRegimeRepository;
         this.obligationRepository = obligationRepository;
+        this.debtRepository = debtRepository;
+        this.declarationRepository = declarationRepository;
         this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
-    public Page<TaxpayerSummaryDto> search(String q, TaxpayerStatus status, Long taxCenterId, Long taxRegimeId,
-                                           String activityCode, String taxTypeCode, Pageable pageable) {
-        return taxpayerRepository.search(blankToNull(q), status, taxCenterId, taxRegimeId,
+    public Page<TaxpayerSummaryDto> search(String q, TaxpayerType type, TaxpayerStatus status, Long taxCenterId,
+                                           Long taxRegimeId, String activityCode, String taxTypeCode, Pageable pageable) {
+        return taxpayerRepository.search(blankToNull(q), type, status, taxCenterId, taxRegimeId,
                         blankToNull(activityCode), blankToNull(taxTypeCode), pageable)
                 .map(TaxpayerSummaryDto::from);
+    }
+
+    @Transactional(readOnly = true)
+    public TaxpayerStatsDto stats() {
+        long overdueDebts = debtRepository.countByStatus(DebtStatus.OVERDUE)
+                + debtRepository.countByStatus(DebtStatus.IN_COLLECTION);
+        long pendingDeclarations = declarationRepository.countByStatus(DeclarationStatus.SUBMITTED)
+                + declarationRepository.countByStatus(DeclarationStatus.UNDER_REVIEW)
+                + declarationRepository.countByStatus(DeclarationStatus.A_CORRIGER);
+        return new TaxpayerStatsDto(
+                taxpayerRepository.countAll(),
+                taxpayerRepository.countByStatus(TaxpayerStatus.ACTIVE),
+                taxpayerRepository.countByStatus(TaxpayerStatus.INACTIVE),
+                taxpayerRepository.countByStatus(TaxpayerStatus.SUSPENDED),
+                taxpayerRepository.countByStatus(TaxpayerStatus.CLOSED),
+                taxpayerRepository.countWithDebt(),
+                overdueDebts,
+                pendingDeclarations);
     }
 
     @Transactional(readOnly = true)
@@ -81,12 +110,9 @@ public class TaxpayerService {
 
     @Transactional
     public TaxpayerDetailDto create(CreateTaxpayerRequest request, HttpServletRequest http) {
-        NifValidator.validate(request.nif());
-        if (taxpayerRepository.existsByNif(request.nif())) {
-            throw new BusinessException("DUPLICATE", "Un contribuable avec ce NIF existe déjà : " + request.nif());
-        }
+        String nif = resolveNif(request.nif());
         Taxpayer taxpayer = Taxpayer.builder()
-                .nif(request.nif())
+                .nif(nif)
                 .type(request.type())
                 .name(request.name())
                 .businessName(request.businessName())
@@ -95,6 +121,9 @@ public class TaxpayerService {
                 .phone(request.phone())
                 .email(request.email())
                 .address(request.address())
+                .birthDate(request.birthDate())
+                .legalRepresentative(request.legalRepresentative())
+                .registrationDate(request.registrationDate())
                 .taxCenter(resolveCenter(request.taxCenterId()))
                 .taxRegime(resolveRegime(request.taxRegimeId()))
                 .status(TaxpayerStatus.ACTIVE)
@@ -147,6 +176,9 @@ public class TaxpayerService {
         taxpayer.setPhone(request.phone());
         taxpayer.setEmail(request.email());
         taxpayer.setAddress(request.address());
+        taxpayer.setBirthDate(request.birthDate());
+        taxpayer.setLegalRepresentative(request.legalRepresentative());
+        taxpayer.setRegistrationDate(request.registrationDate());
         taxpayer.setTaxCenter(resolveCenter(request.taxCenterId()));
         taxpayer.setTaxRegime(resolveRegime(request.taxRegimeId()));
         taxpayer.setStatus(request.status());
@@ -165,6 +197,41 @@ public class TaxpayerService {
         taxpayer.setUpdatedAt(Instant.now());
         taxpayerRepository.save(taxpayer);
         auditService.record("UPDATE", "TAXPAYER", String.valueOf(id), old, status, http);
+    }
+
+    @Transactional(readOnly = true)
+    public String nextNif() {
+        return generateNif();
+    }
+
+    private String resolveNif(String provided) {
+        if (provided == null || provided.isBlank()) {
+            return generateNif();
+        }
+        NifValidator.validate(provided);
+        if (taxpayerRepository.existsByNif(provided)) {
+            throw new BusinessException("DUPLICATE", "Un contribuable avec ce NIF existe déjà : " + provided);
+        }
+        return provided;
+    }
+
+    private String generateNif() {
+        long next = 1;
+        String max = taxpayerRepository.findMaxNif();
+        if (max != null) {
+            try {
+                next = Long.parseLong(max) + 1;
+            } catch (NumberFormatException ignored) {
+                next = 1;
+            }
+        }
+        String candidate = String.format("%010d", next);
+        while (candidate.length() == 10 && taxpayerRepository.existsByNif(candidate)) {
+            next++;
+            candidate = String.format("%010d", next);
+        }
+        NifValidator.validate(candidate);
+        return candidate;
     }
 
     private Taxpayer find(Long id) {

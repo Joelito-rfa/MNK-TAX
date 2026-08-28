@@ -9,5 +9,7 @@ public enum DebtStatus {
     OVERDUE,
     IN_COLLECTION,
     DISPUTED,
+    SUSPENDED,
+    CLOSED,
     CANCELLED
 }

@@ -47,6 +47,9 @@ public class Taxpayer {
     @Column(nullable = false, unique = true, length = 10)
     private String nif;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private TaxpayerType type;
@@ -71,6 +74,15 @@ public class Taxpayer {
 
     @Column(length = 255)
     private String address;
+
+    @Column(name = "birth_date")
+    private java.time.LocalDate birthDate;
+
+    @Column(name = "legal_representative", length = 200)
+    private String legalRepresentative;
+
+    @Column(name = "registration_date")
+    private java.time.LocalDate registrationDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

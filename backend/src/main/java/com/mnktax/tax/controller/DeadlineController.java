@@ -50,8 +50,11 @@ public class DeadlineController {
     @PreAuthorize("hasAuthority('" + Permissions.TAXONOMY_READ + "')")
     @Operation(summary = "Prochaines échéances")
     public ResponseEntity<List<DeadlineDto>> upcoming(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) Integer days,
             @RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok(deadlineService.upcoming(from, limit));
+        LocalDate startDate = from != null ? from : LocalDate.now();
+        int max = (days != null && days > 0) ? days : limit;
+        return ResponseEntity.ok(deadlineService.upcoming(startDate, max));
     }
 }

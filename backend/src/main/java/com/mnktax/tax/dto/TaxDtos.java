@@ -15,9 +15,11 @@ public final class TaxDtos {
         }
     }
 
-    public record TaxRegimeDto(Long id, String code, String name, String description, String category) {
+    public record TaxRegimeDto(Long id, String code, String name, String description, String category,
+                                Boolean vatApplicable, String obligationPeriodicity, String applicableTaxTypes) {
         public static TaxRegimeDto from(TaxRegime r) {
-            return new TaxRegimeDto(r.getId(), r.getCode(), r.getName(), r.getDescription(), r.getCategory());
+            return new TaxRegimeDto(r.getId(), r.getCode(), r.getName(), r.getDescription(), r.getCategory(),
+                    r.getVatApplicable(), r.getObligationPeriodicity(), r.getApplicableTaxTypes());
         }
     }
 

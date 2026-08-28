@@ -37,4 +37,13 @@ public class TaxRegime {
 
     @Column(length = 50)
     private String category;
+
+    @Column(name = "vat_applicable", nullable = false)
+    private Boolean vatApplicable;
+
+    @Column(name = "obligation_periodicity", length = 20)
+    private String obligationPeriodicity;
+
+    @Column(name = "applicable_tax_types", length = 500)
+    private String applicableTaxTypes;
 }

@@ -3,6 +3,7 @@ package com.mnktax.collection.controller;
 import com.mnktax.auth.security.Permissions;
 import com.mnktax.collection.dto.CollectionDtos.CollectionActionDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionDebtRowDto;
+import com.mnktax.collection.dto.CollectionDtos.CollectionDetailDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionHistoryDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionNoticeDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionStatsDto;
@@ -52,6 +53,15 @@ public class CollectionController {
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(collectionService.getCollectionDebts(status, taxTypeCode, period, q, pageable));
+    }
+
+    // ── Detail ──────────────────────────────────────────────
+
+    @GetMapping("/detail/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.COLLECTION_READ + "')")
+    @Operation(summary = "Détail d'une créance avec infos contribuable et historique")
+    public ResponseEntity<CollectionDetailDto> detail(@PathVariable Long id) {
+        return ResponseEntity.ok(collectionService.detail(id));
     }
 
     // ── Statistics ───────────────────────────────────────────
