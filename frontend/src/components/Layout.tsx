@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useAuth } from '../lib/auth'
 import Header from './Header'
 import Sidebar from './Sidebar'
+import FallingMoney from './FallingMoney'
 
 export default function Layout() {
   const { user } = useAuth()
@@ -27,13 +28,20 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen">
+      {/* Fond animé global du site */}
+      <div className="site-bg" aria-hidden="true">
+        <span className="site-bg-orb site-bg-orb-1" />
+        <span className="site-bg-orb site-bg-orb-2" />
+        <span className="site-bg-orb site-bg-orb-3" />
+        <FallingMoney />
+      </div>
       <Sidebar
         open={sidebarOpen}
         permissions={permissions}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />
-      <div className={`transition-all duration-300 ${sidebarOpen ? 'lg:pl-72' : 'lg:pl-0'}`}>
+      <div className={`relative transition-all duration-300 ${sidebarOpen ? 'lg:pl-72' : 'lg:pl-0'}`}>
         <Header onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
         <main className="mx-auto w-full max-w-[1400px] px-4 py-6 lg:px-6 lg:py-8">
           <div key={location.pathname} className="animate-page-in">

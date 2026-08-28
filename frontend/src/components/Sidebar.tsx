@@ -1,14 +1,18 @@
 import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
+  Banknote,
   BarChart3,
   Calculator,
   CalendarDays,
   ChevronDown,
   ClipboardList,
+  FileQuestion,
+  FileSearch,
   FileText,
   Landmark,
   LayoutDashboard,
+  Mail,
   MessageSquare,
   Receipt,
   ScrollText,
@@ -20,51 +24,56 @@ import {
   X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useI18n } from '../lib/i18n'
 
 export interface NavItem {
   to: string
-  label: string
+  labelKey: string
   icon: ReactNode
   permission: string
   end?: boolean
 }
 
 export interface NavSection {
-  label?: string
+  labelKey?: string
   items: NavItem[]
 }
 
 export const navSections: NavSection[] = [
   {
-    items: [{ to: '/', label: 'Tableau de bord', icon: <LayoutDashboard className="h-4.5 w-4.5" />, permission: 'REPORT_READ', end: true }],
+    items: [{ to: '/', labelKey: 'sidebar.dashboard', icon: <LayoutDashboard className="h-4.5 w-4.5" />, permission: 'REPORT_READ', end: true }],
   },
   {
-    label: 'Gestion',
+    labelKey: 'sidebar.section.gestion',
     items: [
-      { to: '/taxpayers', label: 'Contribuables', icon: <Users className="h-4.5 w-4.5" />, permission: 'TAXPAYER_READ' },
-      { to: '/declarations', label: 'Déclarations', icon: <FileText className="h-4.5 w-4.5" />, permission: 'DECLARATION_READ' },
-      { to: '/debts', label: 'Créances', icon: <TrendingDown className="h-4.5 w-4.5" />, permission: 'DEBT_READ' },
-      { to: '/collection', label: 'Recouvrement', icon: <ScrollText className="h-4.5 w-4.5" />, permission: 'COLLECTION_READ' },
-      { to: '/payments', label: 'Paiements', icon: <Wallet className="h-4.5 w-4.5" />, permission: 'PAYMENT_READ' },
-      { to: '/receipts', label: 'Quittances', icon: <Receipt className="h-4.5 w-4.5" />, permission: 'RECEIPT_READ' },
-      { to: '/messages', label: 'Messages', icon: <MessageSquare className="h-4.5 w-4.5" />, permission: 'MESSAGE_READ' },
+      { to: '/taxpayers', labelKey: 'sidebar.taxpayers', icon: <Users className="h-4.5 w-4.5" />, permission: 'TAXPAYER_READ' },
+      { to: '/declarations', labelKey: 'sidebar.declarations', icon: <FileText className="h-4.5 w-4.5" />, permission: 'DECLARATION_READ' },
+      { to: '/debts', labelKey: 'sidebar.debts', icon: <TrendingDown className="h-4.5 w-4.5" />, permission: 'DEBT_READ' },
+      { to: '/collection', labelKey: 'sidebar.collection', icon: <ScrollText className="h-4.5 w-4.5" />, permission: 'COLLECTION_READ' },
+      { to: '/payments', labelKey: 'sidebar.payments', icon: <Wallet className="h-4.5 w-4.5" />, permission: 'PAYMENT_READ' },
+      { to: '/receipts', labelKey: 'sidebar.receipts', icon: <Receipt className="h-4.5 w-4.5" />, permission: 'RECEIPT_READ' },
+      { to: '/controls', labelKey: 'sidebar.controls', icon: <FileSearch className="h-4.5 w-4.5" />, permission: 'CONTROL_READ' },
+      { to: '/complaints', labelKey: 'sidebar.complaints', icon: <FileQuestion className="h-4.5 w-4.5" />, permission: 'COMPLAINT_READ' },
+      { to: '/refunds', labelKey: 'sidebar.refunds', icon: <Banknote className="h-4.5 w-4.5" />, permission: 'REFUND_READ' },
+      { to: '/messages', labelKey: 'sidebar.messages', icon: <MessageSquare className="h-4.5 w-4.5" />, permission: 'MESSAGE_READ' },
     ],
   },
   {
-    label: 'Référentiels',
+    labelKey: 'sidebar.section.referentiels',
     items: [
-      { to: '/deadlines', label: 'Calendrier fiscal', icon: <CalendarDays className="h-4.5 w-4.5" />, permission: 'TAXONOMY_READ' },
-      { to: '/tax-rules', label: 'Règles fiscales', icon: <Calculator className="h-4.5 w-4.5" />, permission: 'RULE_READ' },
-      { to: '/reports', label: 'Rapports', icon: <BarChart3 className="h-4.5 w-4.5" />, permission: 'REPORT_READ' },
+      { to: '/deadlines', labelKey: 'sidebar.deadlines', icon: <CalendarDays className="h-4.5 w-4.5" />, permission: 'TAXONOMY_READ' },
+      { to: '/tax-rules', labelKey: 'sidebar.tax-rules', icon: <Calculator className="h-4.5 w-4.5" />, permission: 'RULE_READ' },
+      { to: '/reports', labelKey: 'sidebar.reports', icon: <BarChart3 className="h-4.5 w-4.5" />, permission: 'REPORT_READ' },
     ],
   },
   {
-    label: 'Administration',
+    labelKey: 'sidebar.section.administration',
     items: [
-      { to: '/users', label: 'Utilisateurs', icon: <Users className="h-4.5 w-4.5" />, permission: 'USER_READ' },
-      { to: '/roles', label: 'Rôles', icon: <Shield className="h-4.5 w-4.5" />, permission: 'ROLE_READ' },
-      { to: '/audit', label: 'Journal d\'audit', icon: <ClipboardList className="h-4.5 w-4.5" />, permission: 'AUDIT_READ' },
-      { to: '/parameters', label: 'Paramètres', icon: <Settings className="h-4.5 w-4.5" />, permission: 'PARAMETER_READ' },
+      { to: '/users', labelKey: 'sidebar.users', icon: <Users className="h-4.5 w-4.5" />, permission: 'USER_READ' },
+      { to: '/registrations', labelKey: 'sidebar.registrations', icon: <Mail className="h-4.5 w-4.5" />, permission: 'USER_READ' },
+      { to: '/roles', labelKey: 'sidebar.roles', icon: <Shield className="h-4.5 w-4.5" />, permission: 'ROLE_READ' },
+      { to: '/audit', labelKey: 'sidebar.audit', icon: <ClipboardList className="h-4.5 w-4.5" />, permission: 'AUDIT_READ' },
+      { to: '/parameters', labelKey: 'sidebar.parameters', icon: <Settings className="h-4.5 w-4.5" />, permission: 'PARAMETER_READ' },
     ],
   },
 ]
@@ -77,6 +86,7 @@ export function filterNavSections(permissions: string[]): NavSection[] {
 }
 
 function Brand() {
+  const { t } = useI18n()
   return (
     <div className="flex items-center gap-3 px-4 py-5">
       <img
@@ -85,8 +95,8 @@ function Brand() {
         className="h-10 w-10 shrink-0 rounded-xl object-contain shadow-lg shadow-brand-900/40"
       />
       <div className="min-w-0">
-        <p className="text-lg font-bold leading-tight tracking-tight text-white">MNK-TAX</p>
-        <p className="truncate text-[10px] uppercase tracking-widest text-slate-400">Gestion des impôts</p>
+        <p className="text-lg font-bold leading-tight tracking-tight text-white">{t('sidebar.brand')}</p>
+        <p className="truncate text-[10px] uppercase tracking-widest text-slate-400">{t('sidebar.brand.subtitle')}</p>
       </div>
     </div>
   )
@@ -130,6 +140,7 @@ export default function Sidebar({
 }) {
   const sections = filterNavSections(permissions)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({})
+  const { t } = useI18n()
 
   const content = (
     <div className="flex h-full flex-col bg-sidebar">
@@ -137,7 +148,7 @@ export default function Sidebar({
         <Brand />
         <button
           onClick={onCloseMobile}
-          className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white lg:hidden"
+          className="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white dark:text-slate-500 lg:hidden"
           aria-label="Fermer le menu"
         >
           <X className="h-5 w-5" />
@@ -146,19 +157,19 @@ export default function Sidebar({
 
       <nav className="flex-1 overflow-y-auto px-3 pb-4">
         {sections.map((section, idx) => {
-          const label = section.label ?? ''
+          const label = section.labelKey ? t(section.labelKey) : ''
           const isOpen = openSections[label] ?? true
           const toggle = () =>
             setOpenSections((s) => ({ ...s, [label]: !(s[label] ?? true) }))
           return (
             <div key={label || idx} className="mt-5">
-              {section.label ? (
+              {section.labelKey ? (
                 <button
                   onClick={toggle}
                   aria-expanded={isOpen}
                   className="group mb-1 flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500 transition hover:bg-white/5 hover:text-slate-300"
                 >
-                  {section.label}
+                  {label}
                   <ChevronDown
                     className={`h-3.5 w-3.5 transition-transform duration-300 ${
                       isOpen ? 'rotate-0' : '-rotate-90'
@@ -194,7 +205,7 @@ export default function Sidebar({
                               <span className={`shrink-0 ${isActive ? 'text-brand-300' : 'text-slate-500 group-hover:text-slate-300'}`}>
                                 {item.icon}
                               </span>
-                              {item.label}
+                              {t(item.labelKey)}
                             </>
                           )}
                         </NavLink>
@@ -227,8 +238,8 @@ export default function Sidebar({
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCloseMobile} />
-          <div className="absolute inset-y-0 left-0 w-72 animate-drawer-in bg-sidebar shadow-popover">{content}</div>
+          <div className="absolute inset-0 animate-fade-in bg-slate-900/60 backdrop-blur-sm" onClick={onCloseMobile} />
+          <div className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in bg-sidebar shadow-popover">{content}</div>
         </div>
       )}
     </>

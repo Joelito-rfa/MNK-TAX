@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
 
@@ -35,6 +37,7 @@
   --animate-float-slow: float 9s ease-in-out infinite;
   --animate-progress: progress-grow 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-row-in: row-in 0.35s ease-out both;
+  --animate-kpi-in: kpi-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-toast-in: toast-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-toast-out: toast-out 0.2s ease-in both;
   --animate-check-pop: check-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.06s both;
@@ -97,6 +100,11 @@
   to { opacity: 1; transform: none; }
 }
 
+@keyframes kpi-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateX(28px) scale(0.97); }
   to { opacity: 1; transform: none; }
@@ -118,6 +126,63 @@
   100% { transform: scale(2); opacity: 0; }
 }
 
+@keyframes drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(70px, 50px) scale(1.08); }
+  66% { transform: translate(-40px, 90px) scale(0.94); }
+}
+
+@keyframes drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40% { transform: translate(-90px, 40px) scale(1.1); }
+  70% { transform: translate(-30px, -60px) scale(0.95); }
+}
+
+@keyframes drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, -70px) scale(1.12); }
+  75% { transform: translate(-60px, -20px) scale(0.92); }
+}
+
+@keyframes aurora-drift {
+  0%, 100% { transform: translate3d(-1.5%, -1%, 0) scale(1); }
+  50% { transform: translate3d(1.5%, 1.5%, 0) scale(1.05); }
+}
+
+@keyframes money-fall {
+  0% {
+    transform: translate3d(calc(var(--sway, 0px) * -0.5), -14vh, 0) rotate(-16deg);
+    opacity: 0;
+    animation-timing-function: ease-in-out;
+  }
+  8% {
+    opacity: var(--money-opacity, 0.2);
+  }
+  26% {
+    transform: translate3d(calc(var(--sway, 0px) * 0.55), 24vh, 0) rotate(13deg);
+    animation-timing-function: ease-in-out;
+  }
+  45% {
+    transform: translate3d(calc(var(--sway, 0px) * -0.55), 50vh, 0) rotate(-13deg);
+    animation-timing-function: ease-in-out;
+  }
+  64% {
+    transform: translate3d(calc(var(--sway, 0px) * 0.5), 76vh, 0) rotate(11deg);
+    animation-timing-function: ease-in-out;
+  }
+  84% {
+    opacity: var(--money-opacity, 0.2);
+  }
+  87% {
+    transform: translate3d(calc(var(--sway, 0px) * -0.4), 104vh, 0) rotate(-8deg);
+    animation-timing-function: ease-in-out;
+  }
+  100% {
+    transform: translate3d(calc(var(--sway, 0px) * -0.4), 118vh, 0) rotate(-4deg);
+    opacity: 0;
+  }
+}
+
 @layer base {
   html,
   body,
@@ -125,11 +190,372 @@
     height: 100%;
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
-    background-color: var(--color-surface);
+    background-color: transparent;
     color: #1f2937;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  .dark body,
+  .dark #root {
+    background-color: transparent;
+    color: #e2e8f0;
+  }
+
+  /* Fond animé global : halos flottants derrière tout le contenu */
+  .site-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -10;
+    overflow: hidden;
+    pointer-events: none;
+    background: linear-gradient(120deg, #f6f7fb 0%, #eef1f7 50%, #f4f5f9 100%);
+  }
+
+  /* Aurore sur pseudo-élément : transform uniquement → compositor GPU, fluide */
+  .site-bg::before {
+    content: "";
+    position: absolute;
+    inset: -30%;
+    pointer-events: none;
+    background:
+      radial-gradient(55% 70% at 12% 8%, rgb(99 102 241 / 0.07), transparent 65%),
+      radial-gradient(50% 65% at 88% 15%, rgb(14 165 233 / 0.06), transparent 65%),
+      radial-gradient(60% 55% at 75% 95%, rgb(16 185 129 / 0.05), transparent 65%);
+    animation: aurora-drift 36s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .dark .site-bg {
+    background: linear-gradient(120deg, #0f1117 0%, #111318 50%, #0f1117 100%);
+  }
+
+  .dark .site-bg::before {
+    background:
+      radial-gradient(55% 70% at 12% 8%, rgb(99 102 241 / 0.04), transparent 65%),
+      radial-gradient(50% 65% at 88% 15%, rgb(14 165 233 / 0.03), transparent 65%),
+      radial-gradient(60% 55% at 75% 95%, rgb(16 185 129 / 0.03), transparent 65%);
+  }
+
+  .dark .site-bg-orb-1 {
+    background: radial-gradient(circle at 35% 35%, rgb(99 102 241 / 0.08), transparent 70%);
+  }
+  .dark .site-bg-orb-2 {
+    background: radial-gradient(circle at 60% 40%, rgb(56 189 248 / 0.06), transparent 70%);
+  }
+  .dark .site-bg-orb-3 {
+    background: radial-gradient(circle at 50% 50%, rgb(16 185 129 / 0.05), transparent 70%);
+  }
+
+  .site-bg-orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(70px);
+    will-change: transform;
+  }
+
+  .site-bg-orb-1 {
+    width: 520px;
+    height: 520px;
+    top: -160px;
+    left: -140px;
+    background: radial-gradient(circle at 35% 35%, rgb(99 102 241 / 0.16), transparent 70%);
+    animation: drift-1 26s ease-in-out infinite;
+  }
+
+  .site-bg-orb-2 {
+    width: 440px;
+    height: 440px;
+    top: 28%;
+    right: -180px;
+    background: radial-gradient(circle at 60% 40%, rgb(56 189 248 / 0.13), transparent 70%);
+    animation: drift-2 32s ease-in-out infinite;
+  }
+
+  .site-bg-orb-3 {
+    width: 560px;
+    height: 560px;
+    bottom: -200px;
+    left: 32%;
+    background: radial-gradient(circle at 50% 50%, rgb(16 185 129 / 0.10), transparent 70%);
+    animation: drift-3 38s ease-in-out infinite;
+  }
+
+  /* Variante pour pages hors Layout (Login, vérification…) */
+  .site-bg-static {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .site-bg-static .site-bg-orb {
+    filter: blur(80px);
+  }
+
+  /* Pluie d'argent décorative (billets « Ar ») */
+  .money-note {
+    position: absolute;
+    top: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #a7f3d0 0%, #34d399 100%);
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.15);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: #065f46;
+    text-shadow: 0 1px 0 rgb(255 255 255 / 0.35);
+    opacity: var(--money-opacity, 0.2);
+    animation-name: money-fall;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    will-change: transform, opacity;
+  }
+
+  .money-note::after {
+    content: "";
+    position: absolute;
+    inset: 12% 8%;
+    border: 1px solid rgb(6 95 70 / 0.35);
+    border-radius: 2px;
+  }
+
+  /* Voile de lisibilité : masque les animations de fond derrière le branding */
+  .brand-scrim {
+    position: absolute;
+    inset: -1.5rem -2rem;
+    z-index: -10;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse closest-side at 50% 50%,
+      rgb(15 23 42 / 0.78) 0%,
+      rgb(15 23 42 / 0.5) 58%,
+      rgb(15 23 42 / 0) 100%
+    );
+  }
+  .dark .brand-scrim {
+    background: radial-gradient(
+      ellipse closest-side at 50% 50%,
+      rgb(11 15 26 / 0.82) 0%,
+      rgb(11 15 26 / 0.52) 58%,
+      rgb(11 15 26 / 0) 100%
+    );
+  }
+
+  /* Panneau formulaire : voile opaque doux qui isole le texte des animations */
+  .login-panel {
+    padding: 2rem;
+    border-radius: 24px;
+    background: rgb(255 255 255 / 0.82);
+    border: 1px solid rgb(255 255 255 / 0.6);
+    box-shadow:
+      0 24px 64px -28px rgb(15 23 42 / 0.35),
+      inset 0 1px 0 rgb(255 255 255 / 0.55);
+  }
+  @media (min-width: 640px) {
+    .login-panel {
+      padding: 2.25rem;
+    }
+  }
+  .dark .login-panel {
+    background: rgb(17 19 27 / 0.82);
+    border-color: rgb(255 255 255 / 0.07);
+    box-shadow:
+      0 24px 64px -28px rgb(0 0 0 / 0.6),
+      inset 0 1px 0 rgb(255 255 255 / 0.05);
+  }
+
+  /* Cartes glassmorphism flottantes — login panneau gauche */
+  .fiscal-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255 255 255 / 0.035) 0%, rgba(255 255 255 / 0.01) 100%);
+    border: 1px solid rgba(255 255 255 / 0.04);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow:
+      0 4px 24px -4px rgb(0 0 0 / 0.15),
+      inset 0 1px 0 rgba(255 255 255 / 0.04);
+    animation: fiscal-card-drift 16s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+    will-change: transform;
+  }
+
+  .dark .fiscal-card {
+    background: linear-gradient(135deg, rgba(255 255 255 / 0.025) 0%, rgba(255 255 255 / 0.005) 100%);
+    border-color: rgba(255 255 255 / 0.03);
+  }
+
+  @keyframes fiscal-card-drift {
+    0%, 100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    25% {
+      transform: translateY(-6px) rotate(0.5deg);
+    }
+    50% {
+      transform: translateY(3px) rotate(-0.3deg);
+    }
+    75% {
+      transform: translateY(-2px) rotate(0.2deg);
+    }
+  }
+
+  /* Anneaux rotatifs du panneau branding (CSS → fluide + reduced-motion) */
+  .fiscal-ring {
+    transform-box: view-box;
+    transform-origin: center;
+    animation: fiscal-spin-cw linear infinite;
+    will-change: transform;
+  }
+  .fiscal-ring-ccw {
+    animation-name: fiscal-spin-ccw;
+  }
+
+  .fiscal-particle {
+    opacity: 0;
+    animation: fiscal-pulse var(--dur, 12s) ease-in-out var(--delay, 0s) infinite;
+  }
+
+  .fiscal-line {
+    opacity: 0;
+    animation: fiscal-line-pulse var(--dur, 9s) ease-in-out var(--delay, 1s) infinite;
+  }
+
+  @keyframes fiscal-spin-cw {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes fiscal-spin-ccw {
+    to { transform: rotate(-360deg); }
+  }
+  @keyframes fiscal-pulse {
+    0%, 100% { opacity: 0; }
+    50% { opacity: var(--p-op, 0.03); }
+  }
+  @keyframes fiscal-line-pulse {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 0.02; }
+  }
+
+  /* Icones flottantes */
+  .fiscal-float-icon {
+    opacity: 0;
+    animation: fiscal-float-in 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+               fiscal-float-drift 14s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+
+  @keyframes fiscal-float-in {
+    0% {
+      opacity: 0;
+      transform: translateY(20px) scale(0.7);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  @keyframes fiscal-float-drift {
+    0%, 100% {
+      transform: translateY(0) translateX(0);
+    }
+    25% {
+      transform: translateY(-8px) translateX(3px);
+    }
+    50% {
+      transform: translateY(4px) translateX(-2px);
+    }
+    75% {
+      transform: translateY(-3px) translateX(1px);
+    }
+  }
+
+  /* Pourcentages flottants */
+  .fiscal-value {
+    font-family: 'Inter', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-brand-200);
+    opacity: 0;
+    letter-spacing: 0.05em;
+    animation: fiscal-value-in 1s ease-out forwards,
+               fiscal-value-pulse 5s ease-in-out infinite;
+    will-change: opacity, transform;
+  }
+
+  @keyframes fiscal-value-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    100% {
+      opacity: 0.2;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes fiscal-value-pulse {
+    0%, 100% {
+      opacity: 0.12;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.25;
+      transform: scale(1.05);
+    }
+  }
+
+  /* Graphique en barres */
+  .fiscal-chart {
+    opacity: 0;
+    animation: fiscal-chart-in 1.5s ease-out 0.5s forwards;
+  }
+
+  .fiscal-chart-bar {
+    background: linear-gradient(to top, var(--color-brand-400), var(--color-brand-300));
+    opacity: 0;
+    border-radius: 2px 2px 0 0;
+    animation: fiscal-bar-grow 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+               fiscal-bar-shimmer 4s ease-in-out infinite;
+    will-change: transform, opacity;
+  }
+
+  @keyframes fiscal-chart-in {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes fiscal-bar-grow {
+    0% {
+      opacity: 0;
+      transform: scaleY(0);
+      transform-origin: bottom;
+    }
+    100% {
+      opacity: 0.12;
+      transform: scaleY(1);
+      transform-origin: bottom;
+    }
+  }
+
+  @keyframes fiscal-bar-shimmer {
+    0%, 100% {
+      opacity: 0.08;
+    }
+    50% {
+      opacity: 0.18;
+    }
   }
 
   ::-webkit-scrollbar {
@@ -142,8 +568,16 @@
     border-radius: 8px;
   }
 
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: #334155;
+  }
+
   ::-webkit-scrollbar-thumb:hover {
     background-color: #94a3b8;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: #475569;
   }
 
   ::-webkit-scrollbar-track {
@@ -166,13 +600,22 @@
   .card {
     @apply rounded-2xl border border-slate-200/70 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05)];
   }
+  .dark .card {
+    @apply border-slate-700/50 bg-slate-800 shadow-[0_1px_2px_rgba(0,0,0,0.3)];
+  }
 
   .input-base {
     @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
   }
+  .dark .input-base {
+    @apply border-slate-600 bg-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-brand-400 focus:ring-brand-400/10;
+  }
 
   .tab-active {
     @apply bg-white text-slate-900 shadow-sm;
+  }
+  .dark .tab-active {
+    @apply bg-slate-800 text-slate-100;
   }
 
   /* Cascade d'apparition des lignes de tableaux (toutes les pages) */
@@ -211,4 +654,296 @@
   .grid > .card:nth-child(10) { animation-delay: 0.4s; }
   .grid > .card:nth-child(11) { animation-delay: 0.44s; }
   .grid > .card:nth-child(12) { animation-delay: 0.48s; }
+
+  /* Cascade spécifique des cartes KPI du Dashboard (glissement + zoom) */
+  .kpi-grid > .card {
+    animation: kpi-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .kpi-grid > .card:nth-child(1) { animation-delay: 0.05s; }
+  .kpi-grid > .card:nth-child(2) { animation-delay: 0.1s; }
+  .kpi-grid > .card:nth-child(3) { animation-delay: 0.15s; }
+  .kpi-grid > .card:nth-child(4) { animation-delay: 0.2s; }
+  .kpi-grid > .card:nth-child(5) { animation-delay: 0.25s; }
+  .kpi-grid > .card:nth-child(6) { animation-delay: 0.3s; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DARK MODE  —  activé via la classe .dark sur <html>
+   Le hook useTheme() dans Header.tsx gère le toggle + localStorage.
+   ═══════════════════════════════════════════════════════════════ */
+:root.dark {
+  --color-surface: #0f1117;
+  --color-ink: #e2e8f0;
+  --color-sidebar: #0b0f1a;
+  --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+  --shadow-card-hover: 0 6px 24px -6px rgb(0 0 0 / 0.45);
+  --shadow-popover: 0 12px 32px -8px rgb(0 0 0 / 0.55);
+}
+
+:where(.dark, .dark *) {
+  --surface: #0f1117;
+  --surface-raised: #181b25;
+  --surface-overlay: #1e2230;
+  --border-dark: #2a2e3d;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+}
+
+/* ── Global ── */
+.dark body {
+  background-color: transparent;
+  color: #e2e8f0;
+}
+
+.dark html,
+.dark #root {
+  background-color: transparent;
+}
+
+/* ── Fond animé ── */
+.dark .site-bg-orb-1 {
+  background: radial-gradient(circle at 35% 35%, rgb(99 102 241 / 0.25), transparent 70%);
+}
+.dark .site-bg-orb-2 {
+  background: radial-gradient(circle at 60% 40%, rgb(56 189 248 / 0.20), transparent 70%);
+}
+.dark .site-bg-orb-3 {
+  background: radial-gradient(circle at 50% 50%, rgb(16 185 129 / 0.16), transparent 70%);
+}
+
+.dark .money-note {
+  background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+  color: #a7f3d0;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.3);
+}
+
+/* ── Header ── */
+.dark header {
+  background-color: rgb(15 17 23 / 0.85) !important;
+  border-color: #2a2e3d !important;
+}
+
+/* ── Cards ── */
+.dark .card {
+  background-color: #181b25 !important;
+  border-color: #2a2e3d !important;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+}
+.dark .card:hover {
+  box-shadow: 0 6px 24px -6px rgb(0 0 0 / 0.45);
+}
+
+/* ── Inputs ── */
+.dark .input-base {
+  background-color: #1e2230 !important;
+  border-color: #2a2e3d !important;
+  color: #e2e8f0 !important;
+}
+.dark .input-base::placeholder {
+  color: #64748b !important;
+}
+.dark .input-base:focus {
+  border-color: #6366f1 !important;
+  ring-color: rgb(99 102 241 / 0.15);
+}
+
+/* ── Tabs ── */
+.dark .tab-active {
+  background-color: #1e2230 !important;
+  color: #e2e8f0 !important;
+}
+.dark [class*="bg-slate-100"][class*="rounded-xl"][class*="p-1"] {
+  background-color: #1a1e2c !important;
+}
+
+/* ── Scrollbar ── */
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #334155;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
+}
+.dark ::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Overrides pour les classes Tailwind utility utilisées en dur
+   dans les composants (text-slate-*, bg-white, border-slate-*, etc.)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Fond blanc → fond sombre ── */
+.dark .bg-white {
+  background-color: #181b25 !important;
+}
+.dark .bg-white\/80 {
+  background-color: rgb(24 27 37 / 0.85) !important;
+}
+.dark .bg-white\/90,
+.dark .bg-white\/60 {
+  background-color: rgb(24 27 37 / 0.80) !important;
+}
+
+/* ── Fond slate-50 ── */
+.dark .bg-slate-50 {
+  background-color: #1a1e2c !important;
+}
+.dark .bg-slate-50\/60 {
+  background-color: rgb(26 30 44 / 0.6) !important;
+}
+
+/* ── Fond slate-100 ── */
+.dark .bg-slate-100 {
+  background-color: #1e2230 !important;
+}
+.dark .bg-slate-100\/80 {
+  background-color: rgb(30 34 48 / 0.8) !important;
+}
+
+/* ── Borders ── */
+.dark .border-slate-200,
+.dark .border-slate-200\/70,
+.dark .border-slate-200\/80,
+.dark [class*="border-slate-200"] {
+  border-color: #2a2e3d !important;
+}
+.dark .border-slate-100 {
+  border-color: #1e2230 !important;
+}
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #2a2e3d !important;
+}
+
+/* ── Texte principal ── */
+.dark .text-slate-900 {
+  color: #e2e8f0 !important;
+}
+.dark .text-slate-800 {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-700 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-600 {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-500 {
+  color: #64748b !important;
+}
+.dark .text-slate-400 {
+  color: #475569 !important;
+}
+
+/* ── Hover states ── */
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-slate-100:hover {
+  background-color: #232838 !important;
+}
+.dark .hover\:bg-brand-50\/40:hover,
+.dark .hover\:bg-brand-50\/60:hover,
+.dark .hover\:bg-brand-50:hover {
+  background-color: rgb(99 102 241 / 0.12) !important;
+}
+.dark .hover\:bg-rose-50:hover {
+  background-color: rgb(244 63 94 / 0.12) !important;
+}
+
+/* ── Focus ring ── */
+.dark .focus\:border-brand-500:focus,
+.dark .focus\:ring-brand-500\/10:focus {
+  --tw-ring-color: rgb(99 102 241 / 0.2);
+}
+
+/* ── Badge backgrounds (écrans de statut) ── */
+.dark .bg-emerald-50 { background-color: rgb(16 185 129 / 0.12) !important; }
+.dark .bg-rose-50 { background-color: rgb(244 63 94 / 0.12) !important; }
+.dark .bg-amber-50 { background-color: rgb(245 158 11 / 0.12) !important; }
+.dark .bg-blue-50 { background-color: rgb(59 130 246 / 0.12) !important; }
+.dark .bg-violet-50 { background-color: rgb(139 92 246 / 0.12) !important; }
+.dark .bg-indigo-50 { background-color: rgb(99 102 241 / 0.12) !important; }
+.dark .bg-brand-50 { background-color: rgb(99 102 241 / 0.12) !important; }
+.dark .bg-brand-100 { background-color: rgb(99 102 241 / 0.18) !important; }
+.dark .bg-emerald-100 { background-color: rgb(16 185 129 / 0.18) !important; }
+.dark .bg-amber-100 { background-color: rgb(245 158 11 / 0.18) !important; }
+.dark .bg-rose-100 { background-color: rgb(244 63 94 / 0.18) !important; }
+.dark .bg-sky-100 { background-color: rgb(14 165 233 / 0.18) !important; }
+.dark .bg-violet-100 { background-color: rgb(139 92 246 / 0.18) !important; }
+.dark .bg-slate-100 { background-color: #1e2230 !important; }
+
+/* ── Badge text colors ── */
+.dark .text-emerald-600 { color: #34d399 !important; }
+.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-rose-600 { color: #fb7185 !important; }
+.dark .text-rose-700 { color: #fda4af !important; }
+.dark .text-amber-600 { color: #fbbf24 !important; }
+.dark .text-amber-700 { color: #fcd34d !important; }
+.dark .text-blue-600 { color: #60a5fa !important; }
+.dark .text-blue-700 { color: #93c5fd !important; }
+.dark .text-violet-600 { color: #a78bfa !important; }
+.dark .text-violet-700 { color: #c4b5fd !important; }
+.dark .text-indigo-600 { color: #818cf8 !important; }
+.dark .text-indigo-700 { color: #a5b4fc !important; }
+.dark .text-brand-600 { color: #818cf8 !important; }
+.dark .text-brand-700 { color: #a5b4fc !important; }
+.dark .text-orange-600 { color: #fb923c !important; }
+.dark .text-sky-600 { color: #38bdf8 !important; }
+
+/* ── Ring / outline ── */
+.dark .ring-slate-100 {
+  --tw-ring-color: #2a2e3d;
+}
+
+/* ── Chart tooltips (recharts) ── */
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #1e2230 !important;
+  border-color: #2a2e3d !important;
+  color: #e2e8f0 !important;
+}
+.dark .recharts-cartesian-grid line {
+  stroke: #2a2e3d !important;
+}
+.dark .recharts-text {
+  fill: #64748b !important;
+}
+
+/* ── Popover / dropdown ── */
+.dark .shadow-popover {
+  box-shadow: 0 12px 32px -8px rgb(0 0 0 / 0.55);
+}
+
+/* ── Table rows ── */
+.dark tbody tr {
+  border-color: #2a2e3d !important;
+}
+.dark tbody tr:nth-child(even) {
+  background-color: rgb(26 30 44 / 0.4) !important;
+}
+.dark tbody tr:hover {
+  background-color: rgb(99 102 241 / 0.08) !important;
+}
+.dark tfoot tr {
+  background-color: #1a1e2c !important;
+  border-color: #2a2e3d !important;
+}
+.dark thead tr {
+  background-color: transparent !important;
+}
+
+/* ── Modal / overlay ── */
+.dark .bg-black\/40,
+.dark .bg-black\/60 {
+  background-color: rgb(0 0 0 / 0.7) !important;
+}
+.dark .fixed.inset-0.z-50 > div,
+.dark [class*="rounded-2xl"][class*="bg-white"][class*="shadow-xl"] {
+  background-color: #1e2230 !important;
+}
+
+/* ── Badges ── */
+.dark [class*="rounded-full"][class*="bg-brand-600"] {
+  background-color: #6366f1 !important;
+}
+.dark [class*="rounded-full"][class*="bg-rose-500"] {
+  background-color: #f43f5e !important;
 }

@@ -31,9 +31,9 @@ export function useToast(): ToastApi {
 }
 
 const typeStyles: Record<ToastType, { border: string; icon: string; Icon: LucideIcon }> = {
-  success: { border: 'border-emerald-200', icon: 'bg-emerald-500', Icon: Check },
-  error: { border: 'border-rose-200', icon: 'bg-rose-500', Icon: AlertTriangle },
-  info: { border: 'border-sky-200', icon: 'bg-sky-500', Icon: Info },
+  success: { border: 'border-emerald-200 dark:border-emerald-800', icon: 'bg-emerald-500', Icon: Check },
+  error: { border: 'border-rose-200 dark:border-rose-800', icon: 'bg-rose-500', Icon: AlertTriangle },
+  info: { border: 'border-sky-200 dark:border-sky-800', icon: 'bg-sky-500', Icon: Info },
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -95,7 +95,7 @@ function ToastItem({ toast, onClose }: { toast: ToastItem; onClose: () => void }
   return (
     <div
       role="status"
-      className={`pointer-events-auto flex items-start gap-3 rounded-2xl border bg-white p-3.5 shadow-popover ${border} ${
+      className={`pointer-events-auto flex items-start gap-3 rounded-2xl border bg-white p-3.5 shadow-popover dark:bg-slate-800 ${border} ${
         toast.leaving ? 'animate-toast-out' : 'animate-toast-in'
       }`}
     >
@@ -103,10 +103,10 @@ function ToastItem({ toast, onClose }: { toast: ToastItem; onClose: () => void }
         <span className="absolute inset-0 animate-ring-pulse rounded-full bg-white/50" />
         <Icon className="relative h-4.5 w-4.5 animate-check-pop" strokeWidth={3} />
       </span>
-      <p className="flex-1 pt-1 text-sm font-medium leading-snug text-slate-800">{toast.message}</p>
+      <p className="flex-1 pt-1 text-sm font-medium leading-snug text-slate-800 dark:text-slate-200">{toast.message}</p>
       <button
         onClick={onClose}
-        className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+        className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
         aria-label="Fermer"
       >
         <X className="h-4 w-4" />

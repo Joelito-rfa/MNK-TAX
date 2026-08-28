@@ -5,10 +5,18 @@
     <link rel="icon" type="image/webp" href="/logo.webp" />
     <link rel="apple-touch-icon" href="/logo.webp" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="MNK-TAX - Gestion intelligente des obligations et du recouvrement fiscal (prototype académique)" />
-    <title>MNK-TAX</title>
+    <meta name="description" content="MNK-TAX — Plateforme numérique de gestion fiscale pour le suivi des contribuables, déclarations, paiements et recouvrement." />
+    <meta name="theme-color" content="#0f1117" />
+    <title>MNK-TAX — Gestion fiscale numérique</title>
   </head>
   <body>
+    <script>
+      (function() {
+        var t = localStorage.getItem('mnk-theme');
+        var dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme:dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

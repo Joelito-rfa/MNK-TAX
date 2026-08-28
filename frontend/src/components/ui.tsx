@@ -17,7 +17,7 @@ import {
 
 export function Spinner({ label = 'Chargement…' }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400">
+    <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400 dark:text-slate-500">
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
       <span className="text-sm">{label}</span>
     </div>
@@ -27,13 +27,13 @@ export function Spinner({ label = 'Chargement…' }: { label?: string }) {
 export function LoadingState() {
   return (
     <div className="animate-fade-in space-y-4">
-      <div className="h-8 w-56 animate-pulse rounded-lg bg-slate-200" />
+      <div className="h-8 w-56 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-28 animate-pulse rounded-2xl bg-slate-100" />
+          <div key={i} className="h-28 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
         ))}
       </div>
-      <div className="h-96 animate-pulse rounded-2xl bg-slate-100" />
+      <div className="h-96 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
     </div>
   )
 }
@@ -42,12 +42,12 @@ export function EmptyState({ icon, title, subtitle }: { icon?: ReactNode; title:
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-14 text-center">
       {icon && (
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500">
           {icon}
         </div>
       )}
-      <p className="font-medium text-slate-700">{title}</p>
-      {subtitle && <p className="max-w-sm text-sm text-slate-500">{subtitle}</p>}
+      <p className="font-medium text-slate-700 dark:text-slate-300">{title}</p>
+      {subtitle && <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
     </div>
   )
 }
@@ -57,10 +57,10 @@ type ButtonSize = 'sm' | 'md' | 'lg'
 
 const buttonStyles: Record<ButtonVariant, string> = {
   primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 focus-visible:ring-brand-500/30',
-  dark: 'bg-slate-800 text-slate-200 border border-slate-200 shadow-sm hover:bg-slate-700 focus-visible:ring-slate-500/30',
-  secondary: 'border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50',
+  dark: 'bg-slate-800 text-slate-200 border border-slate-700 shadow-sm hover:bg-slate-700 focus-visible:ring-slate-500/30 dark:bg-slate-700 dark:border-slate-600 dark:hover:bg-slate-600',
+  secondary: 'border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700',
   danger: 'bg-rose-500 text-white shadow-sm hover:bg-rose-600 focus-visible:ring-rose-500/30',
-  ghost: 'text-slate-500 hover:bg-slate-100 hover:text-slate-800',
+  ghost: 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200',
   success: 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600 focus-visible:ring-emerald-500/30',
 }
 
@@ -101,9 +101,10 @@ function SpinnerSmall() {
   )
 }
 
-export function Card({ children, className = '', hover = false }: { children: ReactNode; className?: string; hover?: boolean }) {
+export function Card({ children, className = '', hover = false, onClick }: { children: ReactNode; className?: string; hover?: boolean; onClick?: () => void }) {
   return (
     <div
+      onClick={onClick}
       className={`card animate-fade-in transition-shadow duration-200 ${hover ? 'hover:shadow-card-hover' : ''} ${className}`}
     >
       {children}
@@ -123,10 +124,10 @@ export function CardHeader({
   className?: string
 }) {
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-5 py-4 ${className}`}>
+    <div className={`flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50 ${className}`}>
       <div>
-        <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -147,8 +148,8 @@ export function PageHeader({
   return (
     <div className={`flex flex-wrap items-end justify-between gap-4 ${className}`}>
       <div>
-        <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -186,13 +187,13 @@ export function SearchInput({
 }) {
   return (
     <div className={`relative ${className}`}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10"
+        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:bg-slate-700 dark:focus:ring-brand-400/10"
       />
     </div>
   )
@@ -201,9 +202,9 @@ export function SearchInput({
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-slate-400 dark:text-slate-500">{hint}</span>}
     </label>
   )
 }
@@ -211,14 +212,14 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 type BadgeTone = 'green' | 'red' | 'amber' | 'blue' | 'slate' | 'violet' | 'indigo' | 'rose'
 
 const badgeTones: Record<BadgeTone, string> = {
-  green: 'bg-emerald-50 text-emerald-700',
-  red: 'bg-rose-50 text-rose-700',
-  amber: 'bg-amber-50 text-amber-700',
-  blue: 'bg-blue-50 text-blue-700',
-  slate: 'bg-slate-100 text-slate-600',
-  violet: 'bg-violet-50 text-violet-700',
-  indigo: 'bg-indigo-50 text-indigo-700',
-  rose: 'bg-rose-50 text-rose-700',
+  green: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  red: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
+  amber: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  slate: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
+  violet: 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
+  indigo: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+  rose: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
 }
 
 export function Badge({ tone = 'slate', children, className = '' }: { tone?: BadgeTone; children: ReactNode; className?: string }) {
@@ -233,9 +234,10 @@ export function Badge({ tone = 'slate', children, className = '' }: { tone?: Bad
 
 export const statusTone = (value: string): BadgeTone => {
   const v = value.toLowerCase()
-  if (['active', 'paid', 'validated', 'allocated', 'issued', 'submitted'].includes(v)) return 'green'
-  if (['suspended', 'rejected', 'void', 'cancelled', 'overdue', 'in_collection', 'failed'].includes(v)) return 'red'
-  if (['draft', 'closed', 'recorded', 'pending', 'review', 'waiting'].includes(v)) return 'amber'
+  if (['active', 'paid', 'validated', 'allocated', 'issued', 'submitted', 'accepted', 'approved', 'valid', 'generated'].includes(v)) return 'green'
+  if (['suspended', 'rejected', 'void', 'cancelled', 'overdue', 'in_collection', 'failed', 'refunded'].includes(v)) return 'red'
+  if (['draft', 'closed', 'inactive', 'recorded', 'pending', 'review', 'waiting', 'under_review', 'redressement'].includes(v)) return 'amber'
+  if (['replaced'].includes(v)) return 'amber'
   if (v.includes('collection')) return 'violet'
   if (v.includes('open')) return 'blue'
   return 'slate'
@@ -244,6 +246,7 @@ export const statusTone = (value: string): BadgeTone => {
 export function StatusBadge({ value }: { value: string }) {
   const labels: Record<string, string> = {
     ACTIVE: 'Actif',
+    INACTIVE: 'Inactif',
     SUSPENDED: 'Suspendu',
     CLOSED: 'Clôturé',
     DRAFT: 'Brouillon',
@@ -253,25 +256,36 @@ export function StatusBadge({ value }: { value: string }) {
     REJECTED: 'Rejetée',
     CANCELLED: 'Annulée',
     OPEN: 'En attente',
+    IN_PROGRESS: 'En cours',
+    ANOMALY_DETECTED: 'Anomalies détectées',
+    REDRESSEMENT: 'Redressement',
+    UNDER_REVIEW: 'En examen',
+    ACCEPTED: 'Acceptée',
+    APPROVED: 'Approuvé',
+    PENDING: 'En attente',
     OVERDUE: 'En retard',
     IN_COLLECTION: 'Recouvrement',
     PAID: 'Payée',
     RECORDED: 'Enregistré',
     ALLOCATED: 'Alloué',
     ISSUED: 'Émise',
+    GENERATED: 'Générée',
+    VALID: 'Valide',
+    REPLACED: 'Remplacée',
+    REFUNDED: 'Remboursée',
     VOID: 'Annulée',
   }
   return <Badge tone={statusTone(value)}>{labels[value] ?? value}</Badge>
 }
 
 const iconTiles: Record<string, string> = {
-  brand: 'bg-brand-100 text-brand-600',
-  emerald: 'bg-emerald-100 text-emerald-600',
-  amber: 'bg-amber-100 text-amber-600',
-  rose: 'bg-rose-100 text-rose-600',
-  sky: 'bg-sky-100 text-sky-600',
-  violet: 'bg-violet-100 text-violet-600',
-  slate: 'bg-slate-100 text-slate-500',
+  brand: 'bg-brand-100 text-brand-600 dark:bg-brand-900/40 dark:text-brand-400',
+  emerald: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400',
+  amber: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400',
+  rose: 'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400',
+  sky: 'bg-sky-100 text-sky-600 dark:bg-sky-900/40 dark:text-sky-400',
+  violet: 'bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400',
+  slate: 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400',
 }
 
 export type IconTone = keyof typeof iconTiles
@@ -307,8 +321,8 @@ export function StatCard({
     <Card hover className={`group relative overflow-hidden p-5 ${className}`} >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
-          <p className="mt-2 truncate text-[28px] font-[650] leading-tight tracking-tight text-slate-900">{value}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-2 truncate text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">{value}</p>
         </div>
         {icon && <IconTile tone={tone}>{icon}</IconTile>}
       </div>
@@ -318,16 +332,16 @@ export function StatCard({
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${
                 deltaTone === 'up'
-                  ? 'bg-emerald-50 text-emerald-700'
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                   : deltaTone === 'down'
-                    ? 'bg-rose-50 text-rose-700'
-                    : 'bg-slate-100 text-slate-500'
+                    ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
               }`}
             >
               {delta}
             </span>
           )}
-          {sub && <span className="text-slate-400">{sub}</span>}
+          {sub && <span className="text-slate-400 dark:text-slate-500">{sub}</span>}
         </div>
       )}
     </Card>
@@ -363,26 +377,26 @@ export function Modal({
   if (!open) return null
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8"
+      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-8"
       onMouseDown={onBackdrop ? (e) => e.target === e.currentTarget && onClose() : undefined}
     >
       <div
-        className={`relative w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} animate-scale-in rounded-2xl bg-white border border-slate-200/70 shadow-popover`}
+        className={`relative my-auto flex max-h-[calc(100vh-1.5rem)] w-full flex-col sm:max-h-[calc(100vh-4rem)] ${wide ? 'max-w-3xl' : 'max-w-lg'} animate-scale-in rounded-2xl bg-white border border-slate-200/70 shadow-popover dark:bg-slate-800 dark:border-slate-700/50`}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-5 py-4">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-            {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
+            {subtitle && <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
             aria-label="Fermer"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
+        <div className="overflow-y-auto px-5 py-4">{children}</div>
       </div>
     </div>
   )
@@ -419,7 +433,7 @@ export function ConfirmDialog({
         >
           <AlertTriangle className="h-5 w-5" />
         </div>
-        <div className="text-sm text-slate-600">{message}</div>
+        <div className="text-sm text-slate-600 dark:text-slate-400">{message}</div>
       </div>
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose} disabled={loading}>
@@ -459,7 +473,7 @@ export function Drawer({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
-        className={`fixed inset-y-0 ${side === 'left' ? 'left-0' : 'right-0'} ${width} animate-drawer-in bg-white border-r border-slate-200/70 shadow-popover`}
+        className={`fixed inset-y-0 ${side === 'left' ? 'left-0' : 'right-0'} ${width} max-w-full animate-drawer-in bg-white border-r border-slate-200/70 shadow-popover dark:bg-slate-800 dark:border-slate-700/50`}
       >
         {children}
       </div>
@@ -471,23 +485,50 @@ export function Pagination({
   page,
   totalPages,
   onChange,
+  pageSize,
+  onPageSizeChange,
+  totalElements,
 }: {
   page: number
   totalPages: number
   onChange: (p: number) => void
+  pageSize?: number
+  onPageSizeChange?: (n: number) => void
+  totalElements?: number
 }) {
-  if (totalPages <= 1) return null
+  if (totalPages <= 1 && !pageSize) return null
 
   const pages: number[] = []
   const start = Math.max(0, Math.min(page - 2, totalPages - 5))
   const end = Math.min(totalPages - 1, start + 4)
   for (let i = start; i <= end; i++) pages.push(i)
 
+  const firstItem = totalElements != null && totalElements > 0 ? page * (pageSize ?? 20) + 1 : 0
+  const lastItem = totalElements != null ? Math.min(totalElements, firstItem + (pageSize ?? 20) - 1) : 0
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-5 py-3">
-      <p className="text-sm text-slate-500">
-        Page <span className="font-medium text-slate-700">{page + 1}</span> sur {totalPages}
-      </p>
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-5 py-3 dark:border-slate-700/50">
+      <div className="flex items-center gap-3">
+        {pageSize && onPageSizeChange && (
+          <label className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+            <span className="hidden sm:inline">Lignes / page</span>
+            <select
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(Number(e.target.value))}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 outline-none focus:border-brand-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:focus:border-brand-400"
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {totalElements != null
+            ? (<>{firstItem}–{lastItem} sur <span className="font-medium text-slate-700 dark:text-slate-300">{totalElements}</span></>)
+            : <>Page <span className="font-medium text-slate-700 dark:text-slate-300">{page + 1}</span> sur {totalPages}</>}
+        </p>
+      </div>
       <div className="flex items-center gap-1">
         <PageBtn disabled={page === 0} onClick={() => onChange(page - 1)} aria-label="Page précédente">
           <ChevronLeft className="h-4 w-4" />
@@ -495,7 +536,7 @@ export function Pagination({
         {pages[0] > 0 && (
           <>
             <PageBtn onClick={() => onChange(0)}>1</PageBtn>
-            {pages[0] > 1 && <span className="px-1 text-sm text-slate-400">…</span>}
+            {pages[0] > 1 && <span className="px-1 text-sm text-slate-400 dark:text-slate-500">…</span>}
           </>
         )}
         {pages.map((p) => (
@@ -505,7 +546,7 @@ export function Pagination({
         ))}
         {pages[pages.length - 1] < totalPages - 1 && (
           <>
-            {pages[pages.length - 1] < totalPages - 2 && <span className="px-1 text-sm text-slate-400">…</span>}
+            {pages[pages.length - 1] < totalPages - 2 && <span className="px-1 text-sm text-slate-400 dark:text-slate-500">…</span>}
             <PageBtn onClick={() => onChange(totalPages - 1)}>{totalPages}</PageBtn>
           </>
         )}
@@ -527,7 +568,7 @@ function PageBtn({
       className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm transition ${
         active
           ? 'bg-brand-600 font-semibold text-white shadow-sm'
-          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40'
+          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200'
       }`}
       {...props}
     >
@@ -538,16 +579,17 @@ function PageBtn({
 
 export function Table({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
       <table className={`w-full text-left text-sm ${className}`}>{children}</table>
     </div>
   )
 }
 
-export function Th({ children, className = '' }: { children?: ReactNode; className?: string }) {
+export function Th({ children, className = '', onClick }: { children?: ReactNode; className?: string; onClick?: () => void }) {
   return (
     <th
-      className={`whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 ${className}`}
+      onClick={onClick}
+      className={`whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 ${className}`}
     >
       {children}
     </th>
@@ -555,7 +597,7 @@ export function Th({ children, className = '' }: { children?: ReactNode; classNa
 }
 
 export function Td({ children, className = '' }: { children?: ReactNode; className?: string }) {
-  return <td className={`whitespace-nowrap px-5 py-3.5 text-slate-600 ${className}`}>{children}</td>
+  return <td className={`whitespace-nowrap px-5 py-3.5 text-slate-600 dark:text-slate-400 ${className}`}>{children}</td>
 }
 
 export function Tabs({
@@ -570,13 +612,13 @@ export function Tabs({
   className?: string
 }) {
   return (
-    <div className={`inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1 ${className}`}>
+    <div className={`inline-flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-700 ${className}`}>
       {tabs.map((t) => (
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
           className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition ${
-            active === t.id ? 'tab-active' : 'text-slate-500 hover:text-slate-700'
+            active === t.id ? 'tab-active' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
         >
           {t.label}
@@ -588,7 +630,7 @@ export function Tabs({
 
 export function FilterBar({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`flex flex-wrap items-end gap-3 border-b border-slate-200/70 px-5 py-4 ${className}`}>{children}</div>
+    <div className={`flex flex-wrap items-end gap-3 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50 ${className}`}>{children}</div>
   )
 }
 
