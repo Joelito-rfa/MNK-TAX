@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -39,7 +39,18 @@ export default function Login() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
+  const langRef = useRef<HTMLDivElement>(null)
   const { locale, setLocale, t } = useI18n()
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
   const {
     register,
     handleSubmit,
@@ -190,24 +201,6 @@ export default function Login() {
               {submitting ? t('login.submitting') : t('login.submit')}
             </Button>
           </form>
-
-          {/* Language switcher on desktop - inside form area */}
-          <div className="mt-6 hidden justify-center gap-2 lg:flex">
-            {languages.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => setLocale(lang.code)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
-                  locale === lang.code
-                    ? 'bg-brand-100 text-brand-700 shadow-sm ring-1 ring-brand-200 dark:bg-brand-900/30 dark:text-brand-400 dark:ring-brand-800'
-                    : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'
-                }`}
-              >
-                <span className="text-xl leading-none">{lang.flag}</span>
-                <span>{lang.label}</span>
-              </button>
-            ))}
-          </div>
 
           <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500 lg:hidden">
             {t('login.prototype')}

@@ -627,7 +627,7 @@ export default function TaxRules() {
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                       {showMenuId === rule.id && (
-                        <div {...getDropdownProps()} className="absolute right-0 z-50 mt-1 w-56 rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
+                        <div {...getDropdownProps()} className="absolute right-0 z-50 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
                           <div className="space-y-0.5">
                             <MenuItem icon={<Eye className="h-4 w-4" />} label="Voir les details" onClick={() => { setSelected(rule); closeMenu() }} />
                             <MenuItem icon={<Edit3 className="h-4 w-4" />} label="Modifier" onClick={() => { openEdit(rule); closeMenu() }} />

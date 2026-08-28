@@ -618,7 +618,7 @@ export default function Reports() {
               <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${periodOpen ? 'rotate-180' : ''}`} />
             </button>
             {periodOpen && (
-              <div className="absolute right-0 z-[60] mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
+              <div className="absolute right-0 z-[60] mt-2 w-56 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
                 <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Periode</p>
                 </div>
@@ -1024,7 +1024,7 @@ function ReportCardComponent({
               <MoreHorizontal className="h-5 w-5" />
             </button>
             {menuOpen && (
-              <div {...dropdownProps} className="absolute right-0 z-50 mt-1 w-48 rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
+              <div {...dropdownProps} className="absolute right-0 z-50 mt-1 w-48 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
                 <div className="space-y-0.5">
                   <button
                     onClick={() => { onPreview(); closeMenu() }}
