@@ -1,7 +1,11 @@
 package com.mnktax.receipt.entity;
 
 public enum ReceiptStatus {
+    GENERATED,
     ISSUED,
-    VERIFIED,
+    VALID,
+    CANCELLED,
+    REFUNDED,
+    REPLACED,
     VOID
 }

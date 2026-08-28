@@ -21,6 +21,8 @@ public record ReceiptVerificationDto(
         PaymentMethod method,
         ReceiptStatus status,
         Instant issuedAt,
+        String paymentReference,
+        String centerCode,
         boolean valid
 ) {
 }

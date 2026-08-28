@@ -64,4 +64,7 @@ public class PaymentAllocation {
 
     @Column(name = "created_by", length = 100)
     private String createdBy;
+
+    @Column(name = "comment", length = 500)
+    private String comment;
 }

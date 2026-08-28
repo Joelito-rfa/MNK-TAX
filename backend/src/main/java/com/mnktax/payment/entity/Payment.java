@@ -1,5 +1,7 @@
 package com.mnktax.payment.entity;
 
+import com.mnktax.declaration.entity.Declaration;
+import com.mnktax.debt.entity.TaxDebt;
 import com.mnktax.taxpayer.entity.Taxpayer;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -32,7 +34,9 @@ import java.util.List;
 @Table(name = "payments", indexes = {
         @Index(name = "idx_payment_taxpayer", columnList = "taxpayer_id"),
         @Index(name = "idx_payment_date", columnList = "payment_date"),
-        @Index(name = "idx_payment_status", columnList = "status")
+        @Index(name = "idx_payment_status", columnList = "status"),
+        @Index(name = "idx_payment_reference", columnList = "reference"),
+        @Index(name = "idx_payment_debt", columnList = "debt_id")
 })
 @Getter
 @Setter
@@ -52,15 +56,29 @@ public class Payment {
     @JoinColumn(name = "taxpayer_id", nullable = false)
     private Taxpayer taxpayer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "debt_id")
+    private TaxDebt debt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "declaration_id")
+    private Declaration declaration;
+
     @Column(name = "payment_date", nullable = false)
     private LocalDate paymentDate;
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
 
+    @Column(length = 3)
+    private String currency;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private PaymentMethod method;
+
+    @Column(name = "transaction_reference", length = 100)
+    private String transactionReference;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -69,8 +87,14 @@ public class Payment {
     @Column(name = "allocated_amount", precision = 19, scale = 2)
     private BigDecimal allocatedAmount;
 
+    @Column(name = "unpaid_amount", precision = 19, scale = 2)
+    private BigDecimal unpaidAmount;
+
     @Column(name = "rejection_reason", length = 500)
     private String rejectionReason;
+
+    @Column(name = "observations", length = 1000)
+    private String observations;
 
     @Column(name = "created_by", length = 100)
     private String createdBy;
@@ -91,7 +115,7 @@ public class Payment {
     @Builder.Default
     private List<PaymentAllocation> allocations = new ArrayList<>();
 
-    public com.mnktax.debt.entity.TaxDebt getDebtForReceipt() {
+    public TaxDebt getDebtForReceipt() {
         return allocations.stream()
                 .findFirst()
                 .map(PaymentAllocation::getDebt)

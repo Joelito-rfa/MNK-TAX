@@ -1,8 +1,11 @@
 package com.mnktax.payment.entity;
 
 public enum PaymentStatus {
-    RECORDED,
+    PENDING,
+    CONFIRMED,
     ALLOCATED,
+    PARTIALLY_ALLOCATED,
     REJECTED,
-    CANCELLED
+    CANCELLED,
+    REFUNDED
 }
