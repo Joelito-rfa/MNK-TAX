@@ -257,7 +257,7 @@ function RowActions({
       {open && (
         <>
           <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-40 mt-1 w-60 rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
+          <div className="absolute right-0 top-full z-40 mt-1 w-60 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
             <div className="space-y-0.5">
             <button
               onClick={() => { onView(); setOpen(false) }}

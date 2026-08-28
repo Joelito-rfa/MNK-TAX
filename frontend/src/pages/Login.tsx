@@ -139,7 +139,7 @@ export default function Login() {
 
           <div className="mb-6 flex justify-end lg:justify-between items-center gap-4">
             <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('login.title')}</h2>
-            <div className="relative">
+            <div className="relative" ref={langRef}>
               <button
                 onClick={() => setLangOpen(!langOpen)}
                 className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
