@@ -90,6 +90,7 @@ export const mg: Record<string, string> = {
   'sidebar.payments': 'Fandoavana',
   'sidebar.payments.list': 'Lisitry ny fandoavana',
   'sidebar.payments.new': 'Fandoavana vaovao',
+  'sidebar.payments.receipts': 'Rakikira',
   'sidebar.payments.pending': 'Miandry',
   'sidebar.receipts': 'Rakikira',
   'sidebar.controls': 'Fanaraha-maso vola',

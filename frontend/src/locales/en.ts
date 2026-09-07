@@ -97,6 +97,7 @@ export const en: Record<string, string> = {
   'sidebar.payments': 'Payments',
   'sidebar.payments.list': 'Payment list',
   'sidebar.payments.new': 'New payment',
+  'sidebar.payments.receipts': 'Receipts',
   'sidebar.payments.pending': 'Pending',
   'sidebar.receipts': 'Receipts',
   'sidebar.controls': 'Tax controls',

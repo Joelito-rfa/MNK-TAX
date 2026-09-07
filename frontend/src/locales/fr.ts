@@ -97,6 +97,7 @@ export const fr: Record<string, string> = {
   'sidebar.payments': 'Paiements',
   'sidebar.payments.list': 'Liste des paiements',
   'sidebar.payments.new': 'Nouveau paiement',
+  'sidebar.payments.receipts': 'Quittances',
   'sidebar.payments.pending': 'En attente',
   'sidebar.receipts': 'Quittances',
   'sidebar.controls': 'Contrôles fiscaux',
