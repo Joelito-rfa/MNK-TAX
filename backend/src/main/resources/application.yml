@@ -64,7 +64,6 @@ mnk-tax:
   avatar:
     storage-dir: ${AVATAR_STORAGE_DIR:./data/avatars}
   seed-demo: ${SEED_DEMO:true}
-
 logging:
   level:
     com.mnktax: ${LOG_LEVEL:INFO}

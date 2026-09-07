@@ -1,6 +1,7 @@
 package com.mnktax.common.scheduler;
 
 import com.mnktax.debt.service.DebtService;
+import com.mnktax.paymentplan.service.PaymentPlanService;
 import com.mnktax.tax.service.TaxObligationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,11 +26,14 @@ public class FiscalSchedulerService {
 
     private final DebtService debtService;
     private final TaxObligationService obligationService;
+    private final PaymentPlanService paymentPlanService;
 
     public FiscalSchedulerService(@Lazy DebtService debtService,
-                                  @Lazy TaxObligationService obligationService) {
+                                  @Lazy TaxObligationService obligationService,
+                                  PaymentPlanService paymentPlanService) {
         this.debtService = debtService;
         this.obligationService = obligationService;
+        this.paymentPlanService = paymentPlanService;
     }
 
     /**
@@ -44,7 +48,7 @@ public class FiscalSchedulerService {
         int obligationsTerminated = 0;
 
         try {
-            var result = debtService.markOverdue(today);
+            var result = debtService.markOverdue(today, null, null, null, null, null, null, null);
             overdueCount = result.updated();
             if (overdueCount > 0) {
                 log.info("Détection retards : {} créances passées en OVERDUE", overdueCount);
@@ -71,9 +75,19 @@ public class FiscalSchedulerService {
             log.error("Echec clôture obligations expirées", ex);
         }
 
-        if (overdueCount + obligationsOverdue + obligationsTerminated > 0) {
-            log.info("Résumé scheduler fiscal : {} créances OVERDUE, {} obligations OVERDUE, {} obligations TERMINATED",
-                    overdueCount, obligationsOverdue, obligationsTerminated);
+        int plansOverdue = 0;
+        try {
+            plansOverdue = paymentPlanService.markOverdueInstallments(today);
+            if (plansOverdue > 0) {
+                log.info("Échéanciers : {} plan(s) avec tranche(s) échue(s) non réglée(s)", plansOverdue);
+            }
+        } catch (Exception ex) {
+            log.error("Echec détection tranches d'échéancier en retard", ex);
+        }
+
+        if (overdueCount + obligationsOverdue + obligationsTerminated + plansOverdue > 0) {
+            log.info("Résumé scheduler fiscal : {} créances OVERDUE, {} obligations OVERDUE, {} obligations TERMINATED, {} échéanciers en retard",
+                    overdueCount, obligationsOverdue, obligationsTerminated, plansOverdue);
         }
     }
 }

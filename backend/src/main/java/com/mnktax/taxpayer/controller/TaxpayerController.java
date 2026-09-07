@@ -62,6 +62,13 @@ public class TaxpayerController {
         return ResponseEntity.ok(taxpayerService.stats());
     }
 
+    @GetMapping("/next-nif")
+    @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_WRITE + "')")
+    @Operation(summary = "Prochain NIF disponible")
+    public ResponseEntity<String> nextNif() {
+        return ResponseEntity.ok(taxpayerService.nextNif());
+    }
+
     @GetMapping("/{id:\\d+}")
     @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_READ + "')")
     @Operation(summary = "Dossier complet d'un contribuable")

@@ -183,6 +183,10 @@ export default function Dashboard() {
 
   const firstName = user?.firstName || 'Administrateur'
 
+  const isAdmin = user?.roles?.includes('SUPER_ADMIN') || user?.roles?.includes('ADMIN')
+
+  const welcomeSize = isAdmin ? 'large' : 'normal'
+
   const totalDue = data?.totalDebts ?? 0
   const collectionRate = data?.collectionRate ?? 0
 
@@ -249,10 +253,11 @@ export default function Dashboard() {
         fromDate={periodFromDate}
         toDate={periodToDate}
         onDownload={() => downloadCSV(data, periodFromDate, periodToDate)}
+        size={welcomeSize}
       />
 
       {/* ═══════════════ 2. CARTES KPI ═══════════════ */}
-      <div className="kpi-grid grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+      <div className="kpi-grid grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
         <KpiCard
           label="Contribuables"
           value={fmtNumber(data.taxpayerCount)}
@@ -702,6 +707,7 @@ function WelcomeBanner({
   fromDate,
   toDate,
   onDownload,
+  size = 'normal',
 }: {
   firstName: string
   periodPreset: string
@@ -709,6 +715,7 @@ function WelcomeBanner({
   fromDate: string
   toDate: string
   onDownload: () => void
+  size?: 'normal' | 'large'
 }) {
   const [periodOpen, setPeriodOpen] = useState(false)
   const [dlOpen, setDlOpen] = useState(false)
@@ -730,42 +737,37 @@ function WelcomeBanner({
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  return (
-    <div className="relative rounded-2xl border border-slate-200/70 dark:border-slate-700/50 bg-gradient-to-r from-brand-600 via-brand-700 to-indigo-700 p-6 text-white shadow-lg sm:p-8">
-      {/* Illustration : Vue d'ensemble */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-15 rounded-2xl">
-        <img src="/vue-ensemble.png" alt="" className="absolute left-1/2 top-1/2 h-[120%] w-auto -translate-x-[30%] -translate-y-1/2 object-contain" />
-      </div>
+  const isLarge = size === 'large'
 
-      <div className="relative flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
-        {/* Left content */}
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-[28px]">
+  return (
+    <div className={`relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-brand-600 via-brand-700 to-indigo-700 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between ${isLarge ? 'px-6 py-5 sm:px-8 sm:py-6' : 'px-5 py-5 sm:px-6'}`}>
+      {/* Left: Logo + texte */}
+      <div className="relative z-10 flex items-center gap-4 min-w-0 flex-1">
+        <div className={`absolute left-0 top-0 flex shrink-0 items-center justify-center rounded-br-xl bg-white/15 backdrop-blur-sm ${isLarge ? 'h-14 w-14' : 'h-11 w-11'}`}>
+          <img src="/logo.webp" alt="" className={`rounded-lg object-contain ${isLarge ? 'h-10 w-10' : 'h-7 w-7'}`} />
+        </div>
+        <div className={`min-w-0 ${isLarge ? 'pl-16' : ''}`}>
+          <h1 className={`font-bold leading-tight tracking-tight ${isLarge ? 'text-[28px] sm:text-[34px]' : 'text-[26px] sm:text-[32px]'}`}>
             Bienvenue, {firstName} 👋
           </h1>
-          <p className="mt-2 max-w-lg text-sm text-white/70">
-            Vue d'ensemble du recouvrement des impôts — tous les indicateurs sont recalculés selon la période.
+          <p className={`mt-1 text-white/50 ${isLarge ? 'text-sm' : 'text-[13px]'}`}>
+            {dateRangeLabel} · Exercice {year}
           </p>
-          {/* Badges */}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-              <CalendarDays className="h-3.5 w-3.5" />
-              Exercice fiscal : {year}
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-              <CalendarClock className="h-3.5 w-3.5" />
-              Période active : {dateRangeLabel}
-            </span>
-          </div>
         </div>
+      </div>
 
-        {/* Right content */}
-        <div className="flex shrink-0 flex-col items-end gap-3">
+      {/* Centre : image */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-full w-2/5 -translate-x-1/2 -translate-y-1/2 overflow-hidden opacity-15">
+        <img src="/vue-ensemble.png" alt="" className="absolute left-1/2 top-1/2 h-[180%] w-auto -translate-x-1/2 -translate-y-1/2 object-contain" />
+      </div>
+
+      {/* Right content */}
+      <div className="relative z-10 flex shrink-0 items-center gap-2">
           {/* ── Sélecteur de période ── */}
           <div className="relative" ref={periodRef}>
             <button
               onClick={() => { setPeriodOpen(!periodOpen); setDlOpen(false) }}
-              className="inline-flex items-center gap-2 rounded-xl bg-white/15 px-4 py-2.5 text-sm font-medium backdrop-blur-sm transition hover:bg-white/25"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-xs font-medium backdrop-blur-sm transition hover:bg-white/25"
             >
               <CalendarDays className="h-4 w-4" />
               {currentPresetLabel}
@@ -800,7 +802,7 @@ function WelcomeBanner({
           <div className="relative" ref={dlRef}>
             <button
               onClick={() => { setDlOpen(!dlOpen); setPeriodOpen(false) }}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-brand-700 shadow-sm transition hover:bg-white/90"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-brand-700 shadow-sm transition hover:bg-white/90"
             >
               <Download className="h-4 w-4" />
               Télécharger rapport
@@ -820,10 +822,8 @@ function WelcomeBanner({
                     </div>
                   </button>
                 </div>
-              </div>
-            )}
+              </div>            )}
           </div>
-        </div>
       </div>
     </div>
   )
@@ -873,28 +873,72 @@ function KpiCard({
   delta?: string; deltaTone?: 'up' | 'down' | 'neutral'; sub?: string
   sparkData?: number[]; to?: string
 }) {
+  const glowColor = `${color}15`
+  const borderColor = 'rgba(255,255,255,0.08)'
+  const borderHover = 'rgba(255,255,255,0.16)'
+
   const body = (
-    <Card hover className="relative h-full overflow-hidden p-5">
-      <span className="absolute inset-x-0 top-0 h-1" style={{ background: color }} />
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
-          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
+    <div
+      className="group/card relative flex h-full flex-col justify-between overflow-hidden p-4 transition-all duration-200"
+      style={{
+        background: '#111827',
+        border: `1px solid ${borderColor}`,
+        borderRadius: '14px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2), 0 0 0 0 transparent',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'translateY(-2px)'
+        e.currentTarget.style.borderColor = borderHover
+        e.currentTarget.style.boxShadow = `0 4px 20px ${glowColor}, 0 1px 3px rgba(0,0,0,0.3)`
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'translateY(0)'
+        e.currentTarget.style.borderColor = borderColor
+        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2), 0 0 0 0 transparent'
+      }}
+    >
+      {/* Glow subtil en haut */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+        style={{ background: `linear-gradient(90deg, transparent, ${color}40, transparent)` }}
+      />
+
+      {/* Header: icon + label + menu */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+            style={{ background: `${color}18`, color }}
+          >
+            {icon}
+          </span>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
         </div>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `${color}1A`, color }}>
-          {icon}
-        </span>
+        <button className="rounded-lg p-1 text-slate-600 transition hover:bg-white/5 hover:text-slate-400 dark:text-slate-600 dark:hover:text-slate-400" aria-label="Options">
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
+            <circle cx="8" cy="3" r="1.5" />
+            <circle cx="8" cy="8" r="1.5" />
+            <circle cx="8" cy="13" r="1.5" />
+          </svg>
+        </button>
       </div>
-      <div className="mt-3 flex items-end justify-between gap-3">
+
+      {/* Valeur principale */}
+      <div className="mt-2">
+        <p className="truncate text-xl font-[650] leading-tight tracking-tight text-white">{value}</p>
+      </div>
+
+      {/* Delta + sparkline */}
+      <div className="mt-2 flex items-end justify-between gap-2">
         <div className="min-w-0 flex-1">
           {(delta || sub) && (
             <div className="flex items-center gap-2 text-xs">
               {delta && (
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${
-                    deltaTone === 'up' ? 'bg-emerald-50 text-emerald-700'
-                    : deltaTone === 'down' ? 'bg-rose-50 text-rose-700'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-semibold ${
+                    deltaTone === 'up' ? 'bg-emerald-500/15 text-emerald-400'
+                    : deltaTone === 'down' ? 'bg-rose-500/15 text-rose-400'
+                    : 'bg-white/5 text-slate-400'
                   }`}
                 >
                   {deltaTone === 'up' && <ArrowUp className="h-3 w-3" />}
@@ -902,7 +946,7 @@ function KpiCard({
                   {delta}
                 </span>
               )}
-              {sub && <span className="text-slate-400 dark:text-slate-500">{sub}</span>}
+              {sub && <span className="text-slate-500 dark:text-slate-600">{sub}</span>}
             </div>
           )}
         </div>
@@ -910,7 +954,7 @@ function KpiCard({
           <Sparkline data={sparkData} color={color} />
         )}
       </div>
-    </Card>
+    </div>
   )
   return to ? (
     <Link to={to} className="group block h-full" aria-label={`${label} — ${value}`}>

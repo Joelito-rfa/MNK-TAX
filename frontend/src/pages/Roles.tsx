@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Copy, Plus, Shield, Users, Key, ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, Plus, Shield, Users, Key, MoreHorizontal, Trash2, Pencil } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiDelete, apiPost, apiPut } from '../lib/api'
 import type { Role, Page, User } from '../types'
 import {
@@ -56,6 +56,7 @@ export default function Roles() {
   const [duplicateRole, setDuplicateRole] = useState<Role | null>(null)
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('')
+  const [actionMenu, setActionMenu] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -229,27 +230,48 @@ export default function Roles() {
                   <Td className="text-sm text-slate-600 dark:text-slate-400">{r.permissions.length}</Td>
                   <Td className="text-sm text-slate-600 dark:text-slate-400">{usersByRole[r.code] ?? 0}</Td>
                   <Td>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => openRole(r)} disabled={r.system}>
-                        {r.system ? 'Verrouillé' : 'Éditer'}
-                      </Button>
-                      {!r.system && can('ROLE_WRITE') && (
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setActionMenu(actionMenu === r.id ? null : r.id)
+                        }}
+                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                        aria-label="Actions"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                      {actionMenu === r.id && (
                         <>
-                          <Button size="sm" variant="ghost" onClick={() => openRoleForDuplication(r)}>
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => {
-                              if (window.confirm(`Supprimer le rôle ${r.code} ?`)) {
-                                deleteRole.mutate(r.id)
-                              }
-                            }}
-                          >
-                            Supprimer
-                          </Button>
+                          <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
+                          <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
+                            <div className="space-y-0.5">
+                              <button
+                                onClick={() => { openRole(r); setActionMenu(null) }}
+                                className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                disabled={r.system}
+                              >
+                                <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {r.system ? 'Verrouillé' : 'Éditer'}
+                              </button>
+                              {!r.system && can('ROLE_WRITE') && (
+                                <>
+                                  <button
+                                    onClick={() => { openRoleForDuplication(r); setActionMenu(null) }}
+                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                  >
+                                    <Copy className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Dupliquer
+                                  </button>
+                                  <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                                  <button
+                                    onClick={() => { if (window.confirm(`Supprimer le rôle ${r.code} ?`)) { deleteRole.mutate(r.id); setActionMenu(null) } }}
+                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-rose-600 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20"
+                                  >
+                                    <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </>
                       )}
                     </div>

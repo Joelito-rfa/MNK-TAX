@@ -318,6 +318,7 @@ function CreateCollectionActionModal({ taxpayerId, onClose }: { taxpayerId: numb
     type: 'REMINDER',
     description: '',
     actionDate: new Date().toISOString().slice(0, 10),
+    outcome: '',
     nextAction: '',
     nextActionDate: '',
   })
@@ -328,6 +329,7 @@ function CreateCollectionActionModal({ taxpayerId, onClose }: { taxpayerId: numb
         type: form.type,
         description: form.description.trim(),
         actionDate: form.actionDate,
+        outcome: form.outcome.trim() || undefined,
         nextAction: form.nextAction.trim() || null,
         nextActionDate: form.nextActionDate || null,
       }),
@@ -368,6 +370,55 @@ function CreateCollectionActionModal({ taxpayerId, onClose }: { taxpayerId: numb
             Aucune créance avec un solde restant : le recouvrement ne s'applique qu'aux créances impayées.
           </p>
         )}
+        {(() => {
+          const sel = openDebts.find((d) => String(d.id) === form.debtId)
+          if (!sel) return null
+          return (
+            <div className="rounded-xl border border-slate-200/70 bg-slate-50 p-4 dark:border-slate-700/50 dark:bg-slate-800/50">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Détail de la créance sélectionnée
+              </p>
+              <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Référence</span>
+                  <span className="font-mono font-medium text-brand-700 dark:text-brand-400">{sel.reference}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">NIF</span>
+                  <span className="font-mono">{sel.nif}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Contribuable</span>
+                  <span className="max-w-[180px] truncate font-medium">{sel.taxpayerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Impôt / Période</span>
+                  <span>{sel.taxTypeCode} — {sel.period}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Montant total</span>
+                  <span className="font-medium">{fmtMGA(sel.totalAmount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Payé</span>
+                  <span className="font-medium text-emerald-600 dark:text-emerald-400">{fmtMGA(sel.paidAmount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Reste à payer</span>
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">{fmtMGA(sel.balance)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Échéance</span>
+                  <span>{fmtDate(sel.dueDate)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Statut</span>
+                  <StatusBadge value={sel.status} />
+                </div>
+              </div>
+            </div>
+          )
+        })()}
         <Field label="Type d'action">
           <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
             {Object.entries(collectionTypeLabels).map(([k, v]) => (
@@ -385,6 +436,13 @@ function CreateCollectionActionModal({ taxpayerId, onClose }: { taxpayerId: numb
         </Field>
         <Field label="Date d'action">
           <Input type="date" value={form.actionDate} onChange={(e) => setForm({ ...form, actionDate: e.target.value })} />
+        </Field>
+        <Field label="Résultat (facultatif)">
+          <Input
+            value={form.outcome}
+            onChange={(e) => setForm({ ...form, outcome: e.target.value })}
+            placeholder="ex : Promesse de paiement"
+          />
         </Field>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Prochaine action (facultatif)">

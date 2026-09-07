@@ -62,10 +62,22 @@ public final class DebtDtos {
                     || (d.getBalance().signum() > 0 && d.getDueDate().isBefore(now))) {
                 days = ChronoUnit.DAYS.between(d.getDueDate(), now);
             }
+            Long assessmentId = null;
+            String assessmentReference = null;
+            if (d.getAssessment() != null) {
+                assessmentId = d.getAssessment().getId();
+                assessmentReference = d.getAssessment().getReference();
+            }
+            Long taxTypeId = null;
+            String taxTypeCode = null;
+            if (d.getTaxType() != null) {
+                taxTypeId = d.getTaxType().getId();
+                taxTypeCode = d.getTaxType().getCode();
+            }
             return new TaxDebtDto(d.getId(), d.getReference(), d.getTaxpayer().getId(),
                     d.getTaxpayer().getNif(), d.getTaxpayer().getName(),
-                    d.getAssessment().getId(), d.getAssessment().getReference(),
-                    d.getTaxType().getId(), d.getTaxType().getCode(),
+                    assessmentId, assessmentReference,
+                    taxTypeId, taxTypeCode,
                     d.getPeriod(), d.getPrincipalAmount(), d.getPenaltyAmount(), d.getInterestAmount(),
                     d.getAdjustmentsAmount(), d.getCreditsAmount(), d.getTotalAmount(), d.getPaidAmount(),
                     d.getBalance(), d.getIssueDate(), d.getDueDate(), d.getStatus(), d.getClosedAt(),

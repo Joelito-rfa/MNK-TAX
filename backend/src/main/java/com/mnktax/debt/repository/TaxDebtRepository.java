@@ -65,6 +65,31 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
             "AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.OVERDUE, com.mnktax.debt.entity.DebtStatus.IN_COLLECTION, com.mnktax.debt.entity.DebtStatus.DISPUTED, com.mnktax.debt.entity.DebtStatus.SUSPENDED)")
     List<TaxDebt> findToMarkOverdue(@Param("today") LocalDate today);
 
+    @Query("""
+            SELECT d FROM TaxDebt d
+            LEFT JOIN d.taxpayer t
+            WHERE d.balance > 0
+              AND d.dueDate < :today
+              AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.OVERDUE, com.mnktax.debt.entity.DebtStatus.IN_COLLECTION, com.mnktax.debt.entity.DebtStatus.DISPUTED, com.mnktax.debt.entity.DebtStatus.SUSPENDED)
+              AND (:taxTypeCode IS NULL OR d.taxType.code = :taxTypeCode)
+              AND (:period IS NULL OR d.period = :period)
+              AND (:taxpayerId IS NULL OR d.taxpayer.id = :taxpayerId)
+              AND (:origin IS NULL OR d.origin = :origin)
+              AND (:priority IS NULL OR d.collectionPriority = :priority)
+              AND (:center IS NULL OR d.taxpayerCenter = :center)
+              AND (:q IS NULL OR LOWER(d.reference) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.nif) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%')))
+            """)
+    List<TaxDebt> findToMarkOverdueFiltered(@Param("today") LocalDate today,
+                                             @Param("taxTypeCode") String taxTypeCode,
+                                             @Param("period") String period,
+                                             @Param("taxpayerId") Long taxpayerId,
+                                             @Param("origin") DebtOrigin origin,
+                                             @Param("priority") DebtCollectionPriority priority,
+                                             @Param("center") String center,
+                                             @Param("q") String q);
+
     long countByStatus(DebtStatus status);
 
     @Query("SELECT COALESCE(SUM(d.balance), 0) FROM TaxDebt d WHERE d.status <> 'CANCELLED'")
@@ -74,7 +99,7 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
             "AND d.status NOT IN ('PAID', 'CANCELLED')")
     BigDecimal totalOverdueBalance(@Param("today") LocalDate today);
 
-    @Query("SELECT COALESCE(SUM(d.paidAmount), 0) FROM TaxDebt d")
+    @Query("SELECT COALESCE(SUM(d.paidAmount), 0) FROM TaxDebt d WHERE d.status <> 'CANCELLED'")
     BigDecimal totalCollected();
 
     @Query("SELECT COALESCE(SUM(d.totalAmount), 0) FROM TaxDebt d WHERE d.status <> 'CANCELLED'")
@@ -185,4 +210,96 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
             GROUP BY d.taxType.code
             """)
     List<Object[]> sumOverdueByTaxTypeGroup(@Param("today") LocalDate today);
+
+    // ════ Module Recouvrement : requêtes dédiées aux onglets ════
+
+    /**
+     * Recherche paginée des créances du module recouvrement.
+     * Les filtres d'onglets ({@code overdue}, {@code inCollection}, {@code hasReminder})
+     * décrivent une vraie situation métier (solde, échéance, actions réelles) et
+     * jamais un simple statut affiché.
+     */
+    @Query("""
+            SELECT d FROM TaxDebt d
+            LEFT JOIN d.taxpayer t
+            WHERE (:status IS NULL OR d.status = :status)
+              AND (:taxTypeCode IS NULL OR d.taxType.code = :taxTypeCode)
+              AND (:period IS NULL OR d.period = :period)
+              AND (:origin IS NULL OR d.origin = :origin)
+              AND (:priority IS NULL OR d.collectionPriority = :priority)
+              AND (:overdue = false
+                    OR d.status IN (com.mnktax.debt.entity.DebtStatus.OVERDUE,
+                                    com.mnktax.debt.entity.DebtStatus.IN_COLLECTION)
+                    OR (d.balance > 0 AND d.dueDate < :today
+                        AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.DISPUTED,
+                                             com.mnktax.debt.entity.DebtStatus.SUSPENDED)))
+              AND (:inCollection = false
+                    OR d.status = com.mnktax.debt.entity.DebtStatus.IN_COLLECTION
+                    OR EXISTS (SELECT n FROM com.mnktax.collection.entity.CollectionNotice n WHERE n.debt = d))
+              AND (:hasReminder = false
+                    OR EXISTS (SELECT a FROM com.mnktax.collection.entity.CollectionAction a
+                               WHERE a.debt = d
+                                 AND a.type = com.mnktax.collection.entity.CollectionActionType.REMINDER))
+              AND (:balanceMin IS NULL OR d.balance >= :balanceMin)
+              AND (:balanceMax IS NULL OR d.balance <= :balanceMax)
+              AND (:dueFrom IS NULL OR d.dueDate >= :dueFrom)
+              AND (:dueTo IS NULL OR d.dueDate <= :dueTo)
+              AND (:q IS NULL OR LOWER(d.reference) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.nif) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%')))
+            """)
+    Page<TaxDebt> searchCollection(@Param("status") DebtStatus status,
+                                   @Param("taxTypeCode") String taxTypeCode,
+                                   @Param("period") String period,
+                                   @Param("origin") DebtOrigin origin,
+                                   @Param("priority") DebtCollectionPriority priority,
+                                   @Param("overdue") boolean overdue,
+                                   @Param("inCollection") boolean inCollection,
+                                   @Param("hasReminder") boolean hasReminder,
+                                   @Param("balanceMin") BigDecimal balanceMin,
+                                   @Param("balanceMax") BigDecimal balanceMax,
+                                   @Param("dueFrom") LocalDate dueFrom,
+                                   @Param("dueTo") LocalDate dueTo,
+                                   @Param("q") String q,
+                                   @Param("today") LocalDate today,
+                                   Pageable pageable);
+
+    @Query("SELECT COUNT(d) FROM TaxDebt d WHERE d.status <> 'CANCELLED'")
+    long countNotCancelled();
+
+    @Query("""
+            SELECT COUNT(d) FROM TaxDebt d
+            WHERE d.balance > 0 AND d.dueDate < :today AND d.status <> 'CANCELLED'
+            """)
+    long countOverdue(@Param("today") LocalDate today);
+
+    @Query("""
+            SELECT COUNT(d) FROM TaxDebt d
+            WHERE d.balance > 0 AND d.dueDate <= :cutoff AND d.status <> 'CANCELLED'
+            """)
+    long countOverdueOlderThan(@Param("cutoff") LocalDate cutoff);
+
+    @Query("""
+            SELECT COALESCE(SUM(d.balance), 0) FROM TaxDebt d
+            WHERE d.balance > 0 AND d.dueDate < :today AND d.status <> 'CANCELLED'
+            """)
+    BigDecimal sumOverdueBalance(@Param("today") LocalDate today);
+
+    @Query("""
+            SELECT d.dueDate, d.balance FROM TaxDebt d
+            LEFT JOIN d.taxpayer t
+            WHERE d.balance > 0 AND d.dueDate < :today AND d.status <> 'CANCELLED'
+              AND (:taxTypeCode IS NULL OR d.taxType.code = :taxTypeCode)
+              AND (:period IS NULL OR d.period = :period)
+              AND (:q IS NULL OR LOWER(d.reference) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.nif) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%')))
+            """)
+    List<Object[]> overdueDetails(@Param("taxTypeCode") String taxTypeCode,
+                                  @Param("period") String period,
+                                  @Param("q") String q,
+                                  @Param("today") LocalDate today);
+
+    @Query("SELECT DISTINCT d.period FROM TaxDebt d ORDER BY d.period DESC")
+    List<String> findDistinctPeriods();
 }

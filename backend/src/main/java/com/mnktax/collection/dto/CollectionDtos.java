@@ -3,6 +3,7 @@ package com.mnktax.collection.dto;
 import com.mnktax.collection.entity.CollectionAction;
 import com.mnktax.collection.entity.CollectionActionType;
 import com.mnktax.collection.entity.CollectionNotice;
+import com.mnktax.debt.entity.DebtHistory;
 import com.mnktax.debt.entity.DebtStatus;
 import com.mnktax.debt.entity.TaxDebt;
 import jakarta.validation.constraints.NotBlank;
@@ -49,6 +50,44 @@ public final class CollectionDtos {
     ) {
     }
 
+    public record CreateDisputeRequest(
+            @NotNull(message = "L'ID de la créance est requis.") Long debtId,
+            @NotBlank(message = "Le motif du litige est requis.") String reason,
+            @Positive(message = "Le montant contesté doit être positif.") BigDecimal contestedAmount,
+            LocalDate contestationDate
+    ) {
+    }
+
+    public record ResolveDisputeRequest(
+            @NotNull(message = "La décision est requise.") com.mnktax.debt.entity.DisputeDecision decision,
+            String notes
+    ) {
+    }
+
+    public record DisputeDto(
+            Long id,
+            String reference,
+            Long debtId,
+            String debtReference,
+            String reason,
+            BigDecimal contestedAmount,
+            LocalDate contestationDate,
+            com.mnktax.debt.entity.DisputeStatus status,
+            com.mnktax.debt.entity.DisputeDecision decision,
+            String decisionNotes,
+            String decidedBy,
+            Instant decidedAt,
+            String createdBy,
+            Instant createdAt
+    ) {
+        public static DisputeDto from(com.mnktax.debt.entity.DebtDispute d) {
+            return new DisputeDto(d.getId(), d.getReference(), d.getDebt().getId(),
+                    d.getDebt().getReference(), d.getReason(), d.getContestedAmount(),
+                    d.getContestationDate(), d.getStatus(), d.getDecision(), d.getDecisionNotes(),
+                    d.getDecidedBy(), d.getDecidedAt(), d.getCreatedBy(), d.getCreatedAt());
+        }
+    }
+
     // ── Response DTOs ────────────────────────────────────────
 
     public record CollectionActionDto(Long id, Long debtId, String debtReference, String nif, String taxpayerName,
@@ -79,6 +118,40 @@ public final class CollectionDtos {
     public record CollectionHistoryDto(List<CollectionActionDto> actions, List<CollectionNoticeDto> notices) {
     }
 
+    /**
+     * Événement d'historique global d'une créance (append-only), utilisé par
+     * la page {@code /collection/history}.
+     */
+    public record CollectionEventDto(
+            Long id,
+            Long debtId,
+            String debtReference,
+            String nif,
+            String taxpayerName,
+            String eventType,
+            String description,
+            String oldValue,
+            String newValue,
+            String performedBy,
+            Instant eventDate
+    ) {
+        public static CollectionEventDto from(DebtHistory h) {
+            return new CollectionEventDto(
+                    h.getId(),
+                    h.getDebt().getId(),
+                    h.getDebt().getReference(),
+                    h.getDebt().getTaxpayer().getNif(),
+                    h.getDebt().getTaxpayer().getName(),
+                    h.getEventType(),
+                    h.getDescription(),
+                    h.getOldValue(),
+                    h.getNewValue(),
+                    h.getPerformedBy(),
+                    h.getEventDate()
+            );
+        }
+    }
+
     // ── Collection debt row for the main table ───────────────
 
     public record CollectionDebtRowDto(
@@ -94,14 +167,21 @@ public final class CollectionDtos {
             LocalDate dueDate,
             String debtStatus,
             String collectionStatus,
+            String collectionPriority,
+            String origin,
+            long daysOverdue,
+            String lastActionType,
             String lastAction,
             LocalDate lastActionDate,
+            String lastResponsible,
             String nextAction,
             LocalDate nextActionDate
     ) {
         public static CollectionDebtRowDto from(TaxDebt debt,
+                                                 String lastActionType,
                                                  String lastActionDesc,
                                                  LocalDate lastActionDt,
+                                                 String lastResponsible,
                                                  String nextAct,
                                                  LocalDate nextActDt) {
             return new CollectionDebtRowDto(
@@ -109,7 +189,7 @@ public final class CollectionDtos {
                     debt.getReference(),
                     debt.getTaxpayer().getNif(),
                     debt.getTaxpayer().getName(),
-                    debt.getTaxType().getCode(),
+                    debt.getTaxType() != null ? debt.getTaxType().getCode() : null,
                     debt.getPeriod(),
                     debt.getTotalAmount(),
                     debt.getPaidAmount(),
@@ -117,27 +197,57 @@ public final class CollectionDtos {
                     debt.getDueDate(),
                     debt.getStatus().name(),
                     resolveCollectionStatus(debt),
+                    debt.getCollectionPriority() != null ? debt.getCollectionPriority().name() : "NORMAL",
+                    debt.getOrigin() != null ? debt.getOrigin().name() : "OTHER",
+                    computeDaysOverdue(debt),
+                    lastActionType,
                     lastActionDesc,
                     lastActionDt,
+                    lastResponsible,
                     nextAct,
                     nextActDt
             );
         }
-
     }
 
-    private static String resolveCollectionStatus(TaxDebt debt) {
-        if (debt.getStatus() == DebtStatus.PAID) return "PAYE";
-        if (debt.getStatus() == DebtStatus.CANCELLED) return "ANNULE";
+    /**
+     * Libellé d'affichage (français) calculé à partir du statut réel.
+     * La source de vérité reste {@code debtStatus} ; ce libellé n'est qu'une
+     * présentation et couvre TOUS les statuts possibles pour qu'aucun dossier
+     * ne soit affiché avec un état contradictoire.
+     */
+    public static String resolveCollectionStatus(TaxDebt debt) {
+        if (debt.getStatus() == null) return "EN_ATTENTE";
+        boolean pastDueUnpaid = debt.getBalance().signum() > 0
+                && debt.getDueDate() != null
+                && debt.getDueDate().isBefore(LocalDate.now());
+        return switch (debt.getStatus()) {
+            case PAID -> "PAYE";
+            case CANCELLED -> "ANNULE";
+            case CLOSED -> "CLOTUREE";
+            case SUSPENDED -> "SUSPENDUE";
+            case DISPUTED -> "CONTENTIEUX";
+            case IN_COLLECTION -> "MISE_EN_DEMEURE";
+            case OVERDUE -> "EN_RETARD";
+            case PARTIALLY_PAID -> pastDueUnpaid ? "EN_RETARD" : "PAIEMENT_PARTIEL";
+            default -> pastDueUnpaid ? "EN_RETARD" : "EN_ATTENTE";
+        };
+    }
 
-        boolean isOverdue = debt.getDueDate().isBefore(LocalDate.now());
-        boolean hasNotice = debt.getStatus() == DebtStatus.IN_COLLECTION;
-
-        if (hasNotice) return "MISE_EN_DEMEURE";
-        if (isOverdue && debt.getBalance().signum() > 0) return "EN_RETARD";
-        if (debt.getPaidAmount().signum() > 0 && debt.getBalance().signum() > 0) return "RELANCE_EN_COURS";
-        if (debt.getBalance().signum() > 0) return "EN_ATTENTE";
-        return "EN_ATTENTE";
+    /**
+     * Nombre de jours de retard réel d'une créance (0 si non échue ou soldée).
+     */
+    public static long computeDaysOverdue(TaxDebt debt) {
+        if (debt.getStatus() == DebtStatus.PAID || debt.getStatus() == DebtStatus.CANCELLED
+                || debt.getStatus() == DebtStatus.CLOSED) {
+            return 0;
+        }
+        LocalDate today = LocalDate.now();
+        boolean overdue = (debt.getStatus() == DebtStatus.OVERDUE
+                || debt.getStatus() == DebtStatus.IN_COLLECTION
+                || (debt.getBalance().signum() > 0 && debt.getDueDate().isBefore(today)));
+        if (!overdue) return 0;
+        return Math.max(0, ChronoUnit.DAYS.between(debt.getDueDate(), today));
     }
 
     // ── Detail DTO ──────────────────────────────────────────
@@ -190,26 +300,20 @@ public final class CollectionDtos {
             int daysOverdue,
             TaxpayerInfo taxpayer,
             List<CollectionActionDto> actions,
-            List<CollectionNoticeDto> notices
+            List<CollectionNoticeDto> notices,
+            List<DisputeDto> disputes
     ) {
         public static CollectionDetailDto from(
                 com.mnktax.debt.entity.TaxDebt debt,
                 List<CollectionActionDto> actions,
-                List<CollectionNoticeDto> notices) {
-
-            int daysOverdue = 0;
-            if (debt.getDueDate().isBefore(java.time.LocalDate.now())
-                    && debt.getStatus() != com.mnktax.debt.entity.DebtStatus.PAID
-                    && debt.getStatus() != com.mnktax.debt.entity.DebtStatus.CANCELLED) {
-                daysOverdue = (int) java.time.temporal.ChronoUnit.DAYS.between(
-                        debt.getDueDate(), java.time.LocalDate.now());
-            }
+                List<CollectionNoticeDto> notices,
+                List<DisputeDto> disputes) {
 
             return new CollectionDetailDto(
                     debt.getId(),
                     debt.getReference(),
-                    debt.getTaxType().getCode(),
-                    debt.getTaxType().getName(),
+                    debt.getTaxType() != null ? debt.getTaxType().getCode() : null,
+                    debt.getTaxType() != null ? debt.getTaxType().getName() : null,
                     debt.getPeriod(),
                     debt.getPrincipalAmount(),
                     debt.getPenaltyAmount(),
@@ -221,13 +325,14 @@ public final class CollectionDtos {
                     debt.getDueDate(),
                     debt.getStatus().name(),
                     resolveCollectionStatus(debt),
-                    debt.getCollectionPriority().name(),
-                    debt.getOrigin().name(),
+                    debt.getCollectionPriority() != null ? debt.getCollectionPriority().name() : "NORMAL",
+                    debt.getOrigin() != null ? debt.getOrigin().name() : "OTHER",
                     debt.getObservations(),
-                    daysOverdue,
+                    (int) computeDaysOverdue(debt),
                     TaxpayerInfo.from(debt.getTaxpayer()),
                     actions,
-                    notices
+                    notices,
+                    disputes
             );
         }
     }
@@ -236,9 +341,35 @@ public final class CollectionDtos {
 
     public record CollectionStatsDto(
             double collectionRate,
+            BigDecimal totalExigible,
             BigDecimal totalCollected,
             BigDecimal totalOutstanding,
+            long totalDebts,
+            long overdueDebts,
+            BigDecimal overdueBalance,
+            long overdue30,
+            long overdue60,
+            long overdue90,
+            long partialDebts,
+            long disputedDebts,
+            long suspendedDebts,
+            long reminderActions,
+            long noticeCount,
             long actionCount
+    ) {
+        public static CollectionStatsDto empty() {
+            return new CollectionStatsDto(0.0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                    0, 0, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+    }
+
+    // ── Synthèse de l'onglet « En retard » ───────────────────
+
+    public record OverdueSummaryDto(
+            long count,
+            BigDecimal totalBalance,
+            long averageDays,
+            LocalDate oldestDueDate
     ) {
     }
 }

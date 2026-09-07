@@ -281,7 +281,7 @@ public class DashboardService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> nextCollectionActions() {
         return collectionActionRepository.findWithPendingNextActions().stream()
-                .limit(3)
+                .limit(4)
                 .map(a -> {
                     Map<String, Object> row = new HashMap<>();
                     row.put("id", a.getId());

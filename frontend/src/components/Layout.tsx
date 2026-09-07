@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import FallingMoney from './FallingMoney'
+import AiAssistant from './AiAssistant'
 
 export default function Layout() {
   const { user } = useAuth()
@@ -27,7 +28,7 @@ export default function Layout() {
   const permissions = user?.permissions ?? []
 
   return (
-    <div className="min-h-screen">
+    <div className="h-screen overflow-hidden">
       {/* Fond animé global du site */}
       <div className="site-bg" aria-hidden="true">
         <span className="site-bg-orb site-bg-orb-1" />
@@ -41,14 +42,15 @@ export default function Layout() {
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />
-      <div className={`relative transition-all duration-300 ${sidebarOpen ? 'lg:pl-72' : 'lg:pl-0'}`}>
+      <div className={`relative flex h-screen flex-col transition-all duration-300 ${sidebarOpen ? 'lg:pl-72' : 'lg:pl-0'}`}>
         <Header onToggleSidebar={toggleSidebar} sidebarOpen={sidebarOpen} />
-        <main className="mx-auto w-full max-w-[1400px] px-4 py-6 lg:px-6 lg:py-8">
+        <main className="mx-auto w-full max-w-[1400px] flex-1 overflow-y-auto px-4 py-6 lg:px-6 lg:py-8">
           <div key={location.pathname} className="animate-page-in">
             <Outlet />
           </div>
         </main>
       </div>
+      <AiAssistant />
     </div>
   )
 }

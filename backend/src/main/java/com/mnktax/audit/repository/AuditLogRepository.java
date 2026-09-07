@@ -35,5 +35,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT a.action, COUNT(a) FROM AuditLog a GROUP BY a.action ORDER BY COUNT(a) DESC")
     List<Object[]> countByAction();
 
+    List<AuditLog> findByUsernameOrderByCreatedAtDesc(String username, Pageable pageable);
+
     long deleteByCreatedAtBefore(Instant before);
 }

@@ -9,6 +9,7 @@ import {
   Eye,
   FileText,
   Inbox,
+  MoreHorizontal,
   Paperclip,
   RefreshCw,
   Reply,
@@ -98,6 +99,7 @@ export default function Messages() {
   const [threadMessages, setThreadMessages] = useState<Message[]>([])
   const [replyContent, setReplyContent] = useState('')
   const [replyFile, setReplyFile] = useState<File | null>(null)
+  const [actionMenu, setActionMenu] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -405,9 +407,64 @@ export default function Messages() {
                         )}
                       </Td>
                       <Td>
-                        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openThread(m) }} aria-label="Voir la conversation">
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setActionMenu(actionMenu === m.id ? null : m.id)
+                            }}
+                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                            aria-label="Actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                          {actionMenu === m.id && (
+                            <>
+                              <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
+                              <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
+                                <div className="space-y-0.5">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openThread(m); setActionMenu(null) }}
+                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                  >
+                                    <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir la conversation
+                                  </button>
+                                  {!m.read && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); markRead.mutate(m.id); setActionMenu(null) }}
+                                      className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                    >
+                                      <CheckCheck className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Marquer comme lu
+                                    </button>
+                                  )}
+                                  {m.processingStatus !== 'ARCHIVED' && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); archiveMsg.mutate(m.id); setActionMenu(null) }}
+                                      className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                    >
+                                      <Archive className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Archiver
+                                    </button>
+                                  )}
+                                  {m.processingStatus === 'ARCHIVED' && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); unarchiveMsg.mutate(m.id); setActionMenu(null) }}
+                                      className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                    >
+                                      <ArchiveRestore className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Désarchiver
+                                    </button>
+                                  )}
+                                  <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); openThread(m); setActionMenu(null) }}
+                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-brand-600 transition-colors hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
+                                  >
+                                    <Reply className="h-4 w-4 shrink-0" /> Répondre
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </Td>
                     </tr>
                   ))}

@@ -1,12 +1,17 @@
 package com.mnktax.auth.service;
 
+import com.mnktax.audit.entity.AuditLog;
+import com.mnktax.audit.repository.AuditLogRepository;
 import com.mnktax.audit.service.AuditService;
 import com.mnktax.auth.dto.ChangePasswordRequest;
 import com.mnktax.auth.dto.CreateUserRequest;
+import com.mnktax.auth.dto.SecurityEventDto;
+import com.mnktax.auth.dto.SessionDto;
 import com.mnktax.auth.dto.UpdateProfileRequest;
 import com.mnktax.auth.dto.UserDto;
 import com.mnktax.auth.entity.Role;
 import com.mnktax.auth.entity.User;
+import com.mnktax.auth.repository.RefreshTokenRepository;
 import com.mnktax.auth.repository.RoleRepository;
 import com.mnktax.auth.repository.UserRepository;
 import com.mnktax.common.exception.BusinessException;
@@ -25,6 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +42,8 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final AuditLogRepository auditLogRepository;
 
     private static final long MAX_AVATAR_BYTES = 2 * 1024 * 1024;
     private static final Set<String> ALLOWED_AVATAR_TYPES = Set.of(
@@ -45,11 +53,15 @@ public class UserService {
     private String avatarStorageDir;
 
     public UserService(UserRepository userRepository, RoleRepository roleRepository,
-                       PasswordEncoder passwordEncoder, AuditService auditService) {
+                       PasswordEncoder passwordEncoder, AuditService auditService,
+                       RefreshTokenRepository refreshTokenRepository,
+                       AuditLogRepository auditLogRepository) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
     @Transactional(readOnly = true)
@@ -230,6 +242,12 @@ public class UserService {
         if (request.phone() != null) {
             user.setPhone(blankToNull(request.phone()));
         }
+        if (request.jobTitle() != null) {
+            user.setJobTitle(blankToNull(request.jobTitle()));
+        }
+        if (request.taxCenter() != null) {
+            user.setTaxCenter(blankToNull(request.taxCenter()));
+        }
         user.setUpdatedAt(Instant.now());
         User saved = userRepository.save(user);
         auditService.record("UPDATE", "PROFILE", String.valueOf(userId), old, UserDto.from(saved), httpRequest);
@@ -248,6 +266,58 @@ public class UserService {
         user.setUpdatedAt(Instant.now());
         userRepository.save(user);
         auditService.record("PASSWORD_CHANGE", "USER", String.valueOf(userId), null, null, httpRequest);
+    }
+
+    /* ── Sessions ─────────────────────────────────────── */
+
+    @Transactional(readOnly = true)
+    public List<SessionDto> getActiveSessions(Long userId, String currentRefreshToken) {
+        var tokens = refreshTokenRepository.findByUserIdAndRevokedFalseOrderByCreatedAtDesc(userId);
+        Long resolvedCurrentTokenId = (currentRefreshToken != null)
+                ? tokens.stream()
+                    .filter(t -> t.getToken().equals(currentRefreshToken))
+                    .map(t -> t.getId())
+                    .findFirst()
+                    .orElse(null)
+                : null;
+        return tokens.stream()
+                .map(t -> SessionDto.from(t, resolvedCurrentTokenId))
+                .toList();
+    }
+
+    @Transactional
+    public void revokeSession(Long userId, Long sessionId) {
+        refreshTokenRepository.revokeByIdAndUserId(sessionId, userId);
+    }
+
+    @Transactional
+    public void revokeAllOtherSessions(Long userId, String currentRefreshToken) {
+        if (currentRefreshToken == null) {
+            refreshTokenRepository.revokeAllForUser(userId);
+            return;
+        }
+        var tokens = refreshTokenRepository.findByUserIdAndRevokedFalseOrderByCreatedAtDesc(userId);
+        Long currentTokenId = tokens.stream()
+                .filter(t -> t.getToken().equals(currentRefreshToken))
+                .map(t -> t.getId())
+                .findFirst()
+                .orElse(null);
+        if (currentTokenId != null) {
+            refreshTokenRepository.revokeAllExceptCurrent(userId, currentTokenId);
+        } else {
+            refreshTokenRepository.revokeAllForUser(userId);
+        }
+    }
+
+    /* ── Security History ─────────────────────────────── */
+
+    @Transactional(readOnly = true)
+    public List<SecurityEventDto> getSecurityHistory(Long userId, Pageable pageable) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", userId));
+        List<AuditLog> logs = auditLogRepository.findByUsernameOrderByCreatedAtDesc(
+                user.getUsername(), pageable);
+        return logs.stream().map(SecurityEventDto::from).toList();
     }
 
     private static String blankToNull(String value) {

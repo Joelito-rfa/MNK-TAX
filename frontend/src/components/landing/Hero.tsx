@@ -13,20 +13,20 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
           {/* Left — Text */}
           <div className="animate-fade-in">
             {/* Badge */}
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-brand-400/20 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-brand-300 backdrop-blur-sm">
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-brand-600/20 bg-brand-600/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-brand-700 backdrop-blur-sm dark:border-brand-400/20 dark:bg-brand-500/10 dark:text-brand-300">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" />
               Gestion fiscale nouvelle génération
             </div>
 
             {/* Title */}
-            <h1 className="text-4xl font-bold leading-[1.1] tracking-tight text-white sm:text-5xl lg:text-6xl">
+            <h1 className="text-4xl font-bold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl lg:text-6xl dark:text-white">
               La gestion fiscale,
-              <span className="mt-2 block bg-gradient-to-r from-brand-400 via-violet-400 to-indigo-400 bg-clip-text text-transparent">
+              <span className="mt-2 block bg-gradient-to-r from-brand-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent dark:from-brand-400 dark:via-violet-400 dark:to-indigo-400">
                 simplifiée et connectée.
               </span>
             </h1>
 
-            <p className="mt-6 max-w-lg text-lg leading-relaxed text-slate-400">
+            <p className="mt-6 max-w-lg text-lg leading-relaxed text-slate-600 dark:text-slate-400">
               Pilotez vos impôts avec précision. Centralisez contribuables, déclarations, paiements et recouvrements dans une seule plateforme sécurisée.
             </p>
 
@@ -38,7 +38,7 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Button>
               <Button onClick={onRequestAccess} variant="secondary" size="lg"
-                className="rounded-2xl border-white/10 bg-white/5 text-white hover:bg-white/10">
+                className="rounded-2xl border-slate-300 bg-white text-slate-900 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10">
                 Demander un accès
               </Button>
             </div>
@@ -73,7 +73,7 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
               </div>
 
               {/* KPI cards */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="hero-kpi-grid grid grid-cols-2 gap-3 mb-4">
                 {[
                   { label: 'Contribuables', value: '12 500+', color: 'text-brand-400' },
                   { label: 'Déclarations', value: '3 200+', color: 'text-emerald-400' },
@@ -97,13 +97,14 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
                 </div>
                 <div className="flex items-end gap-1 h-16">
                   {[35, 55, 42, 68, 52, 75, 60, 82, 70, 88, 78, 95].map((h, i) => (
-                    <div key={i} className="flex-1 rounded-t-sm transition-all duration-500"
+                    <div key={i} className="dash-bar-fill hero-bar flex-1 rounded-t-sm transition-all duration-500"
                       style={{
                         height: `${h}%`,
                         background: i === 11
                           ? 'linear-gradient(to top, #6366f1, #818cf8)'
                           : 'rgba(99,102,241,0.15)',
-                        animationDelay: `${i * 0.06}s`,
+                        animationDelay: `${0.5 + i * 0.06}s`,
+                        ['--d' as string]: `${0.5 + i * 0.06}s`,
                       }} />
                   ))}
                 </div>

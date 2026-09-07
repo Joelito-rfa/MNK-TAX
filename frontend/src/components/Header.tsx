@@ -25,6 +25,7 @@ import { Avatar } from './Avatar'
 import { UserAvatar } from './UserAvatar'
 import { useToast } from './Toast'
 import GlobalSearch from './GlobalSearch'
+import ChangePasswordModal from './ChangePasswordModal'
 
 export const roleLabel = (roles: string[], t: (key: string) => string): string => {
   if (roles.includes('SUPER_ADMIN')) return t('header.admin')
@@ -40,9 +41,6 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
   const navigate = useNavigate()
   const [openMenu, setOpenMenu] = useState<'notifications' | 'messages' | 'user' | 'lang' | null>(null)
   const [pwOpen, setPwOpen] = useState(false)
-  const [pwForm, setPwForm] = useState({ current: '', newPass: '', confirm: '' })
-  const [pwError, setPwError] = useState('')
-  const [pwLoading, setPwLoading] = useState(false)
   const queryClient = useQueryClient()
   const toast = useToast()
   const { resolved, toggle: cycleTheme } = useTheme()
@@ -77,17 +75,20 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
   async function markAllRead() {
     await apiPost('/notifications/read-all')
     queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] })
     toast.success(t('header.markAllRead'))
   }
 
   async function markNotificationRead(id: number) {
     await apiPost(`/notifications/${id}/read`)
     queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] })
   }
 
   async function markMessageRead(id: number) {
     await apiPost(`/messages/${id}/read`)
     queryClient.invalidateQueries({ queryKey: ['messages'] })
+    queryClient.invalidateQueries({ queryKey: ['messages', 'unread'] })
   }
 
   async function handleLogout() {
@@ -96,36 +97,15 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
     navigate('/login')
   }
 
-  async function handleChangePassword(e: React.FormEvent) {
-    e.preventDefault()
-    setPwError('')
-    if (pwForm.newPass.length < 8) { setPwError(t('header.pw.error.length')); return }
-    if (pwForm.newPass !== pwForm.confirm) { setPwError(t('header.pw.error.mismatch')); return }
-    setPwLoading(true)
-    try {
-      await apiPost('/auth/change-password', { currentPassword: pwForm.current, newPassword: pwForm.newPass })
-      toast.success(t('header.pw.success'))
-      setPwOpen(false)
-      setPwForm({ current: '', newPass: '', confirm: '' })
-      await logout()
-      navigate('/login')
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t('header.pw.error.default')
-      setPwError(msg)
-    } finally {
-      setPwLoading(false)
-    }
-  }
-
-  const languages: { code: Locale; label: string; initial: string; color: string }[] = [
-    { code: 'fr', label: 'Français', initial: 'FR', color: 'bg-blue-600' },
-    { code: 'mg', label: 'Malagasy', initial: 'MG', color: 'bg-emerald-600' },
-    { code: 'en', label: 'English', initial: 'EN', color: 'bg-rose-600' },
+  const languages: { code: Locale; label: string; initial: string; color: string; flag: string }[] = [
+    { code: 'fr', label: 'Français', initial: 'FR', color: 'bg-blue-600', flag: '🇫🇷' },
+    { code: 'mg', label: 'Malagasy', initial: 'MG', color: 'bg-emerald-600', flag: '🇲🇬' },
+    { code: 'en', label: 'English', initial: 'EN', color: 'bg-rose-600', flag: '🇬🇧' },
   ]
 
   return (
     <>
-      <header className="sticky top-0 z-30 h-16 border-b border-slate-200/80 bg-white/80 backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-900/80">
+      <header className="z-30 h-16 shrink-0 border-b border-slate-200/80 bg-white/80 backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-900/80">
         <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-4 lg:px-6">
           {/* ── Left zone: burger + recherche inline ── */}
           <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -276,7 +256,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
                 className="flex items-center gap-1.5 rounded-xl px-2 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
               >
                 {(() => { const l = languages.find((x) => x.code === locale); return l ? (
-                  <span className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white ${l.color}`}>{l.initial}</span>
+                  <span className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white ${l.color}`}>{l.flag}</span>
                 ) : null })()}
               </button>
               {openMenu === 'lang' && (
@@ -292,7 +272,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
                             : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
                         }`}
                       >
-                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white ${lang.color}`}>{lang.initial}</span>
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white ${lang.color}`}>{lang.flag}</span>
                         <span>{lang.label}</span>
                         {locale === lang.code && <span className="ml-auto text-brand-500 dark:text-brand-400">✓</span>}
                       </button>
@@ -351,28 +331,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
           </div>
         </div>
       </header>
-      {pwOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('header.changePassword')}</h3>
-              <button onClick={() => setPwOpen(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"><X className="h-4 w-4" /></button>
-            </div>
-            <form onSubmit={handleChangePassword} className="space-y-3">
-              {pwError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-900/30 dark:text-red-400">{pwError}</p>}
-              <input type="password" placeholder={t('header.pw.current')} value={pwForm.current} onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-brand-400 dark:focus:ring-brand-400" required />
-              <input type="password" placeholder={t('header.pw.new')} value={pwForm.newPass} onChange={(e) => setPwForm({ ...pwForm, newPass: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-brand-400 dark:focus:ring-brand-400" required minLength={8} />
-              <input type="password" placeholder={t('header.pw.confirm')} value={pwForm.confirm} onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:border-brand-400 dark:focus:ring-brand-400" required minLength={8} />
-              <div className="flex justify-end gap-2 pt-1">
-                <button type="button" onClick={() => setPwOpen(false)} className="rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700">{t('common.cancel')}</button>
-                <button type="submit" disabled={pwLoading} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
-                  {pwLoading ? '…' : t('common.save')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ChangePasswordModal open={pwOpen} onClose={() => setPwOpen(false)} />
     </>
   )
 }

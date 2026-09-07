@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Taxpayers from './pages/Taxpayers'
 import TaxpayerDetail from './pages/TaxpayerDetail'
@@ -16,7 +17,12 @@ import DebtDetail from './pages/DebtDetail'
 import Complaints from './pages/Complaints'
 import Refunds from './pages/Refunds'
 import Controls from './pages/Controls'
-import Collection from './pages/Collection'
+import CollectionOverview from './pages/collection/Overview'
+import CollectionOverdue from './pages/collection/Overdue'
+import CollectionReminders from './pages/collection/Reminders'
+import CollectionNotices from './pages/collection/Notices'
+import CollectionHistory from './pages/CollectionHistory'
+import CollectionPlans from './pages/CollectionPlans'
 import Payments from './pages/Payments'
 import Receipts from './pages/Receipts'
 import ReceiptVerify from './pages/ReceiptVerify'
@@ -43,6 +49,7 @@ export default function App() {
               <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
               <Route path="/verify/receipt/:reference" element={<ReceiptVerify />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
@@ -60,7 +67,12 @@ export default function App() {
                     <Route path=":id" element={<DebtDetail />} />
                   </Route>
                   <Route path="collection" element={<ProtectedRoute permission="COLLECTION_READ" />}>
-                    <Route index element={<Collection />} />
+                    <Route index element={<CollectionOverview />} />
+                    <Route path="overdue" element={<CollectionOverdue />} />
+                    <Route path="reminders" element={<CollectionReminders />} />
+                    <Route path="notices" element={<CollectionNotices />} />
+                    <Route path="plans" element={<CollectionPlans />} />
+                    <Route path="history" element={<CollectionHistory />} />
                   </Route>
                   <Route path="payments" element={<ProtectedRoute permission="PAYMENT_READ" />}>
                     <Route index element={<Payments />} />

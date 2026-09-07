@@ -243,7 +243,7 @@ class FiscalFlowIntegrationTest {
         TaxDebt debt = debtRepository.findByTaxpayerIdOrderByIdDesc(company.getId()).get(0);
         assertEquals(LocalDate.of(2025, 11, 25), debt.getDueDate());
 
-        var marked = debtService.markOverdue(LocalDate.now());
+        var marked = debtService.markOverdue(LocalDate.now(), null, null, null, null, null, null, null);
         assertTrue(marked.updated() >= 1);
 
         TaxDebt overdue = debtRepository.findByIdForUpdate(debt.getId()).orElseThrow();

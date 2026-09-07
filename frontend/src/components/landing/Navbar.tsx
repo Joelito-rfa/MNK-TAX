@@ -1,17 +1,30 @@
 import { useState, useEffect } from 'react'
-import { Menu, X } from 'lucide-react'
+import { Globe, Menu, Moon, Sun, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Button } from '../ui'
+import { useTheme } from '../../lib/theme'
+import { useI18n, type Locale } from '../../lib/i18n'
 
 const navLinks = [
-  { label: 'Accueil', href: '#hero' },
-  { label: 'Fonctionnalités', href: '#features' },
-  { label: 'Sécurité', href: '#security' },
-  { label: 'À propos', href: '#about' },
+  { labelKey: 'nav.home', to: '#hero' },
+  { labelKey: 'nav.features', to: '#features' },
+  { labelKey: 'nav.security', to: '#security' },
+  { labelKey: 'nav.about', to: '#about' },
+]
+
+const languages: { code: Locale; labelKey: string; initial: string; color: string; flag: string }[] = [
+  { code: 'fr', labelKey: 'lang.fr', initial: 'FR', color: 'bg-blue-600', flag: '🇫🇷' },
+  { code: 'mg', labelKey: 'lang.mg', initial: 'MG', color: 'bg-emerald-600', flag: '🇲🇬' },
+  { code: 'en', labelKey: 'lang.en', initial: 'EN', color: 'bg-rose-600', flag: '🇬🇧' },
 ]
 
 export default function Navbar({ onLogin, onRequestAccess }: { onLogin: () => void; onRequestAccess: () => void }) {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
+  const [active, setActive] = useState<string>('#hero')
+  const { resolved, toggle: cycleTheme } = useTheme()
+  const { locale, setLocale, t } = useI18n()
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20)
@@ -19,68 +32,159 @@ export default function Navbar({ onLogin, onRequestAccess }: { onLogin: () => vo
     return () => window.removeEventListener('scroll', handler)
   }, [])
 
+  useEffect(() => {
+    const sections = navLinks
+      .map((l) => document.getElementById(l.to.slice(1)))
+      .filter((el): el is HTMLElement => el !== null)
+    if (sections.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setActive(`#${entry.target.id}`)
+          }
+        }
+      },
+      { rootMargin: '-45% 0px -50% 0px', threshold: 0 },
+    )
+    sections.forEach((s) => observer.observe(s))
+    return () => observer.disconnect()
+  }, [])
+
+  const currentLang = languages.find((l) => l.code === locale)
+
+  const langMenu = (
+    <div className="relative">
+      <button
+        onClick={() => setLangOpen((o) => !o)}
+        className="nav-anim-btn flex items-center gap-1.5 rounded-xl px-2 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+        aria-label={t('nav.language')}
+      >
+        <Globe className="h-4 w-4" />
+        {currentLang && (
+          <span key={currentLang.code} className="nav-lang-flag text-sm leading-none">{currentLang.flag}</span>
+        )}
+      </button>
+      {langOpen && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setLangOpen(false)} />
+          <div className="nav-lang-menu absolute right-0 z-40 mt-2 w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-popover dark:border-white/10 dark:bg-slate-900">
+            <div className="p-1.5">
+              {languages.map((lang, i) => (
+                <button
+                  key={lang.code}
+                  onClick={() => { setLocale(lang.code); setLangOpen(false) }}
+                  className={`nav-lang-item flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${
+                    locale === lang.code
+                      ? 'bg-brand-600/10 font-semibold text-brand-700 dark:text-brand-300'
+                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'
+                  }`}
+                  style={{ ['--d' as string]: `${i * 45}ms` }}
+                >
+                  <span className="text-base leading-none">{lang.flag}</span>
+                  <span>{t(lang.labelKey)}</span>
+                  {locale === lang.code && <span className="ml-auto text-brand-600 dark:text-brand-400">✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+
   return (
     <nav className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
       scrolled
-        ? 'border-b border-white/10 bg-[#0f1117]/85 backdrop-blur-xl shadow-lg shadow-black/10'
+        ? 'border-b border-slate-200 bg-white/85 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-[#0f1117]/85 dark:shadow-black/10'
         : 'bg-transparent'
     }`}>
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         {/* Logo */}
-        <a href="#hero" className="flex items-center gap-3 group">
+        <Link to="#hero" className="flex items-center gap-3 group">
           <img src="/logo.webp" alt="MNK-TAX" className="h-9 w-9 rounded-xl object-contain shadow-lg shadow-brand-800/20 transition-transform duration-200 group-hover:scale-105" />
           <div>
-            <p className="text-lg font-bold tracking-tight text-white">MNK-TAX</p>
+            <p className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">MNK-TAX</p>
             <p className="text-[10px] uppercase tracking-widest text-slate-500">Gestion des impôts</p>
           </div>
-        </a>
+        </Link>
 
         {/* Desktop nav */}
         <div className="hidden items-center gap-1 md:flex">
           {navLinks.map((link) => (
-            <a key={link.href} href={link.href}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white">
-              {link.label}
-            </a>
+            <Link key={link.to} to={link.to}
+              aria-current={active === link.to ? 'true' : undefined}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                active === link.to ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'
+              }`}>
+              {t(link.labelKey)}
+            </Link>
           ))}
         </div>
 
-        {/* Desktop CTA */}
-        <div className="hidden items-center gap-3 md:flex">
+        {/* Desktop CTA + theme + langue */}
+        <div className="hidden items-center gap-1 md:flex">
+          <button
+            onClick={cycleTheme}
+            className="nav-anim-btn rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+            aria-label={resolved === 'dark' ? t('nav.theme.light') : t('nav.theme.dark')}
+          >
+            <span key={resolved} className="nav-theme-icon">
+              {resolved === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </span>
+          </button>
+          {langMenu}
+          <div className="mx-1 h-6 w-px bg-slate-200 dark:bg-white/10" />
           <button onClick={onRequestAccess}
-            className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white">
-            Demander un accès
+            className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white">
+            {t('nav.requestAccess')}
           </button>
           <Button onClick={onLogin} size="sm" className="rounded-xl">
-            Se connecter
+            {t('nav.login')}
           </Button>
         </div>
 
-        {/* Mobile toggle */}
-        <button onClick={() => setMobileOpen(!mobileOpen)}
-          className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white md:hidden">
-          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </button>
+        {/* Mobile : theme + langue + toggle */}
+        <div className="flex items-center gap-1 md:hidden">
+          <button
+            onClick={cycleTheme}
+            className="nav-anim-btn rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+            aria-label={resolved === 'dark' ? t('nav.theme.light') : t('nav.theme.dark')}
+          >
+            <span key={resolved} className="nav-theme-icon">
+              {resolved === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </span>
+          </button>
+          {langMenu}
+          <button onClick={() => setMobileOpen(!mobileOpen)}
+            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white">
+            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="border-t border-white/10 bg-[#0f1117]/95 backdrop-blur-xl md:hidden">
+        <div className="border-t border-slate-200 bg-white/95 backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-[#0f1117]/95">
           <div className="space-y-1 px-6 py-4">
             {navLinks.map((link) => (
-              <a key={link.href} href={link.href}
+              <Link key={link.to} to={link.to}
                 onClick={() => setMobileOpen(false)}
-                className="block rounded-lg px-4 py-3 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white">
-                {link.label}
-              </a>
+                aria-current={active === link.to ? 'true' : undefined}
+                className={`block rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
+                  active === link.to ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'
+                }`}>
+                {t(link.labelKey)}
+              </Link>
             ))}
-            <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-4">
+            <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-white/10">
               <button onClick={() => { onRequestAccess(); setMobileOpen(false) }}
-                className="rounded-xl px-4 py-3 text-sm font-medium text-slate-400 transition-colors hover:bg-white/5 hover:text-white text-left">
-                Demander un accès
+                className="rounded-xl px-4 py-3 text-left text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white">
+                {t('nav.requestAccess')}
               </button>
               <Button onClick={() => { onLogin(); setMobileOpen(false) }} size="sm" className="w-full rounded-xl">
-                Se connecter
+                {t('nav.login')}
               </Button>
             </div>
           </div>

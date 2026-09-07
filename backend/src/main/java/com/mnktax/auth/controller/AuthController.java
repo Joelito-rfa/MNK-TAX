@@ -5,9 +5,12 @@ import com.mnktax.auth.dto.LoginResponse;
 import com.mnktax.auth.dto.RefreshRequest;
 import com.mnktax.auth.dto.RegisterRequest;
 import com.mnktax.auth.dto.RegistrationRequestDto;
+import com.mnktax.auth.dto.SecurityEventDto;
+import com.mnktax.auth.dto.SessionDto;
 import com.mnktax.auth.dto.UpdateProfileRequest;
 import com.mnktax.auth.dto.UserDto;
 import com.mnktax.auth.service.AuthService;
+import com.mnktax.auth.service.RegistrationService;
 import com.mnktax.auth.service.UserService;
 import com.mnktax.common.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +37,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -41,10 +46,12 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final RegistrationService registrationService;
     private final UserService userService;
 
-    public AuthController(AuthService authService, UserService userService) {
+    public AuthController(AuthService authService, RegistrationService registrationService, UserService userService) {
         this.authService = authService;
+        this.registrationService = registrationService;
         this.userService = userService;
     }
 
@@ -56,73 +63,106 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request, httpRequest));
     }
 
+    /* ── Inscription publique ──────────────────────────── */
+
     @PostMapping("/register")
     @SecurityRequirements
-    @Operation(summary = "Demander un accès", description = "Soumet une demande d'inscription pour obtenir un accès au système.")
-    public ResponseEntity<Void> register(@Valid @RequestBody RegisterRequest request,
-                                         HttpServletRequest httpRequest) {
-        authService.register(request, httpRequest);
-        return ResponseEntity.ok().build();
+    @Operation(summary = "Demander un accès", description = "Soumet une demande d'inscription.")
+    public ResponseEntity<RegistrationRequestDto> register(@Valid @RequestBody RegisterRequest request,
+                                                           HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(registrationService.register(request, httpRequest));
     }
 
+    /* ── Admin: gestion des demandes ───────────────────── */
+
     @GetMapping("/admin/registrations")
-    @Operation(summary = "Lister les demandes d'inscription", description = "Retourne la liste des demandes d'inscription avec filtrage par statut.")
+    @Operation(summary = "Rechercher les demandes d'inscription")
     public ResponseEntity<Page<RegistrationRequestDto>> listRegistrations(
-            @RequestParam(required = false) String status, Pageable pageable) {
-        return ResponseEntity.ok(authService.listRegistrationRequests(status, pageable));
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String q,
+            Pageable pageable) {
+        return ResponseEntity.ok(registrationService.search(status, type, q, pageable));
+    }
+
+    @GetMapping("/admin/registrations/stats")
+    @Operation(summary = "Statistiques des demandes d'inscription")
+    public ResponseEntity<Map<String, Long>> registrationStats() {
+        return ResponseEntity.ok(registrationService.stats());
+    }
+
+    @GetMapping("/admin/registrations/{id}")
+    @Operation(summary = "Détail d'une demande d'inscription")
+    public ResponseEntity<RegistrationRequestDto> getRegistration(@PathVariable Long id) {
+        return ResponseEntity.ok(registrationService.getById(id));
+    }
+
+    @PostMapping("/admin/registrations/{id}/assign")
+    @Operation(summary = "Prendre en charge une demande")
+    public ResponseEntity<RegistrationRequestDto> assignRegistration(
+            @PathVariable Long id, HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(registrationService.assign(id, SecurityUtils.currentUsername(), httpRequest));
     }
 
     @PostMapping("/admin/registrations/{id}/approve")
-    @Operation(summary = "Approuver une demande", description = "Approuve une demande d'inscription et crée le compte utilisateur.")
+    @Operation(summary = "Approuver une demande", description = "Approuve et crée le compte utilisateur.")
     public ResponseEntity<RegistrationRequestDto> approveRegistration(
-            @PathVariable Long id, HttpServletRequest httpRequest) {
-        return ResponseEntity.ok(authService.approveRegistrationRequest(id, SecurityUtils.currentUsername(), httpRequest));
+            @PathVariable Long id,
+            @RequestBody(required = false) Map<String, String> body,
+            HttpServletRequest httpRequest) {
+        String roleCode = body != null ? body.get("roleCode") : null;
+        return ResponseEntity.ok(registrationService.approve(id, SecurityUtils.currentUsername(), roleCode, httpRequest));
     }
 
     @PostMapping("/admin/registrations/{id}/reject")
-    @Operation(summary = "Rejeter une demande", description = "Rejette une demande d'inscription.")
+    @Operation(summary = "Rejeter une demande", description = "Rejette avec motif obligatoire.")
     public ResponseEntity<RegistrationRequestDto> rejectRegistration(
-            @PathVariable Long id, HttpServletRequest httpRequest) {
-        return ResponseEntity.ok(authService.rejectRegistrationRequest(id, SecurityUtils.currentUsername(), httpRequest));
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body,
+            HttpServletRequest httpRequest) {
+        String reason = body.get("reason");
+        return ResponseEntity.ok(registrationService.reject(id, SecurityUtils.currentUsername(), reason, httpRequest));
     }
+
+    /* ── Auth classique ────────────────────────────────── */
 
     @PostMapping("/refresh")
     @SecurityRequirements
-    @Operation(summary = "Rafraîchir le token", description = "Échange un refresh token contre un nouveau couple de tokens.")
+    @Operation(summary = "Rafraîchir le token")
     public ResponseEntity<LoginResponse> refresh(@Valid @RequestBody RefreshRequest request,
                                                  HttpServletRequest httpRequest) {
         return ResponseEntity.ok(authService.refresh(request, httpRequest));
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Déconnexion", description = "Révoque les refresh tokens de l'utilisateur courant.")
+    @Operation(summary = "Déconnexion")
     public ResponseEntity<Void> logout(HttpServletRequest httpRequest) {
         authService.logout(SecurityUtils.currentUsername(), httpRequest);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/me")
-    @Operation(summary = "Utilisateur courant", description = "Retourne le profil de l'utilisateur authentifié.")
+    @Operation(summary = "Utilisateur courant")
     public ResponseEntity<UserDto> me() {
         return ResponseEntity.ok(userService.get(SecurityUtils.currentUserId()));
     }
 
     @PutMapping("/me")
-    @Operation(summary = "Mettre à jour son profil", description = "Modifie les informations personnelles de l'utilisateur courant.")
+    @Operation(summary = "Mettre à jour son profil")
     public ResponseEntity<UserDto> updateMe(@Valid @RequestBody UpdateProfileRequest request,
                                             HttpServletRequest httpRequest) {
         return ResponseEntity.ok(userService.updateProfile(SecurityUtils.currentUserId(), request, httpRequest));
     }
 
     @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Téléverser son avatar", description = "Définit la photo de profil de l'utilisateur courant (PNG, JPEG, WEBP, GIF, 2 Mo max).")
+    @Operation(summary = "Téléverser son avatar")
     public ResponseEntity<UserDto> uploadAvatar(@RequestParam("file") MultipartFile file,
                                                 HttpServletRequest httpRequest) {
         return ResponseEntity.ok(userService.uploadAvatar(SecurityUtils.currentUserId(), file, httpRequest));
     }
 
     @GetMapping("/me/avatar")
-    @Operation(summary = "Avatar de l'utilisateur courant", description = "Retourne l'image de profil de l'utilisateur authentifié.")
+    @Operation(summary = "Avatar de l'utilisateur courant")
     public ResponseEntity<byte[]> avatar() throws IOException {
         Path file = userService.avatarFile(SecurityUtils.currentUserId()).orElse(null);
         if (file == null) {
@@ -135,18 +175,53 @@ public class AuthController {
     }
 
     @DeleteMapping("/me/avatar")
-    @Operation(summary = "Supprimer son avatar", description = "Retire la photo de profil de l'utilisateur courant.")
+    @Operation(summary = "Supprimer son avatar")
     public ResponseEntity<UserDto> deleteAvatar(HttpServletRequest httpRequest) {
         return ResponseEntity.ok(userService.deleteAvatar(SecurityUtils.currentUserId(), httpRequest));
     }
 
     @PostMapping("/change-password")
-    @Operation(summary = "Changer le mot de passe", description = "Change le mot de passe de l'utilisateur courant. Révoque tous les refresh tokens.")
+    @Operation(summary = "Changer le mot de passe")
     public ResponseEntity<Void> changePassword(@RequestBody Map<String, String> body,
                                                HttpServletRequest httpRequest) {
         String currentPassword = body.get("currentPassword");
         String newPassword = body.get("newPassword");
         authService.changePassword(currentPassword, newPassword, httpRequest);
         return ResponseEntity.noContent().build();
+    }
+
+    /* ── Sessions ──────────────────────────────────────── */
+
+    @GetMapping("/me/sessions")
+    @Operation(summary = "Sessions actives de l'utilisateur courant")
+    public ResponseEntity<List<SessionDto>> mySessions(
+            @RequestParam(name = "token", required = false) String currentToken) {
+        return ResponseEntity.ok(userService.getActiveSessions(SecurityUtils.currentUserId(), currentToken));
+    }
+
+    @PostMapping("/me/sessions/{id}/revoke")
+    @Operation(summary = "Révoquer une session")
+    public ResponseEntity<Void> revokeSession(@PathVariable Long id) {
+        userService.revokeSession(SecurityUtils.currentUserId(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/me/sessions/revoke-all")
+    @Operation(summary = "Révoquer toutes les autres sessions")
+    public ResponseEntity<Void> revokeAllSessions(
+            @RequestParam(name = "token", required = false) String currentToken) {
+        userService.revokeAllOtherSessions(SecurityUtils.currentUserId(), currentToken);
+        return ResponseEntity.noContent().build();
+    }
+
+    /* ── Sécurité ──────────────────────────────────────── */
+
+    @GetMapping("/me/security-history")
+    @Operation(summary = "Historique de sécurité de l'utilisateur courant")
+    public ResponseEntity<List<SecurityEventDto>> mySecurityHistory(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(userService.getSecurityHistory(
+                SecurityUtils.currentUserId(), PageRequest.of(page, size)));
     }
 }

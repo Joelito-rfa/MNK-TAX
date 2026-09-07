@@ -1,4 +1,5 @@
 import { FileText, Receipt, TrendingDown, Users } from 'lucide-react'
+import ScrollReveal from './ScrollReveal'
 
 const reasons = [
   { icon: Users, title: 'Contribuables', description: 'Gestion centralisée des contribuables et entreprises assujetties.', color: 'bg-brand-500/10 text-brand-400' },
@@ -11,22 +12,25 @@ export default function WhySection() {
   return (
     <section className="relative py-24">
       <div className="mx-auto max-w-7xl px-6">
-        <div className="text-center max-w-2xl mx-auto mb-14">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Une plateforme pensée
-            <span className="block text-brand-400">pour simplifier chaque étape fiscale.</span>
-          </h2>
-        </div>
+        <ScrollReveal animation="blur-up">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Une plateforme pensée
+              <span className="block text-brand-400">pour simplifier chaque étape fiscale.</span>
+            </h2>
+          </div>
+        </ScrollReveal>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {reasons.map((r) => (
-            <div key={r.title}
-              className="group rounded-2xl border border-white/[0.06] bg-white/[0.03] p-6 transition-all duration-300 hover:border-brand-500/20 hover:bg-white/[0.06] hover:shadow-xl hover:shadow-brand-500/5 hover:-translate-y-1">
-              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${r.color}`}>
-                <r.icon className="h-6 w-6" />
+          {reasons.map((r, i) => (
+            <ScrollReveal key={r.title} animation="blur-up" delay={i * 90}>
+              <div className="group rounded-2xl border border-white/[0.06] bg-white/[0.03] p-6 transition-all duration-300 hover:border-brand-500/20 hover:bg-white/[0.06] hover:shadow-xl hover:shadow-brand-500/5 hover:-translate-y-1">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${r.color}`}>
+                  <r.icon className="h-6 w-6" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-white">{r.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-400">{r.description}</p>
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-white">{r.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-400">{r.description}</p>
-            </div>
+            </ScrollReveal>
           ))}
         </div>
       </div>

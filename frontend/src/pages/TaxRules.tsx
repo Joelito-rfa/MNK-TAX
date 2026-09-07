@@ -954,14 +954,14 @@ function CreateEditModal({ open, editing, form, setForm, saving, error, onClose,
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <FieldInput label="Taux (%)" type="number" value={form.rate} onChange={(v) => setForm({ ...form, rate: v })} step="0.0001" />
-            <FieldInput label="Seuil minimum (MGA)" type="number" value={form.minimum} onChange={(v) => setForm({ ...form, minimum: v })} />
-            <FieldInput label="Seuil maximum (MGA)" type="number" value={form.maximum} onChange={(v) => setForm({ ...form, maximum: v })} />
+            <FieldInput label="Taux (%)" type="number" value={form.rate} onChange={(v) => setForm({ ...form, rate: v })} step="0.0001" min="0" />
+            <FieldInput label="Seuil minimum (MGA)" type="number" value={form.minimum} onChange={(v) => setForm({ ...form, minimum: v })} min="0" />
+            <FieldInput label="Seuil maximum (MGA)" type="number" value={form.maximum} onChange={(v) => setForm({ ...form, maximum: v })} min="0" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Deduction (MGA)" type="number" value={form.deduction} onChange={(v) => setForm({ ...form, deduction: v })} />
-            <FieldInput label="Exoneration (MGA)" type="number" value={form.exemption} onChange={(v) => setForm({ ...form, exemption: v })} />
+            <FieldInput label="Deduction (MGA)" type="number" value={form.deduction} onChange={(v) => setForm({ ...form, deduction: v })} min="0" />
+            <FieldInput label="Exoneration (MGA)" type="number" value={form.exemption} onChange={(v) => setForm({ ...form, exemption: v })} min="0" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1009,14 +1009,14 @@ function CreateEditModal({ open, editing, form, setForm, saving, error, onClose,
   )
 }
 
-function FieldInput({ label, value, onChange, type = 'text', placeholder, step }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; step?: string
+function FieldInput({ label, value, onChange, type = 'text', placeholder, step, min }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; step?: string; min?: string
 }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</span>
       <input
-        type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} step={step}
+        type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} step={step} min={min}
         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-400"
       />
     </label>
@@ -1078,8 +1078,8 @@ function TestCalculatorModal({ rule, onClose }: { rule: TaxRule | null; onClose:
 
           {/* Inputs */}
           <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Montant imposable (MGA)" type="number" value={taxableAmount} onChange={setTaxableAmount} placeholder="ex: 1000000" />
-            <FieldInput label="Deduction (MGA)" type="number" value={deduction} onChange={setDeduction} placeholder="ex: 50000" />
+            <FieldInput label="Montant imposable (MGA)" type="number" value={taxableAmount} onChange={setTaxableAmount} placeholder="ex: 1000000" min="0" />
+            <FieldInput label="Deduction (MGA)" type="number" value={deduction} onChange={setDeduction} placeholder="ex: 50000" min="0" />
           </div>
 
           <button

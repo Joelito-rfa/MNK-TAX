@@ -3,6 +3,8 @@ package com.mnktax.common.config;
 import com.mnktax.administration.entity.SystemParameter;
 import com.mnktax.administration.repository.SystemParameterRepository;
 import com.mnktax.auth.entity.Permission;
+import com.mnktax.auth.entity.RegistrationRequest;
+import com.mnktax.auth.repository.RegistrationRequestRepository;
 import com.mnktax.auth.entity.Role;
 import com.mnktax.auth.entity.User;
 import com.mnktax.auth.repository.PermissionRepository;
@@ -18,13 +20,16 @@ import com.mnktax.control.entity.TaxControl;
 import com.mnktax.control.repository.ControlDocumentRepository;
 import com.mnktax.control.repository.TaxControlRepository;
 import com.mnktax.debt.entity.DebtCollectionPriority;
+import com.mnktax.debt.entity.DebtDispute;
 import com.mnktax.debt.entity.DebtHistory;
 import com.mnktax.debt.entity.DebtItem;
 import com.mnktax.debt.entity.DebtOrigin;
 import com.mnktax.debt.entity.DebtStatus;
+import com.mnktax.debt.entity.DisputeStatus;
 import com.mnktax.debt.entity.Interest;
 import com.mnktax.debt.entity.Penalty;
 import com.mnktax.debt.entity.TaxDebt;
+import com.mnktax.debt.repository.DebtDisputeRepository;
 import com.mnktax.debt.repository.DebtHistoryRepository;
 import com.mnktax.debt.repository.InterestRepository;
 import com.mnktax.debt.repository.PenaltyRepository;
@@ -72,6 +77,11 @@ import com.mnktax.payment.entity.Payment;
 import com.mnktax.payment.entity.PaymentMethod;
 import com.mnktax.payment.repository.PaymentRepository;
 import com.mnktax.payment.service.PaymentService;
+import com.mnktax.paymentplan.entity.InstallmentStatus;
+import com.mnktax.paymentplan.entity.PaymentPlan;
+import com.mnktax.paymentplan.entity.PaymentPlanInstallment;
+import com.mnktax.paymentplan.entity.PaymentPlanStatus;
+import com.mnktax.paymentplan.repository.PaymentPlanRepository;
 import com.mnktax.tax.entity.CalculationMethod;
 import com.mnktax.tax.entity.CalculationMethod;
 import com.mnktax.tax.entity.Deadline;
@@ -163,6 +173,9 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final PaymentRepository paymentRepository;
     private final AssessmentRepository assessmentRepository;
     private final com.mnktax.payment.repository.PaymentAllocationRepository paymentAllocationRepository;
+    private final RegistrationRequestRepository registrationRequestRepository;
+    private final DebtDisputeRepository disputeRepository;
+    private final PaymentPlanRepository planRepository;
 
     @Value("${mnk-tax.seed-demo:true}")
     private boolean seedDemo;
@@ -195,7 +208,10 @@ public class DemoDataSeeder implements ApplicationRunner {
                           ReceiptRepository receiptRepository,
                           PaymentRepository paymentRepository,
                           AssessmentRepository assessmentRepository,
-                          com.mnktax.payment.repository.PaymentAllocationRepository paymentAllocationRepository) {
+                          com.mnktax.payment.repository.PaymentAllocationRepository paymentAllocationRepository,
+                          RegistrationRequestRepository registrationRequestRepository,
+                          DebtDisputeRepository disputeRepository,
+                          PaymentPlanRepository planRepository) {
         this.permissionRepository = permissionRepository;
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
@@ -235,6 +251,9 @@ public class DemoDataSeeder implements ApplicationRunner {
         this.paymentRepository = paymentRepository;
         this.assessmentRepository = assessmentRepository;
         this.paymentAllocationRepository = paymentAllocationRepository;
+        this.registrationRequestRepository = registrationRequestRepository;
+        this.disputeRepository = disputeRepository;
+        this.planRepository = planRepository;
     }
 
     @Override
@@ -264,9 +283,11 @@ public class DemoDataSeeder implements ApplicationRunner {
         safeSeed("complaints", this::seedComplaints);
         safeSeed("refunds", this::seedRefunds);
         safeSeed("collection-notices", this::seedCollectionNotices);
+        safeSeed("collection-workflows", this::seedCollectionWorkflows);
         safeSeed("declaration-extras", this::seedDeclarationExtras);
         safeSeed("documents", this::seedDocuments);
         safeSeed("receipts", this::seedReceipts);
+        safeSeed("registrations", this::seedRegistrations);
         log.info("Seed de démonstration terminé (données fictives).");
     }
 
@@ -781,7 +802,7 @@ public class DemoDataSeeder implements ApplicationRunner {
         String oldPeriod = old.getYear() + "-" + String.format("%02d", old.getMonthValue());
         Long overdueDecl = createAndValidateDeclaration(tp1.getId(), "TVA", oldPeriod,
                 new BigDecimal("1500000"), new BigDecimal("300000"));
-        debtService.markOverdue(LocalDate.now());
+        debtService.markOverdue(LocalDate.now(), null, null, null, null, null, null, null);
 
         // Créance en recouvrement : action + mise en demeure sur une créance en retard
         List<com.mnktax.debt.entity.TaxDebt> overdueDebts = debtRepository.findByStatusAndDueDateBefore(
@@ -1527,6 +1548,147 @@ public class DemoDataSeeder implements ApplicationRunner {
         }
     }
 
+    /**
+     * Complète les scénarios du module Recouvrement : litige réellement lié à la
+     * créance DISPUTED, créances en retard à 5 et 35 jours (paliers 30–60 jours
+     * du tableau de bord) et échéancier de paiement actif comportant une tranche
+     * échue impayée (alerte tranche en retard). Exécuté une seule fois sur base
+     * vierge, comme l'ensemble du seed de démonstration.
+     */
+    private void seedCollectionWorkflows() {
+        if (disputeRepository.count() > 0 && planRepository.count() > 0) {
+            return;
+        }
+        LocalDate today = LocalDate.now();
+
+        Taxpayer tp1 = taxpayerRepository.findByNif("0000409001").orElse(null);
+        Taxpayer tp2 = taxpayerRepository.findByNif("1234567890").orElse(null);
+        Taxpayer tp4 = taxpayerRepository.findByNif("0000412345").orElse(null);
+        TaxType tva = taxTypeRepository.findByCode("TVA").orElse(null);
+        TaxType irsa = taxTypeRepository.findByCode("IRSA").orElse(null);
+        if (tp1 == null || tp2 == null || tp4 == null || tva == null || irsa == null) return;
+
+        // 1. Litige documenté sur la créance déjà DISPUTED (un litige réellement
+        //    enregistré, pas seulement un statut affiché).
+        debtRepository.findAll().stream()
+                .filter(d -> d.getStatus() == DebtStatus.DISPUTED
+                        && !disputeRepository.existsByDebtIdAndStatus(d.getId(), DisputeStatus.OPEN))
+                .findFirst()
+                .ifPresent(debt -> {
+                    DebtDispute dispute = DebtDispute.builder()
+                            .reference(com.mnktax.common.util.ReferenceGenerator.next("LIT"))
+                            .debt(debt)
+                            .reason("Contestation de la base d'imposition redressée — vérification sur pièces en cours.")
+                            .contestedAmount(debt.getTotalAmount())
+                            .contestationDate(today.minusDays(45))
+                            .status(DisputeStatus.OPEN)
+                            .createdBy("seed")
+                            .createdAt(Instant.now())
+                            .updatedAt(Instant.now())
+                            .build();
+                    disputeRepository.save(dispute);
+                    addDebtHistory(debt, "DISPUTE_CREATED",
+                            "Litige " + dispute.getReference()
+                                    + " enregistré — contestation de la base imposable",
+                            null, dispute.getReference());
+                });
+
+        // 2. Créance en retard de 5 jours (327 000 MGA, spec §54) avec relance
+        //    amiable envoyée → visible dans En retard et Relances.
+        if (tp2 != null) {
+            TaxDebt dA = createDemoDebt(tp2, irsa, today.minusDays(35),
+                    new BigDecimal("327000"), BigDecimal.ZERO,
+                    DebtStatus.OVERDUE, DebtOrigin.ASSESSMENT, DebtCollectionPriority.HIGH,
+                    "Créance en retard de 5 jours. Relance amiable envoyée, en attente de paiement.",
+                    "CEN-001", "agent.tax");
+            addDebtHistory(dA, "CREATED", "Créance émise depuis une imposition IRSA", null, "Montant : 327 000 MGA");
+            addDebtHistory(dA, "STATUS_CHANGE", "Statut passé à EN_RETARD", "ISSUED", "OVERDUE");
+            actionRepository.save(CollectionAction.builder().debt(dA)
+                    .type(CollectionActionType.REMINDER)
+                    .description("Relance amiable n°1 — demande de régularisation de la créance "
+                            + dA.getReference() + ".")
+                    .actionDate(today.minusDays(1))
+                    .outcome("En attente de paiement")
+                    .responsibleUserId(4L).status("DONE")
+                    .createdAt(Instant.now()).build());
+            addDebtHistory(dA, "REMINDER_CREATED",
+                    "Relance amiable créée (canal : notification interne)",
+                    null, dA.getReference());
+        }
+
+        // 3. Créance en retard de 35 jours (palier 30–60 jours du tableau de bord).
+        if (tp1 != null) {
+            TaxDebt dB = createDemoDebt(tp1, tva, today.minusDays(65),
+                    new BigDecimal("1250000"), BigDecimal.ZERO,
+                    DebtStatus.OVERDUE, DebtOrigin.DECLARATION, DebtCollectionPriority.URGENT,
+                    "Créance TVA en retard de 35 jours — aucun paiement reçu, relance à programmer.",
+                    "CEN-001", "agent.collection");
+            addDebtHistory(dB, "CREATED", "Créance issue d'une déclaration TVA", null, "Montant : 1 250 000 MGA");
+            addDebtHistory(dB, "PENALTY_APPLIED", "Pénalité de retard appliquée", null, "62 500 MGA");
+            addDebtHistory(dB, "STATUS_CHANGE", "Statut passé à EN_RETARD", "ISSUED", "OVERDUE");
+        }
+
+        // 4. Échéancier de paiement actif sur la créance en retard de 35 jours
+        //    ci-dessus (1 250 000 MGA, aucun paiement enregistré) en 4 tranches :
+        //    la 1re tranche est échue et impayée → alerte tranche en retard dans
+        //    /collection/plans. Aucun paiement direct n'a été écrit en base : la
+        //    source de vérité des tranches reste les allocations réelles (FIFO).
+        if (tp1 != null) {
+            TaxDebt planDebt = debtRepository.findAll().stream()
+                    .filter(d -> d.getStatus() == DebtStatus.OVERDUE
+                            && d.getTaxpayer().getId().equals(tp1.getId())
+                            && d.getObservations() != null
+                            && d.getObservations().contains("35 jours"))
+                    .findFirst().orElse(null);
+            if (planDebt != null) {
+                BigDecimal tranche = planDebt.getBalance().divide(BigDecimal.valueOf(4), 0, java.math.RoundingMode.HALF_UP);
+                BigDecimal last = planDebt.getBalance().subtract(tranche.multiply(BigDecimal.valueOf(3)));
+                Instant now = Instant.now();
+                String ref = com.mnktax.common.util.ReferenceGenerator.next("ECH");
+                PaymentPlan plan = PaymentPlan.builder()
+                        .reference(ref)
+                        .debt(planDebt)
+                        .label("Échéancier TVA — solde " + planDebt.getReference())
+                        .totalAmount(planDebt.getBalance())
+                        .status(PaymentPlanStatus.ACTIVE)
+                        .notes("Échéancier accepté en 4 tranches mensuelles ; la 1re tranche est échue et impayée.")
+                        .createdBy("seed")
+                        .createdAt(now)
+                        .updatedAt(now)
+                        .build();
+                plan.addInstallment(PaymentPlanInstallment.builder()
+                        .installmentNumber(1).dueDate(today.minusDays(5)).amount(tranche)
+                        .paidAmount(BigDecimal.ZERO).status(InstallmentStatus.PENDING)
+                        .createdAt(now).updatedAt(now).build());
+                plan.addInstallment(PaymentPlanInstallment.builder()
+                        .installmentNumber(2).dueDate(today.plusMonths(1)).amount(tranche)
+                        .paidAmount(BigDecimal.ZERO).status(InstallmentStatus.PENDING)
+                        .createdAt(now).updatedAt(now).build());
+                plan.addInstallment(PaymentPlanInstallment.builder()
+                        .installmentNumber(3).dueDate(today.plusMonths(2)).amount(tranche)
+                        .paidAmount(BigDecimal.ZERO).status(InstallmentStatus.PENDING)
+                        .createdAt(now).updatedAt(now).build());
+                plan.addInstallment(PaymentPlanInstallment.builder()
+                        .installmentNumber(4).dueDate(today.plusMonths(3)).amount(last)
+                        .paidAmount(BigDecimal.ZERO).status(InstallmentStatus.PENDING)
+                        .createdAt(now).updatedAt(now).build());
+                planRepository.save(plan);
+                actionRepository.save(CollectionAction.builder().debt(planDebt)
+                        .type(CollectionActionType.PAYMENT_PLAN)
+                        .description("Échéancier " + ref + " créé — " + planDebt.getBalance()
+                                + " MGA en 4 tranches")
+                        .actionDate(today)
+                        .outcome("Échéancier actif")
+                        .responsibleUserId(4L).status("COMPLETED")
+                        .createdAt(now).build());
+                addDebtHistory(planDebt, "PAYMENT_PLAN_CREATED",
+                        "Échéancier " + ref + " : " + planDebt.getBalance()
+                                + " MGA en 4 tranches mensuelles",
+                        null, ref);
+            }
+        }
+    }
+
     /* ═══════════════════════════ Annexes + Historique déclarations ═══════════════════════════ */
     private void seedDeclarationExtras() {
         List<com.mnktax.declaration.entity.Declaration> declarations = declarationRepository.findAll();
@@ -1751,5 +1913,104 @@ public class DemoDataSeeder implements ApplicationRunner {
                 .createdAt(Instant.now().minus(java.time.Duration.ofDays(daysAgo)))
                 .build();
         return receiptRepository.save(receipt);
+    }
+
+    /* ── Registrations ─────────────────────────────────── */
+
+    private void seedRegistrations() {
+        if (registrationRequestRepository.count() > 0) return;
+
+        var now = Instant.now();
+        var requests = java.util.List.of(
+            RegistrationRequest.builder().reference("REG-2026-000001").requestType("INDIVIDUAL")
+                .name("RAKOTO Jean").firstName("Jean").lastName("RAKOTO")
+                .email("rakoto.jean@example.mg").phone("+261 34 11 22 33")
+                .nif("0000100123").organization("Particulier")
+                .role("TAXPAYER").status("PENDING")
+                .message("Je souhaite accéder à la plateforme pour suivre mes obligations fiscales.")
+                .createdAt(now.minus(java.time.Duration.ofHours(2))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000002").requestType("COMPANY")
+                .name("SOCIÉTÉ MALAGASY SA").organization("SOCIÉTÉ MALAGASY SA")
+                .email("contact@societe-malagasy.mg").phone("+261 20 22 33 44")
+                .nif("0000409001").position("Directeur financier")
+                .role("TAXPAYER").status("UNDER_REVIEW")
+                .assignedTo("admin")
+                .message("Accès pour gérer les déclarations de notre entreprise.")
+                .createdAt(now.minus(java.time.Duration.ofDays(1))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000003").requestType("TAX_AGENT")
+                .name("RAZAFY Marie").firstName("Marie").lastName("RAZAFY")
+                .email("razafy.marie@dgi.mg").phone("+261 33 44 55 66")
+                .organization("DGI Antananarivo")
+                .position("Agent fiscal")
+                .taxCenter("ANA-01")
+                .role("TAX_AGENT").status("APPROVED")
+                .reviewedBy("admin").reviewedAt(now.minus(java.time.Duration.ofHours(12)))
+                .createdAt(now.minus(java.time.Duration.ofDays(3))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000004").requestType("INDIVIDUAL")
+                .name("ANDRY Ralaivao").firstName("Ralaivao").lastName("ANDRY")
+                .email("andry.r@example.mg")
+                .organization("Particulier")
+                .role("TAXPAYER").status("REJECTED")
+                .rejectionReason("Informations insuffisantes — NIF non fourni.")
+                .reviewedBy("admin").reviewedAt(now.minus(java.time.Duration.ofHours(6)))
+                .createdAt(now.minus(java.time.Duration.ofDays(5))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000005").requestType("COMPANY")
+                .name("GROUPE BEMANGA").organization("GROUPE BEMANGA LTD")
+                .email("admin@groupe-bemanga.mg").phone("+261 20 55 66 77")
+                .nif("0000501234").position("Comptable")
+                .role("ACCOUNTANT").status("PENDING")
+                .message("Demande d'accès comptable pour nos 3 filiales.")
+                .createdAt(now.minus(java.time.Duration.ofMinutes(45))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000006").requestType("COLLECTION_AGENT")
+                .name("HERILALA Rajao").firstName("Rajao").lastName("HERILALA")
+                .email("herilala.rajao@recouvrement.mg")
+                .organization("Service Recouvrement")
+                .position("Agent de recouvrement")
+                .role("COLLECTION_AGENT").status("UNDER_REVIEW")
+                .assignedTo("admin")
+                .createdAt(now.minus(java.time.Duration.ofDays(2))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000007").requestType("OTHER")
+                .name("RAKOTONIAINA Paul").firstName("Paul").lastName("RAKOTONIAINA")
+                .email("paul.r@example.mg")
+                .organization("Université d'Antananarivo")
+                .role("TAXPAYER").status("PENDING")
+                .message("Accès pour recherche académique sur les données fiscales.")
+                .createdAt(now.minus(java.time.Duration.ofHours(5))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000008").requestType("INDIVIDUAL")
+                .name("FANJANAHARY Lois").firstName("Lois").lastName("FANJANAHARY")
+                .email("lois.f@example.mg").phone("+261 34 77 88 99")
+                .organization("Particulier")
+                .role("TAXPAYER").status("APPROVED")
+                .reviewedBy("admin").reviewedAt(now.minus(java.time.Duration.ofDays(1)))
+                .createdAt(now.minus(java.time.Duration.ofDays(4))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000009").requestType("COMPANY")
+                .name("MADA TRANS LOGISTICS").organization("MADA TRANS LOGISTICS SARL")
+                .email("compta@madatrans.mg")
+                .nif("0000607890")
+                .role("ACCOUNTANT").status("PENDING")
+                .message("Comptable mandaté pour déclarations mensuelles TVA.")
+                .createdAt(now.minus(java.time.Duration.ofMinutes(20))).build(),
+
+            RegistrationRequest.builder().reference("REG-2026-000010").requestType("TAX_AGENT")
+                .name("NOMENJANAHARY Priela").firstName("Priela").lastName("NOMENJANAHARY")
+                .email("priela.n@dgi.mg")
+                .organization("DGI Toamasina")
+                .taxCenter("TMM-01")
+                .role("TAX_AGENT").status("REJECTED")
+                .rejectionReason("Compte DGI déjà existant.")
+                .reviewedBy("admin").reviewedAt(now.minus(java.time.Duration.ofDays(2)))
+                .createdAt(now.minus(java.time.Duration.ofDays(7))).build()
+        );
+
+        registrationRequestRepository.saveAll(requests);
+        log.info("Seed: {} demandes d'inscription créées", requests.size());
     }
 }

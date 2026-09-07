@@ -60,6 +60,12 @@ public class User {
     @Column(length = 30)
     private String phone;
 
+    @Column(name = "job_title", length = 80)
+    private String jobTitle;
+
+    @Column(name = "tax_center", length = 120)
+    private String taxCenter;
+
     @Column(name = "avatar_path", length = 500)
     private String avatarPath;
 
@@ -74,6 +80,12 @@ public class User {
 
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
+
+    @Column(name = "last_login_ip", length = 50)
+    private String lastLoginIp;
+
+    @Column(name = "last_login_user_agent", length = 255)
+    private String lastLoginUserAgent;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

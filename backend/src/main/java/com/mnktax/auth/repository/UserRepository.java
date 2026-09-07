@@ -25,8 +25,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
 
     @Modifying
-    @Query("UPDATE User u SET u.lastLoginAt = :now WHERE u.id = :id")
-    void updateLastLogin(@Param("id") Long id, @Param("now") Instant now);
+    @Query("UPDATE User u SET u.lastLoginAt = :now, u.lastLoginIp = :ip, u.lastLoginUserAgent = :ua WHERE u.id = :id")
+    void updateLastLogin(@Param("id") Long id, @Param("now") Instant now,
+                         @Param("ip") String ip, @Param("ua") String userAgent);
 
     @EntityGraph(attributePaths = "roles.permissions")
     @Query("SELECT u FROM User u WHERE " +

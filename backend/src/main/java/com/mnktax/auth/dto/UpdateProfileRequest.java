@@ -15,6 +15,12 @@ public record UpdateProfileRequest(
         String lastName,
 
         @Size(max = 30)
-        String phone
+        String phone,
+
+        @Size(max = 80)
+        String jobTitle,
+
+        @Size(max = 120)
+        String taxCenter
 ) {
 }

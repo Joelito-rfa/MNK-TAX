@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, FileSearch, Gavel, PlusCircle } from 'lucide-react'
+import { FileSearch, Gavel, Grid3X3, LayoutList, PlusCircle, MoreHorizontal, Pencil, Trash2, Eye, CalendarClock } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
 import { fmtDate, fmtDateTime, fmtMGA } from '../lib/format'
 import type { Page, TaxControl, TaxControlDetail, TaxpayerSummary, User } from '../types'
@@ -57,6 +57,9 @@ export default function Controls() {
   const [q, setQ] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
+  const [actionMenu, setActionMenu] = useState<number | null>(null)
+  const toast = useToast()
   const queryClient = useQueryClient()
 
   const params = new URLSearchParams({ page: String(page), size: String(size) })
@@ -83,20 +86,46 @@ export default function Controls() {
       />
 
       <Card>
-        <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 dark:border-slate-700/50 px-5 py-4">
-          <SearchInput
-            value={q}
-            onChange={(v) => { setQ(v); setPage(0) }}
-            placeholder="Rechercher par référence, NIF, nom ou motif…"
-            className="min-w-56 flex-1"
-          />
-          <div className="w-48">
-            <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0) }}>
-              <option value="">Tous les statuts</option>
-              {Object.entries(controlStatusLabels).map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
-              ))}
-            </Select>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-700/50 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <SearchInput
+              value={q}
+              onChange={(v) => { setQ(v); setPage(0) }}
+              placeholder="Rechercher par référence, NIF, nom ou motif…"
+              className="min-w-56 flex-1"
+            />
+            <div className="w-48">
+              <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0) }}>
+                <option value="">Tous les statuts</option>
+                {Object.entries(controlStatusLabels).map(([v, label]) => (
+                  <option key={v} value={v}>{label}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-700/50">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`rounded-md p-1.5 transition ${
+                viewMode === 'list'
+                  ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              aria-label="Vue liste"
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`rounded-md p-1.5 transition ${
+                viewMode === 'cards'
+                  ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              aria-label="Vue cartes"
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -104,7 +133,7 @@ export default function Controls() {
           <Spinner />
         ) : !data || data.content.length === 0 ? (
           <EmptyState title="Aucun contrôle fiscal" subtitle="Modifiez vos critères de recherche." />
-        ) : (
+        ) : viewMode === 'list' ? (
           <>
             <Table>
               <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
@@ -142,11 +171,70 @@ export default function Controls() {
                       {c.redressement != null ? fmtMGA(c.redressement) : '—'}
                     </Td>
                     <Td>{fmtDate(c.createdAt)}</Td>
-                    <Td>
-                      <Button variant="ghost" size="sm" onClick={() => setDetailId(c.id)}>
-                        Voir <ArrowUpRight className="h-3.5 w-3.5" />
-                      </Button>
-                    </Td>
+<Td>
+                       <div className="relative">
+                         <button
+                           onClick={(e) => {
+                             e.stopPropagation()
+                             setActionMenu(actionMenu === c.id ? null : c.id)
+                           }}
+                           className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                           aria-label="Actions"
+                         >
+                           <MoreHorizontal className="h-4 w-4" />
+                         </button>
+                         {actionMenu === c.id && (
+                           <>
+                             <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
+                             <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
+                               <div className="space-y-0.5">
+                                 <button
+                                   onClick={(e) => {
+                                     e.stopPropagation()
+                                     setDetailId(c.id)
+                                     setActionMenu(null)
+                                   }}
+                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                 >
+                                   <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
+                                 </button>
+                                 <button
+                                   onClick={(e) => {
+                                     e.stopPropagation()
+                                     toast.info('Modifier le contrôle')
+                                     setActionMenu(null)
+                                   }}
+                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                 >
+                                   <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
+                                 </button>
+                                 <button
+                                   onClick={(e) => {
+                                     e.stopPropagation()
+                                     toast.info('Changer le statut')
+                                     setActionMenu(null)
+                                   }}
+                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                 >
+                                   <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
+                                 </button>
+                                 <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                                 <button
+                                   onClick={(e) => {
+                                     e.stopPropagation()
+                                     if (confirm('Supprimer ce contrôle ?')) toast.info('Suppression à implémenter')
+                                     setActionMenu(null)
+                                   }}
+                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                 >
+                                   <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
+                                 </button>
+                               </div>
+                             </div>
+                           </>
+                         )}
+                       </div>
+                     </Td>
                   </tr>
                 ))}
               </tbody>
@@ -160,6 +248,117 @@ export default function Controls() {
               onChange={setPage}
             />
           </>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 p-4">
+            {data.content.map((c) => (
+              <Card key={c.id} className="group cursor-pointer transition hover:shadow-lg hover:border-violet-200 dark:hover:border-violet-800" onClick={() => setDetailId(c.id)}>
+                <div className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                        <Gavel className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-mono text-sm font-semibold text-brand-700">{c.reference}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge value={c.status} />
+                      <div className="relative">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActionMenu(actionMenu === c.id ? null : c.id)
+                          }}
+                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                          aria-label="Actions"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                        {actionMenu === c.id && (
+                          <>
+                            <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
+                            <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
+                              <div className="space-y-0.5">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setDetailId(c.id)
+                                    setActionMenu(null)
+                                  }}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                >
+                                  <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toast.info('Modifier le contrôle')
+                                    setActionMenu(null)
+                                  }}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                >
+                                  <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toast.info('Changer le statut')
+                                    setActionMenu(null)
+                                  }}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                                >
+                                  <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
+                                </button>
+                                <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (confirm('Supprimer ce contrôle ?')) toast.info('Suppression à implémenter')
+                                    setActionMenu(null)
+                                  }}
+                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                >
+                                  <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{c.taxpayerName}</p>
+                      <p className="font-mono text-xs text-slate-400 dark:text-slate-500">{c.nif}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <Badge tone="slate">{controlTypeLabels[c.controlType] ?? c.controlType}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Période:</span>
+                      <span>{fmtDate(c.periodStart)} → {fmtDate(c.periodEnd)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Agent:</span>
+                      <span>{c.agentName ?? '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Redressement:</span>
+                      <span className={c.redressement ? 'font-medium text-amber-700' : ''}>
+                        {c.redressement != null ? fmtMGA(c.redressement) : '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Créé le:</span>
+                      <span>{fmtDate(c.createdAt)}</span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
         )}
       </Card>
 

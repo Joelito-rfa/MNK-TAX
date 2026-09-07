@@ -54,7 +54,6 @@ import { useToast } from '../components/Toast'
 
 /* ── Schemas ── */
 const createSchema = z.object({
-  nif: z.string().regex(/^\d{10}$/, 'Le NIF doit contenir exactement 10 chiffres.'),
   type: z.enum(['PERSON', 'COMPANY'], { message: 'Type invalide.' }),
   name: z.string().min(2, 'Le nom est requis.'),
   businessName: z.string().optional(),
@@ -181,7 +180,6 @@ export default function Taxpayers() {
   const createMutation = useMutation({
     mutationFn: (payload: CreateForm) => {
       const body: Record<string, unknown> = {
-        nif: payload.nif,
         type: payload.type,
         name: payload.name,
       }
@@ -981,11 +979,6 @@ export default function Taxpayers() {
                 </div>
               </Field>
 
-              <Field label="NIF (10 chiffres)">
-                <Input placeholder="0000409001" {...register('nif')} />
-                {errors.nif && <p className="mt-1 text-xs text-rose-600">{errors.nif.message}</p>}
-              </Field>
-
               <Field label={taxpayerType === 'COMPANY' ? 'Raison sociale' : 'Nom complet'}>
                 <Input
                   placeholder={taxpayerType === 'COMPANY' ? 'ex : SARL MADIAK' : 'ex : RAKOTO Jean'}
@@ -1077,12 +1070,6 @@ export default function Taxpayers() {
                     <Badge tone={typeBadgeTone(watch('type'))}>
                       {watch('type') === 'COMPANY' ? 'Entreprise' : 'Particulier'}
                     </Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">NIF</span>
-                    <span className="font-mono font-medium text-slate-900 dark:text-slate-100">
-                      {watch('nif') || '—'}
-                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500 dark:text-slate-400">Nom</span>

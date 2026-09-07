@@ -246,8 +246,9 @@ public class DebtService {
     }
 
     @Transactional
-    public MarkOverdueResult markOverdue(LocalDate today) {
-        List<TaxDebt> toMark = debtRepository.findToMarkOverdue(today);
+    public MarkOverdueResult markOverdue(LocalDate today, String taxTypeCode, String period, Long taxpayerId,
+                                         DebtOrigin origin, DebtCollectionPriority priority, String center, String q) {
+        List<TaxDebt> toMark = debtRepository.findToMarkOverdueFiltered(today, taxTypeCode, period, taxpayerId, origin, priority, center, q);
         List<String> details = new ArrayList<>();
         for (TaxDebt debt : toMark) {
             applyLateCharges(debt);
@@ -305,6 +306,18 @@ public class DebtService {
     }
 
     public void recalculate(TaxDebt debt) {
+        recalculate(debt, false);
+    }
+
+    /**
+     * Recalcule le solde puis le statut.
+     *
+     * {@code paymentReversal} n'est vrai que lorsqu'un paiement est annulé
+     * (seule opération qui réduit paidAmount) : une créance PAYÉE peut alors
+     * légitimement redevenir exigible, sans jamais recevoir de nouveau
+     * mouvement « entrant » (charge, ajustement…) sans procédure spécifique.
+     */
+    public void recalculate(TaxDebt debt, boolean paymentReversal) {
         BigDecimal total = debt.getPrincipalAmount()
                 .add(debt.getPenaltyAmount())
                 .add(debt.getInterestAmount())
@@ -329,8 +342,19 @@ public class DebtService {
             debt.setClosedAt(Instant.now());
             markDeclarationPaidIfFullyPaid(debt);
         } else if (current == DebtStatus.PAID) {
-            throw new BusinessException("DEBT_ALREADY_PAID",
-                    "Une dette PAYÉE ne peut pas recevoir de nouveau mouvement sans procédure spécifique.");
+            if (!paymentReversal) {
+                throw new BusinessException("DEBT_ALREADY_PAID",
+                        "Une dette PAYÉE ne peut pas recevoir de nouveau mouvement sans procédure spécifique.");
+            }
+            // Annulation de paiement : la créance redevient exigible.
+            debt.setClosedAt(null);
+            if (debt.getPaidAmount().signum() > 0) {
+                debt.setStatus(DebtStatus.PARTIALLY_PAID);
+            } else if (debt.getDueDate().isBefore(LocalDate.now())) {
+                debt.setStatus(DebtStatus.OVERDUE);
+            } else {
+                debt.setStatus(DebtStatus.ISSUED);
+            }
         } else if (debt.getPaidAmount().signum() > 0) {
             if (current != DebtStatus.IN_COLLECTION) {
                 debt.setStatus(DebtStatus.PARTIALLY_PAID);
@@ -416,6 +440,54 @@ public class DebtService {
         debtRepository.save(debt);
         addHistory(debt, "RESUMED", "Créance réactivée",
                 DebtStatus.SUSPENDED.name(), previous.name());
+    }
+
+    /**
+     * Déclare une créance en litige (contestation du contribuable).
+     * Un seul litige OUVERT est possible à la fois.
+     */
+    @Transactional
+    public void markDisputed(Long debtId, String reason) {
+        TaxDebt debt = find(debtId);
+        if (debt.getStatus() == DebtStatus.PAID || debt.getStatus() == DebtStatus.CANCELLED
+                || debt.getStatus() == DebtStatus.CLOSED) {
+            throw new BusinessException("DEBT_TRANSITION_INVALID",
+                    "On ne peut pas déclarer en litige une créance " + debt.getStatus() + ".");
+        }
+        DebtStatus oldStatus = debt.getStatus();
+        debt.setStatus(DebtStatus.DISPUTED);
+        debt.setUpdatedAt(Instant.now());
+        debtRepository.save(debt);
+        addHistory(debt, "DISPUTE_CREATED", "Créance déclarée en litige"
+                + (reason != null ? " : " + reason : ""),
+                oldStatus.name(), DebtStatus.DISPUTED.name());
+    }
+
+    /**
+     * Lève le litige : la créance redevient recouvrable (statut recalculé
+     * depuis les montants réels) — utilisée quand la contestation est rejetée
+     * ou retirée. Pour une décision favorable, aucune règle n'est inventée :
+     * la régularisation (annulation/réduction) reste une action explicite.
+     */
+    @Transactional
+    public void reopenFromDispute(Long debtId) {
+        TaxDebt debt = find(debtId);
+        if (debt.getStatus() != DebtStatus.DISPUTED) {
+            throw new BusinessException("DEBT_NOT_DISPUTED", "Cette créance n'est pas en litige.");
+        }
+        DebtStatus previous;
+        if (debt.getPaidAmount().signum() > 0) {
+            previous = DebtStatus.PARTIALLY_PAID;
+        } else if (debt.getDueDate().isBefore(LocalDate.now())) {
+            previous = DebtStatus.OVERDUE;
+        } else {
+            previous = DebtStatus.ISSUED;
+        }
+        debt.setStatus(previous);
+        debt.setUpdatedAt(Instant.now());
+        debtRepository.save(debt);
+        addHistory(debt, "DISPUTE_REOPENED", "Créance redevenue recouvrable après décision sur litige",
+                DebtStatus.DISPUTED.name(), previous.name());
     }
 
     @Transactional

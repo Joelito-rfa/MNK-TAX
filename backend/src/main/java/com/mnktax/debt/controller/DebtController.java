@@ -8,10 +8,12 @@ import com.mnktax.debt.dto.DebtDtos.TaxDebtDto;
 import com.mnktax.debt.entity.DebtCollectionPriority;
 import com.mnktax.debt.entity.DebtOrigin;
 import com.mnktax.debt.entity.DebtStatus;
+import com.mnktax.debt.entity.TaxDebt;
 import com.mnktax.debt.service.DebtService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -91,10 +93,17 @@ public class DebtController {
     @PostMapping("/mark-overdue")
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
     @Operation(summary = "Déclencher la détection manuelle des impayés",
-            description = "Passe les créances échues en OVERDUE et applique pénalités/intérêts configurés.")
+            description = "Passe les créances échues en OVERDUE et applique pénalités/intérêts configurés. Accepte les mêmes filtres que la recherche.")
     public ResponseEntity<MarkOverdueResult> markOverdue(
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
-        return ResponseEntity.ok(debtService.markOverdue(asOf == null ? LocalDate.now() : asOf));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf,
+            @RequestParam(required = false) String taxTypeCode,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) Long taxpayerId,
+            @RequestParam(required = false) DebtOrigin origin,
+            @RequestParam(required = false) DebtCollectionPriority priority,
+            @RequestParam(required = false) String center,
+            @RequestParam(required = false) String q) {
+        return ResponseEntity.ok(debtService.markOverdue(asOf == null ? LocalDate.now() : asOf, taxTypeCode, period, taxpayerId, origin, priority, center, q));
     }
 
     @PatchMapping("/{id}/adjustment")
@@ -177,5 +186,29 @@ public class DebtController {
     }
 
     public record ObservationsRequest(String observations) {
+    }
+
+    public record CreateDebtRequest(
+            @jakarta.validation.constraints.NotNull(message = "L'identifiant du contribuable est requis.")
+            Long taxpayerId,
+            String taxTypeCode,
+            String period,
+            @jakarta.validation.constraints.NotNull(message = "Le montant principal est requis.")
+            @jakarta.validation.constraints.Positive(message = "Le montant principal doit être positif.")
+            java.math.BigDecimal principal,
+            String observations,
+            DebtCollectionPriority priority
+    ) {
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
+    @Operation(summary = "Créer une créance manuellement")
+    public ResponseEntity<TaxDebtDto> create(@jakarta.validation.Valid @RequestBody CreateDebtRequest request,
+                                              jakarta.servlet.http.HttpServletRequest http) {
+        TaxDebt debt = debtService.createManual(
+                request.taxpayerId(), request.taxTypeCode(), request.period(),
+                request.principal(), request.observations(), request.priority());
+        return ResponseEntity.ok(TaxDebtDto.from(debt, List.of()));
     }
 }

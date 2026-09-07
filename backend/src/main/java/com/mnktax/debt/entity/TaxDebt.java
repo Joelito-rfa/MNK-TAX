@@ -54,12 +54,12 @@ public class TaxDebt {
     @JoinColumn(name = "taxpayer_id", nullable = false)
     private Taxpayer taxpayer;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "assessment_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assessment_id")
     private Assessment assessment;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "tax_type_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tax_type_id")
     private TaxType taxType;
 
     @Column(nullable = false, length = 10)

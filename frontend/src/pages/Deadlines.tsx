@@ -376,14 +376,12 @@ export default function Deadlines() {
            <p className="text-sm font-medium text-red-700 dark:text-red-400">
              {alerts.overdue} echeance{alerts.overdue > 1 ? 's' : ''} fiscale{alerts.overdue > 1 ? 's' : ''} en retard.
              </p>
-           {(alerts.overdue > 0 || alerts.comingSoon > 0) && (
-             <button
-               onClick={() => setFilterMode('overdue')}
+           <button
+               onClick={() => { setFilterMode('overdue'); setViewMode('list') }}
                className="ml-auto text-xs font-semibold text-red-700 underline decoration-red-300 underline-offset-2 hover:text-red-900 dark:text-red-400 dark:decoration-red-800"
              >
                Voir les echeances concernees
              </button>
-           )}
          </div>
        )}
        {alerts.comingSoon > 0 && !alerts.overdue && (
@@ -396,6 +394,12 @@ export default function Deadlines() {
               <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
                 {alerts.comingSoon} echeance{alerts.comingSoon > 1 ? 's' : ''} arrivent dans moins de 7 jours.
               </p>
+              <button
+                onClick={() => { setFilterMode('week'); setViewMode('list') }}
+                className="ml-auto text-xs font-semibold text-amber-700 underline decoration-amber-300 underline-offset-2 hover:text-amber-900 dark:text-amber-400 dark:decoration-amber-800"
+              >
+                Voir les echeances concernees
+              </button>
             </div>
           )}
         </div>
@@ -441,6 +445,17 @@ export default function Deadlines() {
           accent="green"
         />
       </div>
+
+      {/* Retour au calendrier quand un filtre actif est appliqué */}
+      {filterMode !== 'all' && viewMode === 'list' && (
+        <button
+          onClick={() => { setFilterMode('all'); setViewMode('calendar') }}
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Retour au calendrier
+        </button>
+      )}
 
       {/* ═══════════════ SECTION 2: NAVIGATION + VIEW MODE ═══════════════ */}
       <div className="flex flex-wrap items-center justify-between gap-4">

@@ -103,7 +103,7 @@ Codes d'erreur métier : `400` (validation), `403` (permission), `401` (non auth
 | GET | `/api/debts` | `DEBT_READ` | Recherche paginée (`status`, `q`, `overdue`) |
 | GET | `/api/debts/overdue` | `DEBT_READ` | Créances en retard |
 | GET | `/api/debts/{id}` | `DEBT_READ` | Détail avec composantes |
-| POST | `/api/debts/mark-overdue` | `DEBT_ADMIN` | Détecter les impayés (`?days=1`) |
+| POST | `/api/debts/mark-overdue` | `DEBT_ADMIN` | Détecter les impayés (`?asOf=2025-01-01&taxTypeCode=TVA&period=2025&taxpayerId=123&origin=ASSESSMENT&priority=HIGH&center=CENTRE1&q=search`) |
 | PATCH | `/api/debts/{id}/adjustment` | `DEBT_ADMIN` | `{label, amount}` (positif ou négatif) |
 | PATCH | `/api/debts/{id}/in-collection` | `DEBT_ADMIN` | Passer en recouvrement |
 | PATCH | `/api/debts/{id}/cancel` | `DEBT_ADMIN` | Annuler la créance |

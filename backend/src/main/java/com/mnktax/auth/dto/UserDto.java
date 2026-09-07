@@ -15,10 +15,14 @@ public record UserDto(
         String firstName,
         String lastName,
         String phone,
+        String jobTitle,
+        String taxCenter,
         boolean hasAvatar,
         boolean enabled,
         boolean mfaEnabled,
         Instant lastLoginAt,
+        String lastLoginIp,
+        String lastLoginUserAgent,
         Instant createdAt,
         List<String> roles,
         List<String> permissions
@@ -36,8 +40,10 @@ public record UserDto(
                 .sorted()
                 .toList();
         return new UserDto(user.getId(), user.getUsername(), user.getEmail(), user.getFirstName(),
-                user.getLastName(), user.getPhone(), user.getAvatarPath() != null && !user.getAvatarPath().isBlank(),
+                user.getLastName(), user.getPhone(), user.getJobTitle(), user.getTaxCenter(),
+                user.getAvatarPath() != null && !user.getAvatarPath().isBlank(),
                 user.isEnabled(), user.isMfaEnabled(),
-                user.getLastLoginAt(), user.getCreatedAt(), roles, permissions);
+                user.getLastLoginAt(), user.getLastLoginIp(), user.getLastLoginUserAgent(),
+                user.getCreatedAt(), roles, permissions);
     }
 }

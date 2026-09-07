@@ -354,7 +354,7 @@ export default function DebtDetail() {
                   </div>
                   <div className="w-40">
                     <Field label="Montant (MGA)">
-                      <Input type="number" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} />
+                      <Input type="number" min="0" value={adjAmount} onChange={(e) => setAdjAmount(e.target.value)} />
                     </Field>
                   </div>
                   <Button

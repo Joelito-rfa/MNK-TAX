@@ -19,8 +19,8 @@ export interface PaymentStats {
 }
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'MOBILE_MONEY' | 'CARD' | 'CHEQUE' | 'OTHER'
 export type ReceiptStatus = 'GENERATED' | 'ISSUED' | 'VALID' | 'CANCELLED' | 'REFUNDED' | 'REPLACED' | 'VOID'
-export type CollectionActionType = 'PHONE_CONTACT' | 'SMS' | 'NOTIFICATION' | 'NOTICE' | 'PAYMENT_RECORD' | 'NOTE' | 'FOLLOW_UP' | 'REMINDER' | 'VISIT' | 'SEIZURE'
-export type CollectionDebtStatus = 'PAYE' | 'EN_ATTENTE' | 'RELANCE_EN_COURS' | 'EN_RETARD' | 'MISE_EN_DEMEURE' | 'CONTENTIEUX' | 'ANNULE'
+export type CollectionActionType = 'PHONE_CONTACT' | 'SMS' | 'NOTIFICATION' | 'NOTICE' | 'COMMANDMENT' | 'ATD' | 'SEIZURE' | 'PAYMENT_PLAN' | 'SUSPENSION_REQUEST' | 'PAYMENT_RECORD' | 'NOTE' | 'FOLLOW_UP' | 'REMINDER' | 'VISIT' | 'ADMINISTRATIVE_ACTION' | 'OTHER'
+export type CollectionDebtStatus = 'PAYE' | 'EN_ATTENTE' | 'RELANCE_EN_COURS' | 'EN_RETARD' | 'MISE_EN_DEMEURE' | 'CONTENTIEUX' | 'ANNULE' | 'SUSPENDUE' | 'CLOTUREE' | 'PAIEMENT_PARTIEL'
 export type CalculationMethod = 'FLAT_RATE' | 'PERCENTAGE_OF_BASE' | 'PROGRESSIVE' | 'PER_UNIT' | 'PERCENTAGE_OF_TURNOVER'
 export type Periodicity = 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'BIENNIAL'
 export type ObligationStatus = 'ACTIVE' | 'SUSPENDED' | 'CLOSED'
@@ -43,10 +43,14 @@ export interface User {
   firstName: string
   lastName: string
   phone: string
+  jobTitle: string | null
+  taxCenter: string | null
   hasAvatar: boolean
   enabled: boolean
   mfaEnabled: boolean
   lastLoginAt: string
+  lastLoginIp: string | null
+  lastLoginUserAgent: string | null
   createdAt: string
   roles: string[]
   permissions: string[]
@@ -479,19 +483,129 @@ export interface CollectionDebtRow {
   paidAmount: number
   balance: number
   dueDate: string
-  debtStatus: string
+  debtStatus: DebtStatus
   collectionStatus: CollectionDebtStatus
+  collectionPriority: DebtCollectionPriority
+  origin: DebtOrigin
+  daysOverdue: number
+  lastActionType: string | null
   lastAction: string | null
   lastActionDate: string | null
+  lastResponsible: string | null
   nextAction: string | null
   nextActionDate: string | null
 }
 
 export interface CollectionStats {
   collectionRate: number
+  totalExigible: number
   totalCollected: number
   totalOutstanding: number
+  totalDebts: number
+  overdueDebts: number
+  overdueBalance: number
+  overdue30: number
+  overdue60: number
+  overdue90: number
+  partialDebts: number
+  disputedDebts: number
+  suspendedDebts: number
+  reminderActions: number
+  noticeCount: number
   actionCount: number
+}
+
+export interface OverdueSummary {
+  count: number
+  totalBalance: number
+  averageDays: number
+  oldestDueDate: string | null
+}
+
+export interface CollectionHistoryEvent {
+  id: number
+  debtId: number
+  debtReference: string
+  nif: string
+  taxpayerName: string
+  eventType: string
+  description: string
+  oldValue: string | null
+  newValue: string | null
+  performedBy: string | null
+  eventDate: string
+}
+
+export type PaymentPlanStatus = 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
+export type InstallmentStatus = 'PENDING' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
+
+export interface PlanInstallment {
+  id: number
+  number: number
+  dueDate: string
+  amount: number
+  paidAmount: number
+  remainingAmount: number
+  status: InstallmentStatus
+  paidAt: string | null
+  daysOverdue: number
+}
+
+export interface PaymentPlan {
+  id: number
+  reference: string
+  label: string
+  debtId: number
+  debtReference: string
+  nif: string
+  taxpayerName: string
+  status: PaymentPlanStatus
+  totalAmount: number
+  paidAmount: number
+  remainingAmount: number
+  installmentCount: number
+  paidInstallments: number
+  overdueInstallments: number
+  nextDueDate: string | null
+  notes: string | null
+  createdBy: string | null
+  createdAt: string
+  installments: PlanInstallment[]
+}
+
+export type DisputeStatus = 'OPEN' | 'RESOLVED'
+export type DisputeDecision = 'SUSTAINED' | 'REJECTED' | 'WITHDRAWN'
+
+export interface DebtDispute {
+  id: number
+  reference: string
+  debtId: number
+  debtReference: string
+  reason: string
+  contestedAmount: number | null
+  contestationDate: string
+  status: DisputeStatus
+  decision: DisputeDecision | null
+  decisionNotes: string | null
+  decidedBy: string | null
+  decidedAt: string | null
+  createdBy: string | null
+  createdAt: string
+}
+
+export interface CreatePlanRequest {
+  debtId: number
+  label: string
+  notes?: string | null
+  installments: { dueDate: string; amount: number }[]
+}
+
+export interface PlanStats {
+  activePlans: number
+  completedPlans: number
+  cancelledPlans: number
+  overdueInstallments: number
+  plansWithOverdue: number
 }
 
 export interface CollectionTaxpayerInfo {
@@ -529,6 +643,7 @@ export interface CollectionDetail {
   taxpayer: CollectionTaxpayerInfo
   actions: CollectionAction[]
   notices: CollectionNotice[]
+  disputes: DebtDispute[]
 }
 
 export interface RefundStats {
@@ -651,6 +766,24 @@ export interface Notification {
   entityId: string
   read: boolean
   readAt: string | null
+  createdAt: string
+}
+
+export interface Session {
+  id: number
+  userAgent: string | null
+  ipAddress: string | null
+  current: boolean
+  createdAt: string
+  expiresAt: string
+}
+
+export interface SecurityEvent {
+  id: number
+  action: string
+  entityType: string
+  ipAddress: string | null
+  userAgent: string | null
   createdAt: string
 }
 

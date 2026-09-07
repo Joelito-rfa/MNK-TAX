@@ -55,7 +55,7 @@ export function useDropdown(initialOpen = false) {
     toggle,
     close,
     open,
-    triggerProps: { 'data-menu-trigger': '' as const },
+    triggerProps: { 'data-menu-trigger': '' as const, onClick: toggle },
     dropdownProps: { 'data-menu-dropdown': '' as const },
   } as const
 }

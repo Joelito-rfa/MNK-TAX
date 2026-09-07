@@ -15,7 +15,9 @@ import {
   Download,
   Eye,
   FileText,
+  Grid3X3,
   Inbox,
+  LayoutList,
   MoreHorizontal,
   Pencil,
   Plus,
@@ -41,7 +43,7 @@ import type {
   DeclarationStatistics,
   Page,
   TaxType,
-  TaxpayerDetail,
+  TaxpayerSummary,
 } from '../types'
 import {
   Badge,
@@ -133,6 +135,7 @@ export default function Declarations() {
   const [correctionMotif, setCorrectionMotif] = useState('')
   const [validateComment, setValidateComment] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
 
   /* ── Query params ── */
   const params = new URLSearchParams()
@@ -458,6 +461,30 @@ export default function Declarations() {
               'Chargement...'
             )}
           </p>
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-700/50">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`rounded-md p-1.5 transition ${
+                viewMode === 'list'
+                  ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              aria-label="Vue liste"
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`rounded-md p-1.5 transition ${
+                viewMode === 'cards'
+                  ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              aria-label="Vue cartes"
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* ── Content ── */}
@@ -479,7 +506,7 @@ export default function Declarations() {
               </Button>
             </div>
           </div>
-        ) : (
+        ) : viewMode === 'list' ? (
           <>
             <Table>
               <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
@@ -629,6 +656,87 @@ export default function Declarations() {
               onChange={setPage}
             />
           </>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 p-4">
+            {data.content.map((d) => (
+              <Card className="group cursor-pointer transition hover:shadow-lg hover:border-violet-200 dark:hover:border-violet-800" onClick={() => navigate(`/declarations/${d.id}`)}>
+                <div className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-mono text-sm font-semibold text-violet-700 dark:text-violet-400">{d.reference}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{d.nif}</p>
+                      </div>
+                    </div>
+                    <Badge tone={statusToneMap[d.status] as any}>
+                      {statusIcons[d.status]}
+                      {statusLabels[d.status] ?? d.status}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <p className="font-medium text-slate-900 dark:text-slate-100 truncate">{d.taxpayerName}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{d.taxTypeCode}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <Calendar className="h-3.5 w-3.5 shrink-0" />
+                      <span>{d.period}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Assiette:</span>
+                      <span className="font-mono">{fmtNumber(d.taxBase)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Déclaré:</span>
+                      <span className="font-mono">{fmtNumber(d.declaredAmount)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-slate-500">Total:</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{d.totalAPayer ? fmtNumber(d.totalAPayer) : '—'}</span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-end">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setActionMenu(actionMenu === d.id ? null : d.id)
+                      }}
+                      className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                      aria-label="Actions"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                    {actionMenu === d.id && (
+                      <>
+                        <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
+                        <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
+                          <div className="space-y-0.5">
+                          {getActions(d).map((a, i) => (
+                            <button
+                              key={i}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                a.action()
+                              }}
+                              className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                                a.danger ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-200'
+                              }`}
+                            >
+                              <span className="shrink-0">{a.icon}</span> {a.label}
+                            </button>
+                          ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
         )}
       </Card>
 
@@ -947,17 +1055,17 @@ function EditDeclarationModal({ declaration, onClose }: { declaration: Declarati
           <Field label="Régime"><Input value={regime} onChange={(e) => setRegime(e.target.value)} placeholder="ex : RNE" /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Base imposable (MGA) *"><Input type="number" value={taxBase} onChange={(e) => setTaxBase(e.target.value)} /></Field>
-          <Field label="Taux (%)"><Input type="number" step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} /></Field>
+          <Field label="Base imposable (MGA) *"><Input type="number" min="0" value={taxBase} onChange={(e) => setTaxBase(e.target.value)} /></Field>
+          <Field label="Taux (%)"><Input type="number" min="0" step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} /></Field>
         </div>
-        <Field label="Montant déclaré (MGA)"><Input type="number" value={declaredAmount} onChange={(e) => setDeclaredAmount(e.target.value)} /></Field>
+        <Field label="Montant déclaré (MGA)"><Input type="number" min="0" value={declaredAmount} onChange={(e) => setDeclaredAmount(e.target.value)} /></Field>
         <Field label="Date d'échéance"><Input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} /></Field>
         <div>
           <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Lignes de détail</p>
           {lines.map((l, i) => (
             <div key={i} className="mb-2 flex gap-2">
               <Input placeholder="Libellé" value={l.label} onChange={(e) => { const n = [...lines]; n[i].label = e.target.value; setLines(n) }} className="flex-1" />
-              <Input type="number" placeholder="Montant" value={l.amount} onChange={(e) => { const n = [...lines]; n[i].amount = e.target.value; setLines(n) }} className="w-32" />
+              <Input type="number" min="0" placeholder="Montant" value={l.amount} onChange={(e) => { const n = [...lines]; n[i].amount = e.target.value; setLines(n) }} className="w-32" />
               {lines.length > 1 && <button type="button" onClick={() => setLines(lines.filter((_, j) => j !== i))} className="text-rose-600"><X className="h-4 w-4" /></button>}
             </div>
           ))}
@@ -982,9 +1090,7 @@ function CreateDeclarationModal({ onClose, taxTypes }: { onClose: () => void; ta
   const toast = useToast()
   const queryClient = useQueryClient()
   const [step, setStep] = useState(1)
-  const [nif, setNif] = useState('')
-  const [taxpayer, setTaxpayer] = useState<TaxpayerDetail | null>(null)
-  const [nifError, setNifError] = useState('')
+  const [taxpayerId, setTaxpayerId] = useState('')
   const [taxTypeCode, setTaxTypeCode] = useState('')
   const [period, setPeriod] = useState('')
   const [exercice, setExercice] = useState(new Date().getFullYear().toString())
@@ -995,15 +1101,16 @@ function CreateDeclarationModal({ onClose, taxTypes }: { onClose: () => void; ta
   const [dateEcheance, setDateEcheance] = useState('')
   const [lines, setLines] = useState<{ label: string; amount: string }[]>([{ label: '', amount: '' }])
 
-  const searchMutation = useMutation({
-    mutationFn: () => apiGet<TaxpayerDetail>(`/taxpayers/nif/${nif}`),
-    onSuccess: (data) => { setTaxpayer(data); setNifError(''); setStep(2) },
-    onError: () => { setTaxpayer(null); setNifError('Contribuable introuvable avec ce NIF.') },
+  const { data: taxpayers, isLoading: loadingTaxpayers } = useQuery({
+    queryKey: ['taxpayers-lite'],
+    queryFn: () => apiGet<Page<TaxpayerSummary>>('/taxpayers?size=1000'),
   })
+
+  const selectedTaxpayer = taxpayers?.content.find((t) => String(t.id) === taxpayerId) ?? null
 
   const createMutation = useMutation({
     mutationFn: () => apiPost('/declarations', {
-      taxpayerId: taxpayer!.id,
+      taxpayerId: Number(taxpayerId),
       taxTypeCode,
       period,
       exercice,
@@ -1029,22 +1136,23 @@ function CreateDeclarationModal({ onClose, taxTypes }: { onClose: () => void; ta
 
       {step === 1 && (
         <div className="space-y-4 animate-fade-in">
-          <Field label="NIF du contribuable">
-            <div className="flex gap-2">
-              <Input placeholder="10 chiffres" value={nif} onChange={(e) => setNif(e.target.value)} maxLength={10} />
-              <Button onClick={() => nif.length === 10 && searchMutation.mutate()} disabled={nif.length !== 10 || searchMutation.isPending}>
-                {searchMutation.isPending ? 'Recherche…' : 'Chercher'}
-              </Button>
-            </div>
+          <Field label="Contribuable">
+            <Select value={taxpayerId} onChange={(e) => { setTaxpayerId(e.target.value); setStep(2) }}>
+              <option value="">— Sélectionner un contribuable —</option>
+              {loadingTaxpayers
+                ? null
+                : taxpayers?.content.map((t) => (
+                    <option key={t.id} value={t.id}>{t.nif} — {t.name}</option>
+                  ))}
+            </Select>
           </Field>
-          {nifError && <p className="text-sm text-rose-600">{nifError}</p>}
         </div>
       )}
-      {step === 2 && taxpayer && (
+      {step === 2 && selectedTaxpayer && (
         <div className="space-y-4 animate-fade-in">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
-            <p className="font-medium text-slate-900 dark:text-slate-100">{taxpayer.name}</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">NIF: {taxpayer.nif} — Type: {taxpayer.type === 'COMPANY' ? 'Entreprise' : 'Particulier'}</p>
+            <p className="font-medium text-slate-900 dark:text-slate-100">{selectedTaxpayer.name}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">NIF: {selectedTaxpayer.nif} — Type: {selectedTaxpayer.type === 'COMPANY' ? 'Entreprise' : 'Particulier'}</p>
           </div>
           <Field label="Type d'impôt">
             <Select value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)}>
@@ -1068,17 +1176,17 @@ function CreateDeclarationModal({ onClose, taxTypes }: { onClose: () => void; ta
       {step === 3 && (
         <div className="space-y-4 animate-fade-in">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Base imposable (MGA)"><Input type="number" value={taxBase} onChange={(e) => setTaxBase(e.target.value)} /></Field>
-            <Field label="Taux (%)"><Input type="number" step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} /></Field>
+            <Field label="Base imposable (MGA)"><Input type="number" min="0" value={taxBase} onChange={(e) => setTaxBase(e.target.value)} /></Field>
+            <Field label="Taux (%)"><Input type="number" min="0" step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} /></Field>
           </div>
-          <Field label="Montant déclaré (MGA)"><Input type="number" value={declaredAmount} onChange={(e) => setDeclaredAmount(e.target.value)} /></Field>
+          <Field label="Montant déclaré (MGA)"><Input type="number" min="0" value={declaredAmount} onChange={(e) => setDeclaredAmount(e.target.value)} /></Field>
           <Field label="Date d'échéance"><Input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} /></Field>
           <div>
             <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">Lignes de détail</p>
             {lines.map((l, i) => (
               <div key={i} className="mb-2 flex gap-2">
                 <Input placeholder="Libellé" value={l.label} onChange={(e) => { const n = [...lines]; n[i].label = e.target.value; setLines(n) }} className="flex-1" />
-                <Input type="number" placeholder="Montant" value={l.amount} onChange={(e) => { const n = [...lines]; n[i].amount = e.target.value; setLines(n) }} className="w-32" />
+                <Input type="number" min="0" placeholder="Montant" value={l.amount} onChange={(e) => { const n = [...lines]; n[i].amount = e.target.value; setLines(n) }} className="w-32" />
                 {lines.length > 1 && <button onClick={() => setLines(lines.filter((_, j) => j !== i))} className="text-rose-600"><X className="h-4 w-4" /></button>}
               </div>
             ))}
@@ -1094,7 +1202,7 @@ function CreateDeclarationModal({ onClose, taxTypes }: { onClose: () => void; ta
         <div className="space-y-4 animate-fade-in">
           <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm space-y-2 dark:border-slate-700 dark:bg-slate-800/50">
-            <RecapRow label="Contribuable" value={`${taxpayer?.name} (${taxpayer?.nif})`} />
+            <RecapRow label="Contribuable" value={`${selectedTaxpayer?.name} (${selectedTaxpayer?.nif})`} />
             <RecapRow label="Impôt" value={taxTypeCode} />
             <RecapRow label="Période" value={period} />
             <RecapRow label="Exercice" value={exercice} />

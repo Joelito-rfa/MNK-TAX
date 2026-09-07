@@ -5,8 +5,10 @@ import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.ReferenceGenerator;
 import com.mnktax.common.util.SecurityUtils;
+import com.mnktax.debt.entity.DebtHistory;
 import com.mnktax.debt.entity.DebtStatus;
 import com.mnktax.debt.entity.TaxDebt;
+import com.mnktax.debt.repository.DebtHistoryRepository;
 import com.mnktax.debt.repository.TaxDebtRepository;
 import com.mnktax.debt.service.DebtService;
 import com.mnktax.declaration.entity.Declaration;
@@ -23,6 +25,7 @@ import com.mnktax.payment.entity.PaymentAllocation;
 import com.mnktax.payment.entity.PaymentStatus;
 import com.mnktax.payment.repository.PaymentAllocationRepository;
 import com.mnktax.payment.repository.PaymentRepository;
+import com.mnktax.paymentplan.service.PaymentPlanService;
 import com.mnktax.receipt.entity.Receipt;
 import com.mnktax.receipt.repository.ReceiptRepository;
 import com.mnktax.receipt.service.ReceiptService;
@@ -57,6 +60,8 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentAllocationRepository allocationRepository;
     private final TaxDebtRepository debtRepository;
+    private final DebtHistoryRepository debtHistoryRepository;
+    private final PaymentPlanService paymentPlanService;
     private final DebtService debtService;
     private final ReceiptService receiptService;
     private final ReceiptRepository receiptRepository;
@@ -66,7 +71,9 @@ public class PaymentService {
     private final DeclarationRepository declarationRepository;
 
     public PaymentService(PaymentRepository paymentRepository, PaymentAllocationRepository allocationRepository,
-                          TaxDebtRepository debtRepository, DebtService debtService,
+                          TaxDebtRepository debtRepository, DebtHistoryRepository debtHistoryRepository,
+                          PaymentPlanService paymentPlanService,
+                          DebtService debtService,
                           ReceiptService receiptService, ReceiptRepository receiptRepository,
                           AuditService auditService, NotificationService notificationService,
                           @Lazy TaxObligationService obligationService,
@@ -74,6 +81,8 @@ public class PaymentService {
         this.paymentRepository = paymentRepository;
         this.allocationRepository = allocationRepository;
         this.debtRepository = debtRepository;
+        this.debtHistoryRepository = debtHistoryRepository;
+        this.paymentPlanService = paymentPlanService;
         this.debtService = debtService;
         this.receiptService = receiptService;
         this.receiptRepository = receiptRepository;
@@ -156,6 +165,21 @@ public class PaymentService {
         debtService.recalculate(debt);
         debt.setUpdatedAt(Instant.now());
         debtRepository.save(debt);
+
+        // Trace append-only sur la créance
+        debtHistoryRepository.save(DebtHistory.builder()
+                .debt(debt)
+                .eventType("PAYMENT")
+                .description("Paiement " + payment.getReference() + " de " + allocated + " MGA enregistré")
+                .oldValue(null)
+                .newValue("Alloué : " + allocated + " MGA — nouveau solde : " + debt.getBalance())
+                .performedBy(SecurityUtils.currentUsername())
+                .eventDate(Instant.now())
+                .createdAt(Instant.now())
+                .build());
+
+        // Répercute le paiement sur l'échéancier éventuel de la créance
+        paymentPlanService.syncFromPayments(debt.getId());
 
         // Quittance
         Receipt receipt = receiptService.generate(payment);
@@ -267,6 +291,7 @@ public class PaymentService {
             debtService.recalculate(d);
             d.setUpdatedAt(Instant.now());
             debtRepository.save(d);
+            paymentPlanService.syncFromPayments(d.getId());
         }
 
         // Quittance si entièrement alloué
@@ -300,14 +325,35 @@ public class PaymentService {
 
         // Invalider les allocations
         List<PaymentAllocation> allocs = allocationRepository.findByPaymentIdOrderByIdAsc(paymentId);
+        java.util.Set<Long> affectedDebts = new java.util.HashSet<>();
         for (PaymentAllocation alloc : allocs) {
+            affectedDebts.add(alloc.getDebt().getId());
             TaxDebt debt = alloc.getDebt();
             debt.setPaidAmount(debt.getPaidAmount().subtract(alloc.getAmount()));
-            debtService.recalculate(debt);
+            // L'annulation d'un paiement peut légitimement faire renaître une
+            // créance entièrement réglée (reversement) : on autorise la sortie
+            // de l'état PAYÉ pour cette seule opération de sens opposé.
+            debtService.recalculate(debt, true);
             debt.setUpdatedAt(Instant.now());
             debtRepository.save(debt);
+            debtHistoryRepository.save(DebtHistory.builder()
+                    .debt(debt)
+                    .eventType("PAYMENT_CANCELLED")
+                    .description("Paiement " + payment.getReference() + " annulé : " + alloc.getAmount()
+                            + " MGA retirés" + (request.reason() != null ? " — " + request.reason() : ""))
+                    .oldValue(null)
+                    .newValue("Nouveau solde : " + debt.getBalance())
+                    .performedBy(SecurityUtils.currentUsername())
+                    .eventDate(Instant.now())
+                    .createdAt(Instant.now())
+                    .build());
         }
         allocationRepository.deleteAll(allocs);
+
+        // Resynchronise les échéanciers des créances concernées
+        for (Long debtId : affectedDebts) {
+            paymentPlanService.syncFromPayments(debtId);
+        }
 
         payment.setStatus(PaymentStatus.CANCELLED);
         payment.setAllocatedAmount(BigDecimal.ZERO);

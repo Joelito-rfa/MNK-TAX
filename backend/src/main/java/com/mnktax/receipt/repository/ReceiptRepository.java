@@ -1,5 +1,6 @@
 package com.mnktax.receipt.repository;
 
+import com.mnktax.payment.entity.PaymentMethod;
 import com.mnktax.receipt.entity.Receipt;
 import com.mnktax.receipt.entity.ReceiptStatus;
 import org.springframework.data.domain.Page;
@@ -32,7 +33,7 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
             WHERE (:status IS NULL OR r.status = :status)
               AND (:taxpayerId IS NULL OR r.taxpayer.id = :taxpayerId)
               AND (:taxTypeCode IS NULL OR r.taxType.code = :taxTypeCode)
-              AND (:method IS NULL OR r.method = CAST(:method AS com.mnktax.payment.entity.PaymentMethod))
+              AND (:method IS NULL OR r.method = :method)
               AND (:fromDate IS NULL OR r.issuedAt >= :fromDate)
               AND (:toDate IS NULL OR r.issuedAt <= :toDate)
               AND (:center IS NULL OR r.centerCode = :center)
@@ -52,7 +53,7 @@ public interface ReceiptRepository extends JpaRepository<Receipt, Long> {
     Page<Receipt> search(@Param("status") ReceiptStatus status,
                          @Param("taxpayerId") Long taxpayerId,
                          @Param("taxTypeCode") String taxTypeCode,
-                         @Param("method") String method,
+                         @Param("method") PaymentMethod method,
                          @Param("fromDate") java.time.Instant fromDate,
                          @Param("toDate") java.time.Instant toDate,
                          @Param("center") String center,

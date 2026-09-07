@@ -19,7 +19,6 @@ import {
   Users,
   Wallet,
   X,
-  CheckCircle2,
   Trash2,
   Eye,
   Plus,
@@ -37,7 +36,7 @@ import type {
   Page, Payment, TaxDebt, Declaration, TaxpayerSummary,
   ReportStats,
 } from '../types'
-import { Button, Card, EmptyState, Modal } from '../components/ui'
+import { Button, Card, EmptyState, Modal, StatusBadge } from '../components/ui'
 import { useToast } from '../components/Toast'
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
@@ -1131,10 +1130,7 @@ function RecentReportRow({
       </div>
 
       {/* Badge statut */}
-      <span className="hidden shrink-0 sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-        <CheckCircle2 className="h-3 w-3" />
-        Disponible
-      </span>
+      <span className="hidden shrink-0 sm:inline-flex"><StatusBadge value={report.status} /></span>
 
       {/* Badge format */}
       <span className={`hidden shrink-0 md:inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium ${formatBadgeColor(report.format)}`}>

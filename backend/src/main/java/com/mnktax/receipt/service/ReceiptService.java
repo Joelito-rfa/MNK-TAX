@@ -7,6 +7,7 @@ import com.mnktax.common.util.ReferenceGenerator;
 import com.mnktax.common.util.SecurityUtils;
 import com.mnktax.payment.entity.Payment;
 import com.mnktax.payment.entity.PaymentAllocation;
+import com.mnktax.payment.entity.PaymentMethod;
 import com.mnktax.payment.repository.PaymentAllocationRepository;
 import com.mnktax.payment.repository.PaymentRepository;
 import com.mnktax.receipt.dto.ReceiptDto;
@@ -151,11 +152,21 @@ public class ReceiptService {
                                    String method, Instant fromDate, Instant toDate,
                                    String center, String q, Pageable pageable) {
         String q2 = (q == null || q.isBlank()) ? null : q.trim();
-        String m2 = (method == null || method.isBlank()) ? null : method.trim();
+        PaymentMethod m2 = parseMethod(method);
         String c2 = (center == null || center.isBlank()) ? null : center.trim();
         String tc2 = (taxTypeCode == null || taxTypeCode.isBlank()) ? null : taxTypeCode.trim();
         return receiptRepository.search(status, taxpayerId, tc2, m2, fromDate, toDate, c2, q2, pageable)
                 .map(this::toDto);
+    }
+
+    private PaymentMethod parseMethod(String method) {
+        if (method == null || method.isBlank()) return null;
+        String trimmed = method.trim().toUpperCase();
+        try {
+            return PaymentMethod.valueOf(trimmed);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException("INVALID_METHOD", "Mode de paiement invalide : " + method);
+        }
     }
 
     /* ── Vérification publique ───────────────────────────────── */
