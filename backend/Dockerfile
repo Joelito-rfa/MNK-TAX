@@ -10,6 +10,7 @@ WORKDIR /app
 RUN useradd -r -s /bin/false appuser
 COPY --from=build /app/target/*.jar app.jar
 RUN mkdir -p /app/data && chown -R appuser:appuser /app/data
+ENV JAVA_OPTS="-Xms256m -Xmx384m -XX:+UseG1GC -XX:+UseStringDeduplication"
 USER appuser
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar"]
