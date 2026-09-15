@@ -48,7 +48,7 @@ export default function DashboardPreview() {
 
         <ScrollReveal animation="blur-in" delay={200}>
           <div className="relative">
-            <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-brand-500/10 to-indigo-500/5 blur-2xl" />
+            <div className="absolute -inset-4 rounded-3xl bg-brand-500/5 blur-2xl" />
             <div className="relative rounded-3xl border border-white/[0.08] bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl sm:p-8">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -105,8 +105,8 @@ export default function DashboardPreview() {
                           style={{
                             height: `${h}%`,
                             background: i === chartData.length - 1
-                              ? 'linear-gradient(to top, #6366f1, #818cf8)'
-                              : 'linear-gradient(to top, rgba(99,102,241,0.12), rgba(99,102,241,0.25))',
+                              ? '#6366f1'
+                              : 'rgba(99,102,241,0.18)',
                           }} />
                       </div>
                     ))}

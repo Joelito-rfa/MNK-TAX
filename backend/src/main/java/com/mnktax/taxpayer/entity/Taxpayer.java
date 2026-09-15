@@ -105,6 +105,22 @@ public class Taxpayer {
     @Version
     private Long version;
 
+    // ─── Préférences de communication (V29) ─────────────────────
+
+    /** Langue préférée : FR | MG | EN (jamais de mélange dans les envois). */
+    @Column(length = 5, nullable = false)
+    @Builder.Default
+    private String language = "FR";
+
+    /** Canaux préférés, ex : "IN_APP,EMAIL" ou "IN_APP,EMAIL,SMS". */
+    @Column(name = "preferred_channels", length = 100, nullable = false)
+    @Builder.Default
+    private String preferredChannels = "IN_APP";
+
+    /** Numéro normalisé E.164 (+261XXXXXXXXX) généré depuis phone. */
+    @Column(name = "phone_normalized", length = 20)
+    private String phoneNormalized;
+
     @OneToMany(mappedBy = "taxpayer", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<TaxpayerAddress> addresses = new ArrayList<>();

@@ -329,7 +329,7 @@ export default function Taxpayers() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       {/* ── Header ── */}
       <PageHeader
         title="Contribuables"
@@ -355,7 +355,7 @@ export default function Taxpayers() {
                 setCreateStep(0)
                 setCreateOpen(true)
               }}
-              className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25 hover:from-violet-500 hover:to-indigo-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
+              className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
             >
               <Plus className="h-4 w-4" /> Ajouter un contribuable
             </Button>
@@ -920,7 +920,7 @@ export default function Taxpayers() {
                 key={s}
                 className={`h-1.5 flex-1 rounded-full transition ${
                   s <= createStep
-                    ? 'bg-gradient-to-r from-violet-500 to-indigo-500'
+                    ? 'bg-brand-500'
                     : 'bg-slate-200 dark:bg-slate-700'
                 }`}
               />
@@ -1108,7 +1108,7 @@ export default function Taxpayers() {
                   type="button"
                   size="sm"
                   onClick={() => setCreateStep(createStep + 1)}
-                  className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white"
+                  className="bg-brand-600 text-white"
                 >
                   Suivant <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -1116,7 +1116,7 @@ export default function Taxpayers() {
                 <Button
                   type="submit"
                   loading={createMutation.isPending}
-                  className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25"
+                  className="bg-brand-600 text-white shadow-lg shadow-violet-500/25"
                 >
                   <Check className="h-4 w-4" /> Créer le contribuable
                 </Button>
@@ -1149,8 +1149,8 @@ export default function Taxpayers() {
                       <div
                         className={`flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-bold ${
                           detail.type === 'COMPANY'
-                            ? 'bg-gradient-to-br from-violet-100 to-indigo-100 text-violet-700 dark:from-violet-900/40 dark:to-indigo-900/40 dark:text-violet-400'
-                            : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700 dark:from-slate-700 dark:to-slate-600 dark:text-slate-300'
+                            ? 'bg-brand-50 text-violet-700 dark:bg-brand-900/30 dark:text-violet-400'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
                         }`}
                       >
                         {detail.type === 'COMPANY' ? (

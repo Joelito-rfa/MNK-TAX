@@ -3,6 +3,8 @@ package com.mnktax.message.service;
 import com.mnktax.audit.service.AuditService;
 import com.mnktax.auth.entity.User;
 import com.mnktax.auth.repository.UserRepository;
+import com.mnktax.communication.repository.MessageDeliveryRepository;
+import com.mnktax.communication.service.DeliveryQueueService;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.util.SecurityUtils;
 import com.mnktax.declaration.entity.Declaration;
@@ -59,6 +61,8 @@ public class MessageService {
     private final TaxDebtRepository debtRepository;
     private final PaymentRepository paymentRepository;
     private final NotificationRepository notificationRepository;
+    private final MessageDeliveryRepository deliveryRepository;
+    private final DeliveryQueueService deliveryQueueService;
     private final AuditService auditService;
 
     private static final long MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 Mo
@@ -80,6 +84,8 @@ public class MessageService {
                           TaxDebtRepository debtRepository,
                           PaymentRepository paymentRepository,
                           NotificationRepository notificationRepository,
+                          MessageDeliveryRepository deliveryRepository,
+                          DeliveryQueueService deliveryQueueService,
                           AuditService auditService) {
         this.messageRepository = messageRepository;
         this.attachmentRepository = attachmentRepository;
@@ -89,6 +95,8 @@ public class MessageService {
         this.debtRepository = debtRepository;
         this.paymentRepository = paymentRepository;
         this.notificationRepository = notificationRepository;
+        this.deliveryRepository = deliveryRepository;
+        this.deliveryQueueService = deliveryQueueService;
         this.auditService = auditService;
     }
 
@@ -240,6 +248,9 @@ public class MessageService {
             auditService.record("MESSAGE_READ", "MESSAGE", String.valueOf(id),
                     false, true, httpRequest);
         }
+        // Accusé de lecture multicanal : la livraison IN_APP passe à READ
+        // (traçage date/heure de lecture + synchronisation des statuts).
+        deliveryQueueService.markInAppDeliveryRead(id);
     }
 
     @Transactional

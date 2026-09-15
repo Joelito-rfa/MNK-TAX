@@ -10,7 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import { apiGet } from '../lib/api'
-import { fmtDate, fmtDateTime } from '../lib/format'
+import { useI18n } from '../lib/i18n'
 import type { CollectionAction, CollectionHistoryEvent, CollectionNotice, Page } from '../types'
 import {
   Button,
@@ -66,7 +66,7 @@ const ACTION_ICONS: Record<string, string> = {
   OTHER: '📌',
 }
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
+const EVENT_TYPE_LABELS_BASE: Record<string, string> = {
   CREATED: 'Création',
   STATUS_CHANGE: 'Changement de statut',
   PENALTY_APPLIED: 'Pénalité appliquée',
@@ -83,7 +83,6 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   INSTALLMENT_OVERDUE: 'Tranche en retard',
   INSTALLMENT_PAID: 'Tranche réglée',
   INSTALLMENT_PARTIALLY_PAID: 'Tranche partiellement réglée',
-  FORMAL_NOTICE_CREATED: 'Mise en demeure émise',
   IN_COLLECTION: 'Passage en recouvrement',
   SUSPENDED: 'Suspension',
   RESUMED: 'Réactivation',
@@ -91,7 +90,6 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   CANCELLED: 'Annulation',
   PRIORITY_CHANGED: 'Priorité modifiée',
   OBSERVATIONS_UPDATED: 'Observations mises à jour',
-  PAYMENT_RECORD: 'Paiement enregistré',
   PAYMENT: 'Paiement',
 }
 
@@ -124,6 +122,14 @@ function EventChip({ label }: { label: string }) {
 }
 
 export default function CollectionHistory() {
+  const { t } = useI18n()
+
+  const EVENT_TYPE_LABELS: Record<string, string> = {
+    ...EVENT_TYPE_LABELS_BASE,
+    FORMAL_NOTICE_CREATED: t('collection.noticeIssued'),
+    PAYMENT_RECORD: t('collection.paymentSaved'),
+  }
+
   const [q, setQ] = useState('')
   const [eventType, setEventType] = useState('')
   const [actionType, setActionType] = useState('')

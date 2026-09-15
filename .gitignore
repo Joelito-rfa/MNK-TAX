@@ -52,3 +52,6 @@ boot9.out.log
 Thumbs.db
 .aider*
 .neon
+
+# Archive de build
+frontend.zip

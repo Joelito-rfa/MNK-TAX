@@ -27,6 +27,7 @@ import {
   ScrollText,
 } from 'lucide-react'
 import { apiGet } from '../lib/api'
+import { useI18n } from '../lib/i18n'
 import type { Page } from '../types'
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
@@ -258,6 +259,7 @@ function fmtShort(d?: string | null): string {
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Component â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 export default function GlobalSearch() {
+  const { t } = useI18n()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -406,7 +408,7 @@ export default function GlobalSearch() {
           onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
-          placeholder="Rechercher un contribuable, une déclaration…"
+          placeholder={t("search.globalPlaceholder")}
           className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500"
         />
         {isLoading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-brand-500" />}
@@ -414,7 +416,7 @@ export default function GlobalSearch() {
           <button
             onClick={() => { setQuery(''); inputRef.current?.focus() }}
             className="shrink-0 rounded p-0.5 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-300"
-            aria-label="Effacer"
+            aria-label={t("a11y.clear")}
           >
             <X className="h-3.5 w-3.5" />
           </button>

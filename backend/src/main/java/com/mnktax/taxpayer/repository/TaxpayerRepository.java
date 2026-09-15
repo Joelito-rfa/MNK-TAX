@@ -74,4 +74,14 @@ public interface TaxpayerRepository extends JpaRepository<Taxpayer, Long> {
     long countCreatedBetween(@Param("from") Instant from, @Param("to") Instant to);
 
     List<Taxpayer> findTop10ByOrderByCreatedAtDesc();
+
+    List<Taxpayer> findByStatus(TaxpayerStatus status);
+
+    Optional<Taxpayer> findByUserId(Long userId);
+
+    /** Contribuables soumis à un impôt donné (audience de diffusion). */
+    @Query("SELECT DISTINCT t FROM Taxpayer t WHERE EXISTS (" +
+           "SELECT 1 FROM com.mnktax.tax.entity.TaxObligation o WHERE o.taxpayer = t " +
+           "AND o.taxType.code = :taxTypeCode)")
+    List<Taxpayer> findByTaxTypeCode(@Param("taxTypeCode") String taxTypeCode);
 }

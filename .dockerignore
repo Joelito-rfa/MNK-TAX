@@ -1,0 +1,17 @@
+# Contexte de build Docker (Dockerfile deploy/render)
+# N'exclut PAS deploy/render (nginx.template et start.sh y sont copiés)
+
+**/.git
+**/.idea
+**/.vscode
+**/node_modules
+**/dist
+**/target
+**/*.log
+**/data
+backend/data
+frontend.zip
+.env
+.env.*
+*.md
+docs

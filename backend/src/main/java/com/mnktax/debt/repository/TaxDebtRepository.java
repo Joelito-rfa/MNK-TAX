@@ -61,6 +61,16 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
 
     List<TaxDebt> findByStatusAndDueDateBefore(DebtStatus status, LocalDate date);
 
+    /** Distinct taxpayers holding an outstanding balance (audience WITH_DEBT). */
+    @Query("SELECT DISTINCT d.taxpayer FROM TaxDebt d WHERE d.balance > 0 " +
+            "AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.CANCELLED, com.mnktax.debt.entity.DebtStatus.CLOSED)")
+    List<com.mnktax.taxpayer.entity.Taxpayer> findTaxpayersWithOutstandingDebt();
+
+    /** Distinct taxpayers with overdue debt (audience OVERDUE). */
+    @Query("SELECT DISTINCT d.taxpayer FROM TaxDebt d WHERE d.balance > 0 AND d.dueDate < :today " +
+            "AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.CANCELLED, com.mnktax.debt.entity.DebtStatus.CLOSED, com.mnktax.debt.entity.DebtStatus.PAID)")
+    List<com.mnktax.taxpayer.entity.Taxpayer> findTaxpayersWithOverdueDebt(@Param("today") LocalDate today);
+
     @Query("SELECT d FROM TaxDebt d WHERE d.balance > 0 AND d.dueDate < :today " +
             "AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.OVERDUE, com.mnktax.debt.entity.DebtStatus.IN_COLLECTION, com.mnktax.debt.entity.DebtStatus.DISPUTED, com.mnktax.debt.entity.DebtStatus.SUSPENDED)")
     List<TaxDebt> findToMarkOverdue(@Param("today") LocalDate today);

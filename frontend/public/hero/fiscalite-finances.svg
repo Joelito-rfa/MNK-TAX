@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="fond" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef1fa"/>
+      <stop offset="60%" stop-color="#dde2f3"/>
+      <stop offset="100%" stop-color="#c3cbe8"/>
+    </linearGradient>
+    <linearGradient id="plan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5b4bdb"/>
+      <stop offset="100%" stop-color="#3b3a94"/>
+    </linearGradient>
+    <linearGradient id="lueur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="fb24"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="fb10"><feGaussianBlur stdDeviation="10"/></filter>
+  </defs>
+
+  <!-- Fond -->
+  <rect width="1600" height="500" fill="url(#fond)"/>
+  <ellipse cx="260" cy="90" rx="320" ry="120" fill="#ffffff" opacity="0.5" filter="url(#fb24)"/>
+  <ellipse cx="1300" cy="380" rx="380" ry="150" fill="#8d94b8" opacity="0.35" filter="url(#fb24)"/>
+
+  <!-- Grand graphique en arrière-plan -->
+  <g opacity="0.5">
+    <polyline points="80,330 320,270 560,300 800,210 1040,240 1280,150 1520,180"
+      fill="none" stroke="#5b4bdb" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+    <polyline points="80,370 320,330 560,345 800,290 1040,310 1280,250 1520,270"
+      fill="none" stroke="#3f9d76" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity="0.45" stroke-dasharray="2 14"/>
+    <g fill="#5b4bdb" opacity="0.5">
+      <circle cx="320" cy="270" r="8"/><circle cx="800" cy="210" r="8"/><circle cx="1280" cy="150" r="8"/>
+    </g>
+  </g>
+
+  <!-- Barres statistiques floues en fond -->
+  <g opacity="0.35" filter="url(#fb10)">
+    <rect x="90" y="380" width="46" height="90" rx="6" fill="#5b4bdb"/>
+    <rect x="150" y="350" width="46" height="120" rx="6" fill="#7a8cf0"/>
+    <rect x="210" y="396" width="46" height="74" rx="6" fill="#3f9d76"/>
+    <rect x="270" y="330" width="46" height="140" rx="6" fill="#5b4bdb"/>
+  </g>
+
+  <!-- Documents fiscaux (gauche) -->
+  <g transform="translate(120 150) rotate(-4)">
+    <rect x="0" y="0" width="150" height="190" rx="8" fill="#ffffff" opacity="0.95"/>
+    <rect x="16" y="20" width="86" height="10" rx="5" fill="#5b4bdb"/>
+    <rect x="16" y="42" width="118" height="7" rx="3.5" fill="#c3c9e2"/>
+    <rect x="16" y="56" width="100" height="7" rx="3.5" fill="#c3c9e2"/>
+    <rect x="16" y="70" width="112" height="7" rx="3.5" fill="#dfe3f1"/>
+    <rect x="16" y="94" width="118" height="1.5" fill="#d5daea"/>
+    <rect x="16" y="106" width="70" height="7" rx="3.5" fill="#3f9d76"/>
+    <rect x="16" y="122" width="52" height="7" rx="3.5" fill="#e0a53a"/>
+    <rect x="16" y="138" width="88" height="7" rx="3.5" fill="#c3c9e2"/>
+    <circle cx="112" cy="158" r="16" fill="none" stroke="#3f9d76" stroke-width="3" opacity="0.8"/>
+    <path d="M104 158 l6 6 l12 -13" fill="none" stroke="#3f9d76" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Calculatrice (centre) -->
+  <g transform="translate(690 190) rotate(2)">
+    <rect x="0" y="0" width="220" height="260" rx="16" fill="url(#plan)"/>
+    <rect x="16" y="16" width="188" height="56" rx="8" fill="#1e2350"/>
+    <rect x="176" y="36" width="16" height="20" rx="3" fill="#6ee7b7" opacity="0.9"/>
+    <g fill="#ffffff" opacity="0.92">
+      <rect x="16" y="88" width="40" height="34" rx="7"/>
+      <rect x="64" y="88" width="40" height="34" rx="7"/>
+      <rect x="112" y="88" width="40" height="34" rx="7"/>
+      <rect x="160" y="88" width="44" height="34" rx="7" fill="#e0a53a"/>
+      <rect x="16" y="130" width="40" height="34" rx="7"/>
+      <rect x="64" y="130" width="40" height="34" rx="7"/>
+      <rect x="112" y="130" width="40" height="34" rx="7"/>
+      <rect x="16" y="172" width="40" height="34" rx="7"/>
+      <rect x="64" y="172" width="40" height="34" rx="7"/>
+      <rect x="112" y="172" width="40" height="34" rx="7"/>
+      <rect x="16" y="214" width="88" height="30" rx="7"/>
+      <rect x="112" y="214" width="40" height="30" rx="7"/>
+      <rect x="160" y="130" width="44" height="114" rx="7" fill="#e0a53a"/>
+    </g>
+  </g>
+
+  <!-- Billets Ariary stylisés (sobre) -->
+  <g transform="translate(1000 300)">
+    <rect x="0" y="18" width="170" height="80" rx="8" fill="#2e7d5b" opacity="0.92" transform="rotate(-5 85 58)"/>
+    <rect x="14" y="0" width="170" height="80" rx="8" fill="#3f9d76" transform="rotate(3 99 40)"/>
+    <rect x="30" y="14" width="138" height="52" rx="5" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.7" transform="rotate(3 99 40)"/>
+    <circle cx="99" cy="40" r="17" fill="#ffffff" opacity="0.85" transform="rotate(3 99 40)"/>
+    <path d="M92 40 q7 -9 14 0 q-7 9 -14 0" fill="none" stroke="#2e7d5b" stroke-width="2.5" transform="rotate(3 99 40)"/>
+  </g>
+
+  <!-- Pièces empilées -->
+  <g transform="translate(1260 330)">
+    <ellipse cx="0" cy="96" rx="58" ry="14" fill="#b98a2e"/>
+    <rect x="-58" y="66" width="116" height="30" fill="#d9a93c"/>
+    <ellipse cx="0" cy="66" rx="58" ry="14" fill="#eec66a"/>
+    <rect x="-58" y="38" width="116" height="28" fill="#d9a93c"/>
+    <ellipse cx="0" cy="38" rx="58" ry="14" fill="#eec66a"/>
+    <rect x="-58" y="12" width="116" height="26" fill="#d9a93c"/>
+    <ellipse cx="0" cy="12" rx="58" ry="14" fill="#f2d488"/>
+    <ellipse cx="0" cy="12" rx="34" ry="8" fill="none" stroke="#b98a2e" stroke-width="2.5" opacity="0.8"/>
+  </g>
+
+  <!--Documents flous à droite -->
+  <g opacity="0.6" filter="url(#fb10)" transform="translate(1380 120) rotate(6)">
+    <rect x="0" y="0" width="130" height="170" rx="8" fill="#ffffff"/>
+    <rect x="14" y="18" width="70" height="9" rx="4.5" fill="#5b4bdb"/>
+    <rect x="14" y="38" width="100" height="6" rx="3" fill="#c3c9e2"/>
+    <rect x="14" y="52" width="86" height="6" rx="3" fill="#c3c9e2"/>
+    <rect x="14" y="66" width="94" height="6" rx="3" fill="#dfe3f1"/>
+  </g>
+
+  <!-- Loupe / contrôle -->
+  <g transform="translate(520 360)" opacity="0.85">
+    <circle cx="0" cy="0" r="34" fill="none" stroke="#4d5170" stroke-width="8"/>
+    <line x1="24" y1="24" x2="52" y2="52" stroke="#4d5170" stroke-width="9" stroke-linecap="round"/>
+    <path d="M-12 2 l8 8 l16 -18" fill="none" stroke="#3f9d76" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Lueur basse pour la lisibilité -->
+  <rect y="360" width="1600" height="140" fill="url(#lueur)" opacity="0.16"/>
+</svg>

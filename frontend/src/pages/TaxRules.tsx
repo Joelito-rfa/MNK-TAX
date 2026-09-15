@@ -385,7 +385,7 @@ export default function TaxRules() {
   if (isLoading) return <TaxRulesSkeleton />
 
   return (
-    <div className="space-y-6">
+    <div className="fx-simple space-y-6">
       {/* === 1. HEADER === */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -407,9 +407,9 @@ export default function TaxRules() {
           </Button>
           <button
             onClick={openCreate}
-            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
           >
-            <span className="absolute inset-0 bg-gradient-to-r from-violet-500 to-indigo-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+            <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
             <Plus className="relative h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
             <span className="relative">Nouvelle regle</span>
           </button>
@@ -1084,7 +1084,7 @@ function TestCalculatorModal({ rule, onClose }: { rule: TaxRule | null; onClose:
 
           <button
             onClick={handleCalculate}
-            className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]"
+            className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]"
           >
             Calculer
           </button>

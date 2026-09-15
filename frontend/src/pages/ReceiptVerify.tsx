@@ -126,7 +126,7 @@ export default function ReceiptVerify() {
             {/* Pied de page */}
             <div className="border-t border-slate-100 px-6 py-3 dark:border-slate-700/50">
               <p className="text-xs text-slate-400">
-                Prototype académique MNK-TAX — Données fictives de démonstration. Cette vérification ne constitue pas une attestation officielle de la DGI.
+                Prototype académique MNK-TAX — Données fictives de démonstration. Cette vérification ne constitue pas une attestation officielle de la DGI MANAKARA — Direction Régionale des Impôts de Vatovavy-Fitovinany.
               </p>
             </div>
           </Card>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -9,11 +9,9 @@ import {
   ArrowUpRight,
   CalendarClock,
   CalendarDays,
-  ChevronDown,
-  Download,
   FileText,
+  Banknote,
   Percent,
-  PiggyBank,
   Receipt,
   ScrollText,
   TrendingDown,
@@ -34,11 +32,13 @@ import {
   YAxis,
 } from 'recharts'
 import { apiGet } from '../lib/api'
-import { fmtDate, fmtMGA, fmtNumber, shortMonthLabel, timeAgo } from '../lib/format'
+import { useI18n } from '../lib/i18n'
+import { useLocaleFormatters } from '../lib/format'
 import type { DashboardActivity, DashboardSummary, Deadline } from '../types'
 import { Card, EmptyState, type IconTone } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../lib/theme'
+import WelcomeHero, { PERIOD_PRESETS } from '../components/WelcomeHero'
 
 /* ═══════════════════════════ Palette ═══════════════════════════ */
 const C = {
@@ -52,6 +52,7 @@ function useChartColors() {
   const { resolved } = useTheme()
   const dark = resolved === 'dark'
   return useMemo(() => ({
+    dark,
     grid: dark ? '#1e293b' : '#e2e8f0',
     tick: dark ? '#475569' : '#94a3b8',
     tooltip: {
@@ -68,19 +69,10 @@ function useChartColors() {
 
 /* ═══════════════════════════ Période ═══════════════════════════ */
 const CHART_RANGE_OPTIONS = [
-  { id: '7', label: '7 jours' },
-  { id: '30', label: '30 jours' },
-  { id: '12', label: '12 mois' },
-  { id: 'all', label: 'Année' },
-]
-
-/** Périodes prédéfinies pour le sélecteur du bandeau */
-const PERIOD_PRESETS = [
-  { id: 'year', label: 'Année en cours', months: 12 },
-  { id: 'quarter', label: 'Dernier trimestre', months: 3 },
-  { id: 'month', label: 'Dernier mois', months: 1 },
-  { id: '6months', label: '6 derniers mois', months: 6 },
-  { id: 'all', label: 'Tout l\'historique', months: 0 },
+  { id: '7', labelKey: 'dashboard.range.7' },
+  { id: '30', labelKey: 'dashboard.range.30' },
+  { id: '12', labelKey: 'dashboard.range.12' },
+  { id: 'all', labelKey: 'dashboard.range.all' },
 ]
 
 /* ═══════════════════════════ Activité ═══════════════════════ */
@@ -100,13 +92,23 @@ const collectionTypeLabels: Record<string, string> = {
   SEIZURE: 'Saisie', ADMINISTRATIVE_ACTION: 'Action administrative', OTHER: 'Autre',
 }
 
-function statusName(status: string): string {
-  const labels: Record<string, string> = {
+function statusName(status: string, t: (key: string) => string): string {
+  const key = `status.${status}`
+  const translated = t(key)
+  if (translated !== key) return translated
+  const fallback: Record<string, string> = {
     OPEN: 'En attente', OVERDUE: 'En retard', IN_COLLECTION: 'Recouvrement',
     PAID: 'Payée', CANCELLED: 'Annulée', DISPUTED: 'Contestée',
     PARTIALLY_PAID: 'Partiellement payée', SUSPENDED: 'Suspendue',
   }
-  return labels[status] ?? status
+  return fallback[status] ?? status
+}
+
+/** Libellé d'activité : le backend envoie un libellé FR libre → on affiche la version traduite par type, avec fallback */
+function activityLabel(type: string, fallbackLabel: string, t: (key: string) => string): string {
+  const key = `dashboard.activity.${type.toLowerCase()}`
+  const v = t(key)
+  return v !== key ? v : fallbackLabel
 }
 
 /** Convertit une date ISO en chaîne YYYY-MM-DD */
@@ -115,36 +117,36 @@ function toISODate(d: Date): string {
 }
 
 /** Génère un CSV à partir des données du dashboard */
-function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string) {
+function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string, t: (key: string) => string) {
   const lines: string[] = []
-  lines.push('Rapport de gestion fiscale — MNK-TAX')
-  lines.push(`Période;${fromDate} au ${toDate}`)
+  lines.push(t('dashboard.csv.reportTitle'))
+  lines.push(`${t('dashboard.csv.period')};${fromDate} ${t('dashboard.csv.to')} ${toDate}`)
   lines.push('')
-  lines.push('INDICATEUR;VALEUR')
-  lines.push(`Contribuables;${data.taxpayerCount}`)
-  lines.push(`Déclarations;${data.declarationCount}`)
-  lines.push(`Créances totales;${data.debtCount}`)
-  lines.push(`En retard;${data.overdueCount}`)
-  lines.push(`Paiements;${data.paymentCount}`)
-  lines.push(`Total dû;${data.totalDebts} MGA`)
-  lines.push(`Total encaissé;${data.totalCollected} MGA`)
-  lines.push(`Solde restant;${data.totalOutstanding} MGA`)
-  lines.push(`Solde en retard;${data.overdueBalance} MGA`)
-  lines.push(`Taux de recouvrement;${data.collectionRate.toFixed(2)} %`)
-  lines.push(`Quittances émises;${data.receiptCount ?? 0}`)
-  lines.push(`Montant quittances;${data.receiptTotalAmount ?? 0} MGA`)
+  lines.push(`${t('dashboard.csv.indicator')};${t('dashboard.csv.value')}`)
+  lines.push(`${t('dashboard.csv.taxpayers')};${data.taxpayerCount}`)
+  lines.push(`${t('dashboard.csv.declarations')};${data.declarationCount}`)
+  lines.push(`${t('dashboard.csv.totalDebts')};${data.debtCount}`)
+  lines.push(`${t('dashboard.csv.overdue')};${data.overdueCount}`)
+  lines.push(`${t('dashboard.csv.payments')};${data.paymentCount}`)
+  lines.push(`${t('dashboard.csv.totalDue')};${data.totalDebts} MGA`)
+  lines.push(`${t('dashboard.csv.collected')};${data.totalCollected} MGA`)
+  lines.push(`${t('dashboard.csv.outstanding')};${data.totalOutstanding} MGA`)
+  lines.push(`${t('dashboard.csv.overdueBalance')};${data.overdueBalance} MGA`)
+  lines.push(`${t('dashboard.csv.rate')};${data.collectionRate.toFixed(2)} %`)
+  lines.push(`${t('dashboard.csv.receipts')};${data.receiptCount ?? 0}`)
+  lines.push(`${t('dashboard.csv.receiptAmount')};${data.receiptTotalAmount ?? 0} MGA`)
   lines.push('')
-  lines.push('RÉPARTITION PAR TYPE D\'IMPÔT;MONTANT (MGA)')
+  lines.push(`${t('dashboard.csv.byTaxType')};${t('dashboard.csv.amountMGA')}`)
   for (const r of (data.paymentsByTaxType ?? [])) {
     lines.push(`${r.taxType};${r.amount}`)
   }
   lines.push('')
-  lines.push('ÉVOLUTION MENSUELLE;MONTANT (MGA)')
+  lines.push(`${t('dashboard.csv.byMonth')};${t('dashboard.csv.amountMGA')}`)
   for (const r of (data.paymentsByMonth ?? [])) {
     lines.push(`${r.month};${r.amount}`)
   }
   lines.push('')
-  lines.push('TOP CONTRIBUABLES;NIF;ENCAISSÉ (MGA);DÛ (MGA)')
+  lines.push(`${t('dashboard.csv.topTaxpayers')};${t('dashboard.csv.nif')};${t('dashboard.csv.collectedMGA')};${t('dashboard.csv.dueMGA')}`)
   for (const t of (data.topTaxpayersByCollected ?? [])) {
     lines.push(`${t.taxpayerName};${t.nif};${t.collected};${t.due}`)
   }
@@ -155,21 +157,37 @@ function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string) {
   a.href = url
   a.download = `rapport-mnk-tax-${fromDate}_${toDate}.csv`
   a.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => URL.revokeObjectURL(url), 100)
 }
 
 
 /* ═══════════════════════════ Main ═══════════════════════════ */
 export default function Dashboard() {
+  const { t } = useI18n()
+  const { fmtMGA, fmtNumber, fmtDate, shortMonthLabel, timeAgo } = useLocaleFormatters()
   const { user } = useAuth()
   const navigate = useNavigate()
   const chart = useChartColors()
-  const [chartRange, setChartRange] = useState('12')
   const [periodPreset, setPeriodPreset] = useState('year')
-  const months = chartRange === 'all' ? 0 : Number(chartRange)
 
   // Période sélectionnée pour le bandeau
   const selectedPreset = PERIOD_PRESETS.find((p) => p.id === periodPreset) ?? PERIOD_PRESETS[0]
+  const months = selectedPreset.months
+
+  // Synchroniser chartRange <-> periodPreset
+  const [chartRange, setChartRange] = useState('12')
+  const chartToPreset: Record<string, string> = { '12': 'year', 'all': 'all' }
+  const presetToChart: Record<string, string> = { 'year': '12', 'quarter': '3', 'month': '1', '6months': '6', 'all': 'all' }
+  function handlePeriodChange(id: string) {
+    setPeriodPreset(id)
+    const chartKey = presetToChart[id]
+    if (chartKey) setChartRange(chartKey)
+  }
+  function handleChartRangeChange(id: string) {
+    setChartRange(id)
+    const presetKey = chartToPreset[id]
+    if (presetKey) setPeriodPreset(presetKey)
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', months],
@@ -195,8 +213,8 @@ export default function Dashboard() {
     return (
       <EmptyState
         icon={<AlertTriangle className="h-10 w-10" />}
-        title="Impossible de charger le tableau de bord"
-        subtitle="Vérifiez que le serveur est bien démarré."
+        title={t("dashboard.loadError")}
+        subtitle={t("dashboard.checkServer")}
       />
     )
   }
@@ -244,81 +262,81 @@ export default function Dashboard() {
   const nextDeadlines = (deadlines ?? []).slice(0, 3)
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page dash-scope is-visible space-y-6">
       {/* ═══════════════ 1. BANDEAU DE BIENVENUE ═══════════════ */}
-      <WelcomeBanner
+      <WelcomeHero
         firstName={firstName}
         periodPreset={periodPreset}
-        onPeriodChange={setPeriodPreset}
+        onPeriodChange={handlePeriodChange}
         fromDate={periodFromDate}
         toDate={periodToDate}
-        onDownload={() => downloadCSV(data, periodFromDate, periodToDate)}
+        onDownload={() => downloadCSV(data, periodFromDate, periodToDate, t)}
         size={welcomeSize}
       />
 
       {/* ═══════════════ 2. CARTES KPI ═══════════════ */}
       <div className="kpi-grid grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-6">
         <KpiCard
-          label="Contribuables"
+          label={t('dashboard.kpi.taxpayers')}
           value={fmtNumber(data.taxpayerCount)}
           icon={<Users className="h-5 w-5" />}
           color={C.violet}
           delta={data.periodTaxpayerCount > 0 ? `+${fmtNumber(data.periodTaxpayerCount)}` : undefined}
           deltaTone="up"
-          sub="vs période préc."
+          sub={t('dashboard.sub.vsPrevPeriod')}
           sparkData={taxpayerSpark.slice(-6)}
           to="/taxpayers"
         />
         <KpiCard
-          label="Recettes (période)"
+          label={t('dashboard.kpi.revenuePeriod')}
           value={fmtMGA(data.periodCollected)}
-          icon={<PiggyBank className="h-5 w-5" />}
+          icon={<Banknote className="h-5 w-5" />}
           color={C.green}
           delta={`${revenueTrend >= 0 ? '+' : '−'}${fmtMGA(Math.abs(revenueTrend))}`}
           deltaTone={revenueTrend >= 0 ? 'up' : 'down'}
-          sub="vs mois préc."
+          sub={t('dashboard.sub.vsPrevMonth')}
           sparkData={rangeData.map((d) => d.montant)}
           to="/payments"
         />
         <KpiCard
-          label="Déclarations"
+          label={t('dashboard.kpi.declarations')}
           value={fmtNumber(data.declarationCount)}
           icon={<FileText className="h-5 w-5" />}
           color={C.sky}
           delta={data.periodDeclarationCount > 0 ? `+${fmtNumber(data.periodDeclarationCount)}` : undefined}
           deltaTone="up"
-          sub="vs période préc."
+          sub={t('dashboard.sub.vsPrevPeriod')}
           sparkData={declarationSpark.slice(-6)}
           to="/declarations"
         />
         <KpiCard
-          label="Créances restantes"
+          label={t('dashboard.kpi.outstanding')}
           value={fmtMGA(data.totalOutstanding)}
           icon={<TrendingDown className="h-5 w-5" />}
           color={C.orange}
-          delta={`${fmtNumber(data.overdueCount)} en retard`}
+          delta={t('dashboard.sub.inLate', { count: fmtNumber(data.overdueCount) })}
           deltaTone={data.overdueCount > 0 ? 'down' : 'neutral'}
           sub=""
           to="/debts"
         />
         <KpiCard
-          label="Taux de recouvrement"
+          label={t('dashboard.kpi.collectionRate')}
           value={`${collectionRate.toFixed(1)} %`}
           icon={<Percent className="h-5 w-5" />}
           color={C.blue}
           delta={`${Math.round(collectionRate)} %`}
           deltaTone={collectionRate >= 50 ? 'up' : 'down'}
-          sub="du total dû"
+          sub={t('dashboard.sub.ofTotalDue')}
           to="/reports"
         />
         <KpiCard
-          label="Quittances"
+          label={t('dashboard.kpi.receipts')}
           value={fmtNumber(data.receiptCount ?? 0)}
           icon={<Receipt className="h-5 w-5" />}
           color={C.rose}
-          delta={data.todayReceiptCount > 0 ? `+${fmtNumber(data.todayReceiptCount)} aujourd'hui` : undefined}
+          delta={data.todayReceiptCount > 0 ? t('dashboard.sub.today', { count: fmtNumber(data.todayReceiptCount) }) : undefined}
           deltaTone="up"
-          sub="total émises"
+          sub={t('dashboard.sub.totalIssued')}
           sparkData={receiptSpark.slice(-6)}
           to="/receipts"
         />
@@ -330,20 +348,20 @@ export default function Dashboard() {
         <Card className="lg:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Évolution des recettes fiscales</h2>
-              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Encaissements mensuels</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.chart.title')}</h2>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t('dashboard.chart.subtitle')}</p>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto">
               <div className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-slate-100 dark:bg-slate-700 p-1">
                 {CHART_RANGE_OPTIONS.map((opt) => (
                   <button
                     key={opt.id}
-                    onClick={() => setChartRange(opt.id)}
+                    onClick={() => handleChartRangeChange(opt.id)}
                     className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                      chartRange === opt.id ? 'bg-white text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:text-slate-300'
+                      chartRange === opt.id ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                   >
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </button>
                 ))}
               </div>
@@ -351,7 +369,7 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 pt-4 text-sm">
             <span className="text-slate-500 dark:text-slate-400">
-              Total période : <span className="font-semibold text-slate-900 dark:text-slate-100">{fmtMGA(rangeTotal)}</span>
+              {t('dashboard.chart.totalPeriod')} <span className="font-semibold text-slate-900 dark:text-slate-100">{fmtMGA(rangeTotal)}</span>
             </span>
             {prevPeriodTotal > 0 && periodEvoPct !== null && (
               <span
@@ -360,19 +378,19 @@ export default function Dashboard() {
                 }`}
               >
                 {periodEvo >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-                {periodEvoPct >= 0 ? '+' : ''}{periodEvoPct.toFixed(1)} % vs période préc.
+                {periodEvoPct >= 0 ? '+' : ''}{periodEvoPct.toFixed(1)} % {t('dashboard.chart.vsPrevPeriod')}
               </span>
             )}
           </div>
-          <div className="h-80 px-4 py-5">
+          <div className="rechart-entrance rechart-shimmer h-80 px-4 py-5">
             {rangeData.length === 0 ? (
-              <EmptyState title="Aucune donnée pour cette période" />
+              <EmptyState title={t('dashboard.chart.noData')} />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={rangeData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart key={chartRange} data={rangeData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#5B4BDB" stopOpacity={0.18} />
+                      <stop offset="0%" stopColor="#5B4BDB" stopOpacity={chart.dark ? 0.25 : 0.18} />
                       <stop offset="100%" stopColor="#5B4BDB" stopOpacity={0} />
                     </linearGradient>
                   </defs>
@@ -387,15 +405,15 @@ export default function Dashboard() {
                       const row = (item as { payload?: { delta?: number } } | undefined)?.payload
                       const delta = row?.delta ?? 0
                       return [
-                        [fmtMGA(Number(v)), 'Montant'],
-                        [`${delta >= 0 ? '+' : '−'}${fmtMGA(Math.abs(delta))}`, 'vs mois préc.'],
+                        [fmtMGA(Number(v)), t('dashboard.chart.amount')],
+                        [`${delta >= 0 ? '+' : '−'}${fmtMGA(Math.abs(delta))}`, t('dashboard.sub.vsPrevMonth')],
                       ] as [string, string][]
                     }}
                     contentStyle={chart.tooltip}
                     itemStyle={chart.tooltipItem}
                     labelStyle={chart.tooltipLabel}
                   />
-                  <Area type="monotone" dataKey="montant" stroke="#5B4BDB" strokeWidth={2.5} fill="url(#revenueFill)" />
+                  <Area type="monotone" dataKey="montant" stroke="#5B4BDB" strokeWidth={2.5} fill="url(#revenueFill)" isAnimationActive animationDuration={1100} animationBegin={150} animationEasing="cubic-bezier(0.22, 1, 0.36, 1)" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -406,19 +424,19 @@ export default function Dashboard() {
         <Card>
           <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Répartition des recettes</h2>
-              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Par type d'impôt</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.donut.title')}</h2>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t('dashboard.donut.subtitle')}</p>
             </div>
           </div>
           <div className="px-4 py-5">
             {byTaxType.length === 0 ? (
-              <EmptyState title="Aucune donnée" />
+              <EmptyState title={t('dashboard.donut.noData')} />
             ) : (
               <div className="flex flex-col gap-5">
-                <div className="relative mx-auto h-52 w-52">
+                <div className="rechart-entrance relative mx-auto h-52 w-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={topSlice} dataKey="value" nameKey="name" innerRadius={60} outerRadius={88} paddingAngle={3} strokeWidth={0}>
+                      <Pie data={topSlice} dataKey="value" nameKey="name" innerRadius={60} outerRadius={88} paddingAngle={3} strokeWidth={0} isAnimationActive animationDuration={1000} animationBegin={250} animationEasing="cubic-bezier(0.22, 1, 0.36, 1)">
                         {topSlice.map((_, i) => (
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                         ))}
@@ -431,7 +449,7 @@ export default function Dashboard() {
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Encaissé</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{t('dashboard.donut.collected')}</span>
                     <span className="text-lg font-bold text-slate-900 dark:text-slate-100">{fmtCompact(byTaxTypeTotal)}</span>
                   </div>
                 </div>
@@ -462,8 +480,8 @@ export default function Dashboard() {
         <Card className="overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Top contribuables</h2>
-              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Meilleurs encaissements</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.top.title')}</h2>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t('dashboard.top.subtitle')}</p>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -471,14 +489,14 @@ export default function Dashboard() {
               <thead>
                 <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   <th className="px-5 py-2.5">#</th>
-                  <th className="px-5 py-2.5">Nom</th>
+                  <th className="px-5 py-2.5">{t('dashboard.top.name')}</th>
                   <th className="px-5 py-2.5">NIF</th>
-                  <th className="px-5 py-2.5 text-right">Montant</th>
+                  <th className="px-5 py-2.5 text-right">{t('dashboard.top.amount')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                 {(!data.topTaxpayersByCollected || data.topTaxpayersByCollected.length === 0) ? (
-                  <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Aucune donnée</td></tr>
+                  <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">{t('dashboard.top.noData')}</td></tr>
                 ) : (
                   data.topTaxpayersByCollected.slice(0, 5).map((r, i) => (
                     <tr key={r.taxpayerId} className="transition hover:bg-brand-50/40 cursor-pointer" onClick={() => navigate(`/taxpayers/${r.taxpayerId}`)}>
@@ -493,7 +511,7 @@ export default function Dashboard() {
             </table>
           </div>
           <Link to="/taxpayers" className="block border-t border-slate-200/70 dark:border-slate-700/50 px-5 py-3 text-center text-sm font-medium text-brand-600 hover:bg-slate-50 dark:hover:bg-slate-700">
-            Voir tous les contribuables
+            {t('dashboard.top.viewAll')}
           </Link>
         </Card>
 
@@ -501,21 +519,22 @@ export default function Dashboard() {
         <Card>
           <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Déclarations par statut</h2>
-              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Répartition globale</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.declStatus.title')}</h2>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t('dashboard.declStatus.subtitle')}</p>
             </div>
           </div>
           <div className="px-4 py-5">
             {(!data.debtsByStatus || data.debtsByStatus.length === 0) ? (
-              <EmptyState title="Aucune donnée" />
+              <EmptyState title={t('dashboard.donut.noData')} />
             ) : (
               <div className="flex flex-col gap-5">
-                <div className="relative mx-auto h-44 w-44">
+                <div className="rechart-entrance relative mx-auto h-44 w-44">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={data.debtsByStatus.map((s) => ({ name: statusName(s.status), value: s.count }))}
+                        data={data.debtsByStatus.map((s) => ({ name: statusName(s.status, t), value: s.count }))}
                         dataKey="value" nameKey="name" innerRadius={50} outerRadius={75} paddingAngle={3} strokeWidth={0}
+                        isAnimationActive animationDuration={1000} animationBegin={350} animationEasing="cubic-bezier(0.22, 1, 0.36, 1)"
                       >
                         {data.debtsByStatus.map((_, i) => (
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
@@ -525,7 +544,7 @@ export default function Dashboard() {
                   </ResponsiveContainer>
                   <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">{fmtNumber(data.declarationCount)}</span>
-                    <span className="text-[11px] text-slate-400 dark:text-slate-500">total</span>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{t('dashboard.declStatus.total')}</span>
                   </div>
                 </div>
                 <ul className="space-y-2">
@@ -535,7 +554,7 @@ export default function Dashboard() {
                       <li key={s.status}>
                         <Link to={`/debts?status=${encodeURIComponent(s.status)}`} className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 text-sm transition hover:bg-brand-50/60">
                           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                          <span className="min-w-0 flex-1 text-slate-500 dark:text-slate-400">{statusName(s.status)}</span>
+                          <span className="min-w-0 flex-1 text-slate-500 dark:text-slate-400">{statusName(s.status, t)}</span>
                           <span className="font-medium text-slate-900 dark:text-slate-100">{fmtNumber(s.count)}</span>
                           <span className="w-12 text-right text-xs text-slate-400 dark:text-slate-500">{pct} %</span>
                         </Link>
@@ -547,7 +566,7 @@ export default function Dashboard() {
             )}
           </div>
           <Link to="/debts" className="block border-t border-slate-200/70 dark:border-slate-700/50 px-5 py-3 text-center text-sm font-medium text-brand-600 hover:bg-slate-50 dark:hover:bg-slate-700">
-            Voir toutes les créances
+            {t('dashboard.declStatus.viewAll')}
           </Link>
         </Card>
 
@@ -555,16 +574,16 @@ export default function Dashboard() {
         <Card>
           <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Activités récentes</h2>
-              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Derniers événements</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.activity.title')}</h2>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t('dashboard.activity.subtitle')}</p>
             </div>
             <Link to="/taxpayers" className="text-xs font-medium text-brand-600 hover:underline">
-              Voir tout
+              {t('dashboard.activity.viewAll')}
             </Link>
           </div>
           <div className="px-3 py-3">
             {!data.recentActivity || data.recentActivity.length === 0 ? (
-              <EmptyState title="Aucune activité récente" />
+              <EmptyState title={t('dashboard.activity.noData')} />
             ) : (
               <div className="relative">
                 {/* Timeline line */}
@@ -574,11 +593,11 @@ export default function Dashboard() {
                     const meta = activityMeta[a.type] ?? activityMeta.DECLARATION
                     return (
                       <li key={`${a.type}-${a.id}`} className="relative flex gap-3">
-                        <div className="relative z-10 flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-white ring-2 ring-slate-100" style={{ color: meta.tone === 'brand' ? C.violet : meta.tone === 'sky' ? C.sky : meta.tone === 'emerald' ? C.emerald : meta.tone === 'amber' ? C.orange : meta.tone === 'violet' ? C.violet : C.rose }}>
+                        <div className="relative z-10 flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-white ring-2 ring-slate-100 dark:bg-slate-700 dark:ring-slate-600" style={{ color: meta.tone === 'brand' ? C.violet : meta.tone === 'sky' ? C.sky : meta.tone === 'emerald' ? C.emerald : meta.tone === 'amber' ? C.orange : meta.tone === 'violet' ? C.violet : C.rose }}>
                           {meta.icon}
                         </div>
                         <div className="min-w-0 flex-1 pt-1">
-                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{a.label}</p>
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{activityLabel(a.type, a.label, t)}</p>
                           <p className="truncate text-xs text-slate-400 dark:text-slate-500">
                             <Link to={`/taxpayers/${a.taxpayerId}`} className="font-medium text-slate-500 dark:text-slate-400 hover:text-brand-600 hover:underline">
                               {a.taxpayerName}
@@ -604,8 +623,8 @@ export default function Dashboard() {
         <Card>
           <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Suivi du recouvrement</h2>
-              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Vue globale</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.recovery.title')}</h2>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t('dashboard.recovery.subtitle')}</p>
             </div>
           </div>
           <div className="px-5 py-5">
@@ -617,21 +636,21 @@ export default function Dashboard() {
         <Card className="lg:col-span-2">
           <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Synthèse financière</h2>
-              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Indicateurs globaux réels</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.synthesis.title')}</h2>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t('dashboard.synthesis.subtitle')}</p>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4 px-5 py-5 xl:grid-cols-4">
             {[
-              { label: 'Total encaissé', value: fmtMGA(data.totalCollected), color: C.emerald },
-              { label: 'Reste à recouvrer', value: fmtMGA(data.totalOutstanding), color: C.orange },
-              { label: 'Recouvré', value: `${collectionRate.toFixed(1)} %`, color: C.blue },
-              { label: 'Total dû', value: fmtMGA(totalDue), color: C.violet },
-            ].map((t) => (
-              <div key={t.label} className="relative overflow-hidden rounded-xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-4 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
-                <span className="absolute inset-x-0 top-0 h-0.5" style={{ background: t.color }} />
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t.label}</p>
-                <p className="mt-2 truncate text-lg font-bold text-slate-900 dark:text-slate-100" title={String(t.value)}>{t.value}</p>
+              { label: t('dashboard.synthesis.collected'), value: fmtMGA(data.totalCollected), color: C.emerald },
+              { label: t('dashboard.synthesis.remaining'), value: fmtMGA(data.totalOutstanding), color: C.orange },
+              { label: t('dashboard.synthesis.recovered'), value: `${collectionRate.toFixed(1)} %`, color: C.blue },
+              { label: t('dashboard.synthesis.totalDue'), value: fmtMGA(totalDue), color: C.violet },
+            ].map((item) => (
+              <div key={item.label} className="relative overflow-hidden rounded-xl border border-slate-200/70 bg-white p-4 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800">
+                <span className="absolute inset-x-0 top-0 h-0.5" style={{ background: item.color }} />
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{item.label}</p>
+                <p className="mt-2 truncate text-lg font-bold text-slate-900 dark:text-slate-100" title={String(item.value)}>{item.value}</p>
               </div>
             ))}
           </div>
@@ -644,13 +663,13 @@ export default function Dashboard() {
           <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-amber-500" />
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Échéances proches</h2>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.deadlines.title')}</h2>
             </div>
-            <Link to="/deadlines" className="text-xs font-medium text-brand-600 hover:underline">Tout voir</Link>
+            <Link to="/deadlines" className="text-xs font-medium text-brand-600 hover:underline">{t('dashboard.deadlines.viewAll')}</Link>
           </div>
           <div className="space-y-2 px-5 py-4">
             {nextDeadlines.length === 0 ? (
-              <p className="text-sm text-slate-400 dark:text-slate-500">Aucune échéance à venir</p>
+              <p className="text-sm text-slate-400 dark:text-slate-500">{t('dashboard.deadlines.none')}</p>
             ) : (
               nextDeadlines.map((d) => (
                 <div key={d.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2.5">
@@ -666,19 +685,19 @@ export default function Dashboard() {
           <div className="flex items-center justify-between border-b border-slate-200/70 dark:border-slate-700/50 px-5 py-4">
             <div className="flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-violet-500" />
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Prochaines actions</h2>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('dashboard.actions.title')}</h2>
             </div>
-            <Link to="/collection" className="text-xs font-medium text-brand-600 hover:underline">Recouvrement</Link>
+            <Link to="/collection" className="text-xs font-medium text-brand-600 hover:underline">{t('dashboard.actions.collection')}</Link>
           </div>
           <div className="space-y-2 px-5 py-4">
             {!data.nextCollectionActions || data.nextCollectionActions.length === 0 ? (
-              <p className="text-sm text-slate-400 dark:text-slate-500">Aucune action planifiée</p>
+              <p className="text-sm text-slate-400 dark:text-slate-500">{t('dashboard.actions.none')}</p>
             ) : (
               data.nextCollectionActions.slice(0, 4).map((a) => (
                 <div key={a.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">
-                      {collectionTypeLabels[a.type] ?? a.type}
+                      {(() => { const k = `collection.type.${a.type}`; const v = t(k); return v !== k ? v : (collectionTypeLabels[a.type] ?? a.type) })()}
                     </p>
                     <p className="truncate text-xs text-slate-400 dark:text-slate-500">{a.taxpayerName}</p>
                   </div>
@@ -698,136 +717,6 @@ export default function Dashboard() {
 /* ═══════════════════════════════════════════════════════════════════
    COMPOSANTS
    ═══════════════════════════════════════════════════════════════════ */
-
-/* ── Bandeau de bienvenue ── */
-function WelcomeBanner({
-  firstName,
-  periodPreset,
-  onPeriodChange,
-  fromDate,
-  toDate,
-  onDownload,
-  size = 'normal',
-}: {
-  firstName: string
-  periodPreset: string
-  onPeriodChange: (id: string) => void
-  fromDate: string
-  toDate: string
-  onDownload: () => void
-  size?: 'normal' | 'large'
-}) {
-  const [periodOpen, setPeriodOpen] = useState(false)
-  const [dlOpen, setDlOpen] = useState(false)
-  const periodRef = useRef<HTMLDivElement>(null)
-  const dlRef = useRef<HTMLDivElement>(null)
-  const now = new Date()
-  const year = now.getFullYear()
-  const dateRangeLabel = `${fmtDate(fromDate)} — ${fmtDate(toDate)}`
-
-  const currentPresetLabel = PERIOD_PRESETS.find((p) => p.id === periodPreset)?.label ?? 'Année en cours'
-
-  /* Fermer les dropdowns au clic extérieur */
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (periodRef.current && !periodRef.current.contains(e.target as Node)) setPeriodOpen(false)
-      if (dlRef.current && !dlRef.current.contains(e.target as Node)) setDlOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  const isLarge = size === 'large'
-
-  return (
-    <div className={`relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-brand-600 via-brand-700 to-indigo-700 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between ${isLarge ? 'px-6 py-5 sm:px-8 sm:py-6' : 'px-5 py-5 sm:px-6'}`}>
-      {/* Left: Logo + texte */}
-      <div className="relative z-10 flex items-center gap-4 min-w-0 flex-1">
-        <div className={`absolute left-0 top-0 flex shrink-0 items-center justify-center rounded-br-xl bg-white/15 backdrop-blur-sm ${isLarge ? 'h-14 w-14' : 'h-11 w-11'}`}>
-          <img src="/logo.webp" alt="" className={`rounded-lg object-contain ${isLarge ? 'h-10 w-10' : 'h-7 w-7'}`} />
-        </div>
-        <div className={`min-w-0 ${isLarge ? 'pl-16' : ''}`}>
-          <h1 className={`font-bold leading-tight tracking-tight ${isLarge ? 'text-[28px] sm:text-[34px]' : 'text-[26px] sm:text-[32px]'}`}>
-            Bienvenue, {firstName} 👋
-          </h1>
-          <p className={`mt-1 text-white/50 ${isLarge ? 'text-sm' : 'text-[13px]'}`}>
-            {dateRangeLabel} · Exercice {year}
-          </p>
-        </div>
-      </div>
-
-      {/* Centre : image */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-full w-2/5 -translate-x-1/2 -translate-y-1/2 overflow-hidden opacity-15">
-        <img src="/vue-ensemble.png" alt="" className="absolute left-1/2 top-1/2 h-[180%] w-auto -translate-x-1/2 -translate-y-1/2 object-contain" />
-      </div>
-
-      {/* Right content */}
-      <div className="relative z-10 flex shrink-0 items-center gap-2">
-          {/* ── Sélecteur de période ── */}
-          <div className="relative" ref={periodRef}>
-            <button
-              onClick={() => { setPeriodOpen(!periodOpen); setDlOpen(false) }}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-xs font-medium backdrop-blur-sm transition hover:bg-white/25"
-            >
-              <CalendarDays className="h-4 w-4" />
-              {currentPresetLabel}
-              <ChevronDown className={`h-4 w-4 transition-transform ${periodOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {periodOpen && (
-              <div className="absolute right-0 z-[60] mt-2 w-64 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-white/20 bg-white shadow-2xl">
-                <div className="px-4 py-3 border-b border-slate-100">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Sélectionner une période</p>
-                </div>
-                <div className="p-1.5">
-                  {PERIOD_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => { onPeriodChange(preset.id); setPeriodOpen(false) }}
-                      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
-                        periodPreset === preset.id
-                          ? 'bg-brand-50 font-semibold text-brand-700'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      <span className={`flex h-2 w-2 shrink-0 rounded-full ${periodPreset === preset.id ? 'bg-brand-500' : 'bg-slate-300'}`} />
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Télécharger rapport ── */}
-          <div className="relative" ref={dlRef}>
-            <button
-              onClick={() => { setDlOpen(!dlOpen); setPeriodOpen(false) }}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-brand-700 shadow-sm transition hover:bg-white/90"
-            >
-              <Download className="h-4 w-4" />
-              Télécharger rapport
-              <ChevronDown className={`h-4 w-4 transition-transform ${dlOpen ? 'rotate-180' : ''}`} />
-            </button>
-            {dlOpen && (
-              <div className="absolute right-0 z-[60] mt-2 w-56 max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                <div className="p-1.5">
-                  <button
-                    onClick={() => { onDownload(); setDlOpen(false) }}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700"
-                  >
-                    <Download className="h-4 w-4 text-emerald-600" />
-                    <div>
-                      <p className="font-medium">CSV (données)</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500">Tableur avec tous les indicateurs</p>
-                    </div>
-                  </button>
-                </div>
-              </div>            )}
-          </div>
-      </div>
-    </div>
-  )
-}
 
 /* ── Mini sparkline SVG ── */
 let sparklineCounter = 0
@@ -873,18 +762,23 @@ function KpiCard({
   delta?: string; deltaTone?: 'up' | 'down' | 'neutral'; sub?: string
   sparkData?: number[]; to?: string
 }) {
+  const { resolved } = useTheme()
+  const { t } = useI18n()
+  const isDark = resolved === 'dark'
   const glowColor = `${color}15`
-  const borderColor = 'rgba(255,255,255,0.08)'
-  const borderHover = 'rgba(255,255,255,0.16)'
+  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
+  const borderHover = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.12)'
 
   const body = (
     <div
       className="group/card relative flex h-full flex-col justify-between overflow-hidden p-4 transition-all duration-200"
       style={{
-        background: '#111827',
+        background: isDark ? '#111827' : '#ffffff',
         border: `1px solid ${borderColor}`,
         borderRadius: '14px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.2), 0 0 0 0 transparent',
+        boxShadow: isDark
+          ? '0 1px 3px rgba(0,0,0,0.2), 0 0 0 0 transparent'
+          : '0 1px 3px rgba(0,0,0,0.06), 0 0 0 0 transparent',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(-2px)'
@@ -897,10 +791,10 @@ function KpiCard({
         e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2), 0 0 0 0 transparent'
       }}
     >
-      {/* Glow subtil en haut */}
+      {/* Accent supérieur uni (tonalité de l'indicateur) */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-px"
-        style={{ background: `linear-gradient(90deg, transparent, ${color}40, transparent)` }}
+        style={{ background: color, opacity: 0.45 }}
       />
 
       {/* Header: icon + label + menu */}
@@ -914,7 +808,7 @@ function KpiCard({
           </span>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
         </div>
-        <button className="rounded-lg p-1 text-slate-600 transition hover:bg-white/5 hover:text-slate-400 dark:text-slate-600 dark:hover:text-slate-400" aria-label="Options">
+        <button className="rounded-lg p-1 text-slate-600 transition hover:bg-black/5 dark:hover:bg-white/5 hover:text-slate-400 dark:text-slate-600 dark:hover:text-slate-400" aria-label={t("a11y.options")}>
           <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
             <circle cx="8" cy="3" r="1.5" />
             <circle cx="8" cy="8" r="1.5" />
@@ -925,7 +819,7 @@ function KpiCard({
 
       {/* Valeur principale */}
       <div className="mt-2">
-        <p className="truncate text-xl font-[650] leading-tight tracking-tight text-white">{value}</p>
+        <p className="truncate text-xl font-[650] leading-tight tracking-tight text-slate-900 dark:text-white">{value}</p>
       </div>
 
       {/* Delta + sparkline */}
@@ -965,16 +859,21 @@ function KpiCard({
 
 /* ── Jauge de recouvrement ── */
 function RecoveryGauge({ rate, collected, totalDue, outstanding }: { rate: number; collected: number; totalDue: number; outstanding: number }) {
+  const { resolved } = useTheme()
+  const { fmtMGA } = useLocaleFormatters()
+  const { t } = useI18n()
+  const isDark = resolved === 'dark'
   const pct = Math.max(0, Math.min(100, rate))
   const circumference = 2 * Math.PI * 54
   const offset = circumference - (pct / 100) * circumference
   const color = pct >= 70 ? C.green : pct >= 40 ? C.blue : C.orange
+  const trackColor = isDark ? '#334155' : '#e2e8f0'
 
   return (
     <div className="flex flex-col items-center gap-6">
       <div className="relative h-36 w-36">
         <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-          <circle cx="60" cy="60" r="54" fill="none" stroke="#e2e8f0" strokeWidth="10" />
+          <circle cx="60" cy="60" r="54" fill="none" stroke={trackColor} strokeWidth="10" />
           <circle
             cx="60" cy="60" r="54" fill="none"
             stroke={color}
@@ -987,26 +886,26 @@ function RecoveryGauge({ rate, collected, totalDue, outstanding }: { rate: numbe
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-2xl font-bold text-slate-900 dark:text-slate-100">{pct.toFixed(1)} %</span>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">recouvré</span>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">{t('dashboard.recovery.recovered')}</span>
         </div>
       </div>
 
       <div className="w-full space-y-3">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Objectif annuel</span>
+          <span className="text-slate-500 dark:text-slate-400">{t('dashboard.recovery.goal')}</span>
           <span className="font-semibold text-slate-900 dark:text-slate-100">{fmtMGA(totalDue)}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Montant encaissé</span>
+          <span className="text-slate-500 dark:text-slate-400">{t('dashboard.recovery.collected')}</span>
           <span className="font-semibold text-emerald-700">{fmtMGA(collected)}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Reste à recouvrer</span>
+          <span className="text-slate-500 dark:text-slate-400">{t('dashboard.recovery.remaining')}</span>
           <span className="font-semibold text-orange-600">{fmtMGA(outstanding)}</span>
         </div>
         <div className="pt-2">
           <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
-            <span>Progression</span>
+            <span>{t('dashboard.recovery.progress')}</span>
             <span className="font-semibold" style={{ color }}>{pct.toFixed(1)} %</span>
           </div>
           <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
@@ -1023,7 +922,7 @@ function fmtCompact(v: number): string {
   if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1)} Md`
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)} M`
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)} k`
-  return fmtNumber(v)
+  return new Intl.NumberFormat('fr-MG').format(Number(v ?? 0))
 }
 
 /* ═══════════════ Skeleton ═══════════════ */

@@ -33,7 +33,7 @@ export function ForAgents({ onLogin }: { onLogin: () => void }) {
                   </ScrollReveal>
                 ))}
               </ul>
-              <Button onClick={onLogin} size="lg" className="mt-8 rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 px-8 text-white shadow-xl shadow-brand-600/25">
+              <Button onClick={onLogin} size="lg" className="mt-8 rounded-2xl bg-brand-600 px-8 text-white shadow-xl shadow-brand-600/25">
                 Accéder à la plateforme <ArrowRight className="h-4 w-4" />
               </Button>
             </div>

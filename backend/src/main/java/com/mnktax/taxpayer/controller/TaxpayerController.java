@@ -69,6 +69,22 @@ public class TaxpayerController {
         return ResponseEntity.ok(taxpayerService.nextNif());
     }
 
+    @GetMapping("/contacts")
+    @PreAuthorize("hasAuthority('" + Permissions.MESSAGE_WRITE + "')")
+    @Operation(summary = "Coordonnées de communication des contribuables (composeur)")
+    public ResponseEntity<org.springframework.data.domain.Page<com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerContactDto>> contacts(
+            @RequestParam(required = false) String q,
+            @org.springframework.data.web.PageableDefault(size = 20) org.springframework.data.domain.Pageable pageable) {
+        return ResponseEntity.ok(taxpayerService.contacts(q, pageable));
+    }
+
+    @GetMapping("/{id:\\d+}/contact")
+    @PreAuthorize("hasAuthority('" + Permissions.MESSAGE_WRITE + "')")
+    @Operation(summary = "Coordonnées de communication d'un contribuable")
+    public ResponseEntity<com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerContactDto> contact(@PathVariable Long id) {
+        return ResponseEntity.ok(taxpayerService.getContact(id));
+    }
+
     @GetMapping("/{id:\\d+}")
     @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_READ + "')")
     @Operation(summary = "Dossier complet d'un contribuable")

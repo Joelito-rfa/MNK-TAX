@@ -18,8 +18,9 @@ import {
   History,
   ArrowUpRight,
 } from 'lucide-react'
+import { useI18n } from '../../lib/i18n'
+import { useLocaleFormatters } from '../../lib/format'
 import { apiErrorMessage, apiGet, apiGetBlob, apiPost } from '../../lib/api'
-import { fmtDate, fmtMGA } from '../../lib/format'
 import type { CollectionDebtRow, CollectionHistory, CollectionStats, DebtStatus, OverdueSummary, Page, TaxType } from '../../types'
 import { Button, Card, EmptyState, Pagination, Select, Spinner, Table, Td, Th } from '../../components/ui'
 import { useToast } from '../../components/Toast'
@@ -31,7 +32,7 @@ import { PaymentProgress } from '../../components/collection/PaymentProgress'
 import { RowActions } from '../../components/collection/RowActions'
 import { DetailDrawer } from '../../components/collection/DetailDrawer'
 import { CollectionFilters, EMPTY_ADV, type AdvancedFilters } from '../../components/collection/CollectionFilters'
-import { TERMINAL_STATUSES, ACTION_LABELS, ACTION_ICONS, daysUntil } from '../../components/collection/constants'
+import { TERMINAL_STATUSES, ACTION_LABELS, ACTION_KEYS, ACTION_ICONS, daysUntil } from '../../components/collection/constants'
 
 export default function CollectionOverview() {
   const navigate = useNavigate()
@@ -57,6 +58,8 @@ export default function CollectionOverview() {
 
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { t } = useI18n()
+  const { fmtMGA, fmtDate, fmtDateTime } = useLocaleFormatters()
 
   const buildParams = () => {
     const p = new URLSearchParams({ page: String(page), size: String(size) })
@@ -102,7 +105,7 @@ export default function CollectionOverview() {
       actionDate: actionForm.actionDate, outcome: actionForm.outcome || undefined,
       nextAction: actionForm.nextAction || undefined, nextActionDate: actionForm.nextActionDate || undefined,
     }),
-    onSuccess: () => { invalidateQueries(); setActionOpen(false); resetActionForm(); toast.success('Action de recouvrement enregistrée') },
+    onSuccess: () => { invalidateQueries(); setActionOpen(false); resetActionForm(); toast.success(t('collection.actionSaved')) },
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
 
@@ -110,7 +113,7 @@ export default function CollectionOverview() {
     mutationFn: () => apiPost('/collection/notices', {
       debtId: Number(noticeDebtId), noticeType: 'MISE_EN_DEMEURE', content: noticeContent || undefined,
     }),
-    onSuccess: () => { invalidateQueries(); setNoticeOpen(false); setNoticeDebtId(''); setNoticeContent(''); toast.success('Mise en demeure émise') },
+    onSuccess: () => { invalidateQueries(); setNoticeOpen(false); setNoticeDebtId(''); setNoticeContent(''); toast.success(t('collection.noticeIssued')) },
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
 
@@ -123,7 +126,7 @@ export default function CollectionOverview() {
     onSuccess: () => {
       invalidateQueries(); setPaymentOpen(false); setSelectedDebt(null)
       setPayForm({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), method: 'CASH' })
-      toast.success('Paiement enregistré')
+      toast.success(t('collection.paymentSaved'))
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
@@ -174,7 +177,7 @@ export default function CollectionOverview() {
       ].join('\n')
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `recouvrement_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url)
-      toast.success('Export CSV terminé')
+      toast.success(t('collection.exportDone'))
     }).catch((err) => toast.error(apiErrorMessage(err)))
   }
 
@@ -184,7 +187,7 @@ export default function CollectionOverview() {
       if (taxTypeFilter) p.set('taxTypeCode', taxTypeFilter); if (periodFilter) p.set('period', periodFilter); if (searchQ) p.set('q', searchQ)
       const blob = await apiGetBlob(`/collection/documents/etat-restes?${p.toString()}`)
       const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `etat-restes-a-recouvrer_${new Date().toISOString().slice(0, 10)}.pdf`; a.click(); URL.revokeObjectURL(url)
-      toast.success('PDF généré')
+      toast.success(t('collection.pdfGenerated'))
     } catch (err) { toast.error(apiErrorMessage(err)) }
   }
 
@@ -200,16 +203,16 @@ export default function CollectionOverview() {
       {/* 1. EN-TÊTE */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">Recouvrement</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Suivi des créances fiscales, relances et actions de recouvrement</p>
+          <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">{t('collection.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('collection.subtitle')}</p>
         </div>
         <div className="flex flex-wrap shrink-0 items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection'] })}><RefreshCw className="h-4 w-4" /> Actualiser</Button>
-          <Link to="/collection/history"><Button variant="ghost" size="sm"><History className="h-4 w-4" /> Historique</Button></Link>
-          <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="h-4 w-4" /> Exporter CSV</Button>
-          <Button variant="secondary" size="sm" onClick={exportEtatPdf}><FileText className="h-4 w-4" /> État des restes PDF</Button>
-          <Link to="/reports"><Button variant="secondary" size="sm"><FileSpreadsheet className="h-4 w-4" /> Rapport</Button></Link>
-          <button onClick={() => openActionWithType('call')} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:from-violet-500 hover:to-indigo-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98]">
+          <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
+          <Link to="/collection/history"><Button variant="ghost" size="sm"><History className="h-4 w-4" />{t('collection.history')}</Button></Link>
+          <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="h-4 w-4" />{t('collection.export')}</Button>
+          <Button variant="secondary" size="sm" onClick={exportEtatPdf}><FileText className="h-4 w-4" />{t('collection.report')}</Button>
+          <Link to="/reports"><Button variant="secondary" size="sm"><FileSpreadsheet className="h-4 w-4" />{t('collection.report')}</Button></Link>
+          <button onClick={() => openActionWithType('call')} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98]">
             <Plus className="h-4 w-4" /> Nouvelle action
           </button>
         </div>
@@ -260,7 +263,7 @@ export default function CollectionOverview() {
           </div>
         ) : !data || data.content.length === 0 ? (
           <div className="py-14">
-            <EmptyState icon={<Inbox className="h-10 w-10" />} title="Aucune créance trouvée" subtitle="Aucun dossier ne correspond aux critères sélectionnés." />
+            <EmptyState icon={<Inbox className="h-10 w-10" />} title={t("collection.noResult")} subtitle={t("common.noResult")} />
             {hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={resetFilters}><X className="h-4 w-4" /> Réinitialiser les filtres</Button></div>}
           </div>
         ) : (
@@ -271,7 +274,7 @@ export default function CollectionOverview() {
                   <Table>
                     <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
                       <tr>
-                        <Th>Réf. créance</Th><Th>NIF</Th><Th>Contribuable</Th><Th>Impôt</Th><Th>Période</Th><Th>Montant dû</Th><Th>Payé</Th><Th>Reste</Th><Th>Échéance</Th><Th>Statut</Th><Th>Priorité</Th><Th>Dernière action</Th><Th>Agent</Th><Th className="w-12"></Th>
+                        <Th>{t('common.reference')}</Th><Th>NIF</Th><Th>Contribuable</Th><Th>Impôt</Th><Th>Période</Th><Th>Montant dû</Th><Th>Payé</Th><Th>Reste</Th><Th>Échéance</Th><Th>Statut</Th><Th>Priorité</Th><Th>Dernière action</Th><Th>Agent</Th><Th className="w-12"></Th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
@@ -303,7 +306,7 @@ export default function CollectionOverview() {
                             <Td><PriorityBadge priority={d.collectionPriority} /></Td>
                             <Td>
                               <div className="max-w-[170px]">
-                                {d.lastAction ? (<><p className="truncate text-xs text-slate-600 dark:text-slate-400" title={d.lastAction}>{ACTION_ICONS[d.lastActionType ?? ''] ?? ''} {ACTION_LABELS[d.lastActionType ?? ''] ?? d.lastAction}</p>{d.lastActionDate && <p className="text-[10px] text-slate-400 dark:text-slate-500">le {fmtDate(d.lastActionDate)}{d.nextActionDate && ` · prochaine : ${fmtDate(d.nextActionDate)}`}</p>}</>) : <span className="text-xs text-slate-400 dark:text-slate-500">—</span>}
+                                {d.lastAction ? (<><p className="truncate text-xs text-slate-600 dark:text-slate-400" title={d.lastAction}>{ACTION_ICONS[d.lastActionType ?? ''] ?? ''} {t(ACTION_KEYS[d.lastActionType ?? ''] ?? 'common.unknown') ?? d.lastAction}</p>{d.lastActionDate && <p className="text-[10px] text-slate-400 dark:text-slate-500">le {fmtDate(d.lastActionDate)}{d.nextActionDate && ` · prochaine : ${fmtDate(d.nextActionDate)}`}</p>}</>) : <span className="text-xs text-slate-400 dark:text-slate-500">—</span>}
                               </div>
                             </Td>
                             <Td><span className="text-xs text-slate-500 dark:text-slate-400">{d.lastResponsible ?? '—'}</span></Td>
@@ -345,13 +348,13 @@ export default function CollectionOverview() {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Type d'action</label>
                   <Select value={actionForm.type} onChange={(e) => setActionForm({ ...actionForm, type: e.target.value })}>
-                    {Object.entries(ACTION_LABELS).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
+                    {Object.entries(ACTION_KEYS).map(([k, key]) => [k, t(key)]).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
                   </Select>
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
-                <input value={actionForm.description} onChange={(e) => setActionForm({ ...actionForm, description: e.target.value })} placeholder="ex : Relance téléphonique du contribuable" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                <input value={actionForm.description} onChange={(e) => setActionForm({ ...actionForm, description: e.target.value })} placeholder={t('collection.filters.search')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -360,13 +363,13 @@ export default function CollectionOverview() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Résultat (facultatif)</label>
-                  <input value={actionForm.outcome} onChange={(e) => setActionForm({ ...actionForm, outcome: e.target.value })} placeholder="ex : Promesse de paiement" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                  <input value={actionForm.outcome} onChange={(e) => setActionForm({ ...actionForm, outcome: e.target.value })} placeholder={t('common.description')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Prochaine action (facultatif)</label>
-                  <input value={actionForm.nextAction} onChange={(e) => setActionForm({ ...actionForm, nextAction: e.target.value })} placeholder="ex : Relance dans 7 jours" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                  <input value={actionForm.nextAction} onChange={(e) => setActionForm({ ...actionForm, nextAction: e.target.value })} placeholder={t('common.description')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Date prochaine action</label>
@@ -401,7 +404,7 @@ export default function CollectionOverview() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Contenu (facultatif)</label>
-                <textarea rows={4} value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder="ex : Invitation à régulariser la créance dans les délais prévus par la réglementation applicable." className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                <textarea rows={4} value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder={t('common.description')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="secondary" onClick={() => setNoticeOpen(false)}>Annuler</Button>
@@ -461,7 +464,7 @@ export default function CollectionOverview() {
                           <div className="flex items-center justify-between gap-2">
                             <span className="flex min-w-0 items-center gap-2">
                               <UserAvatar userId={a.responsibleUserId} name={a.responsibleName ?? ''} className="shrink-0" />
-                              <span className="font-medium">{ACTION_ICONS[a.type]} {ACTION_LABELS[a.type] ?? a.type}</span>
+                              <span className="font-medium">{ACTION_ICONS[a.type]} {t(ACTION_KEYS[a.type] ?? 'common.unknown')}</span>
                               {a.responsibleName && <span className="truncate text-xs text-slate-400 dark:text-slate-500">— {a.responsibleName}</span>}
                             </span>
                             <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{fmtDate(a.actionDate)}</span>

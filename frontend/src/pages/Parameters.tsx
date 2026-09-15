@@ -34,11 +34,11 @@ interface CategoryDef {
 }
 
 const CATEGORIES: CategoryDef[] = [
-  { key: 'all', label: 'Général', subtitle: 'Paramètres généraux', icon: <SlidersHorizontal className="h-5 w-5" />, color: 'text-violet-600', bgGrad: 'bg-gradient-to-br from-[#5B3FD6] to-[#7C5CE0] text-white shadow-lg shadow-violet-500/25', iconBg: 'bg-white/20' },
-  { key: 'FISCAL', label: 'Fiscal', subtitle: 'Paramètres fiscaux', icon: <FileText className="h-5 w-5" />, color: 'text-blue-600', bgGrad: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25', iconBg: 'bg-white/20' },
-  { key: 'INSTITUTION', label: 'Institution', subtitle: 'Informations institutionnelles', icon: <Building2 className="h-5 w-5" />, color: 'text-emerald-600', bgGrad: 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25', iconBg: 'bg-white/20' },
-  { key: 'QUITTANCE', label: 'Taux & pénalités', subtitle: 'Taxes et pénalités', icon: <Percent className="h-5 w-5" />, color: 'text-amber-600', bgGrad: 'bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/25', iconBg: 'bg-white/20' },
-  { key: 'NOTIFICATION', label: 'Notifications', subtitle: 'Préférences des notifications', icon: <Shield className="h-5 w-5" />, color: 'text-rose-600', bgGrad: 'bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/25', iconBg: 'bg-white/20' },
+  { key: 'all', label: 'Général', subtitle: 'Paramètres généraux', icon: <SlidersHorizontal className="h-5 w-5" />, color: 'text-violet-600', bgGrad: 'bg-brand-600 text-white shadow-lg shadow-violet-500/25', iconBg: 'bg-white/20' },
+  { key: 'FISCAL', label: 'Fiscal', subtitle: 'Paramètres fiscaux', icon: <FileText className="h-5 w-5" />, color: 'text-blue-600', bgGrad: 'bg-blue-600 text-white shadow-lg shadow-blue-500/25', iconBg: 'bg-white/20' },
+  { key: 'INSTITUTION', label: 'Institution', subtitle: 'Informations institutionnelles', icon: <Building2 className="h-5 w-5" />, color: 'text-emerald-600', bgGrad: 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/25', iconBg: 'bg-white/20' },
+  { key: 'QUITTANCE', label: 'Taux & pénalités', subtitle: 'Taxes et pénalités', icon: <Percent className="h-5 w-5" />, color: 'text-amber-600', bgGrad: 'bg-amber-600 text-white shadow-lg shadow-amber-500/25', iconBg: 'bg-white/20' },
+  { key: 'NOTIFICATION', label: 'Notifications', subtitle: 'Préférences des notifications', icon: <Shield className="h-5 w-5" />, color: 'text-rose-600', bgGrad: 'bg-rose-600 text-white shadow-lg shadow-rose-500/25', iconBg: 'bg-white/20' },
 ]
 
 /* ── Icon map per category for parameter rows ── */
@@ -154,7 +154,7 @@ export default function Parameters() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="fx-simple space-y-6">
       {/* ── Page header ── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>

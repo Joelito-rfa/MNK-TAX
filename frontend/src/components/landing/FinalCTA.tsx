@@ -7,8 +7,8 @@ export default function FinalCTA({ onLogin, onRequestAccess }: { onLogin: () => 
     <section className="relative py-24">
       <div className="mx-auto max-w-4xl px-6">
         <ScrollReveal animation="blur-in">
-          <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-gradient-to-br from-brand-600/20 via-indigo-600/15 to-violet-600/10 p-12 text-center shadow-2xl backdrop-blur-xl sm:p-16">
-            <div className="absolute -inset-1 rounded-3xl bg-gradient-to-br from-brand-500/20 to-indigo-500/10 blur-2xl opacity-50" />
+          <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-brand-600/10 p-12 text-center shadow-2xl backdrop-blur-xl sm:p-16">
+            <div className="absolute -inset-1 rounded-3xl bg-brand-500/5 blur-2xl opacity-50" />
             <span className="cta-orb -left-16 -top-16 h-64 w-64 bg-brand-500/25" aria-hidden="true" />
             <span className="cta-orb -bottom-20 -right-12 h-72 w-72 bg-violet-500/20" style={{ animationDelay: '-7s' }} aria-hidden="true" />
             <span className="cta-orb left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 bg-emerald-400/10" style={{ animationDelay: '-3.5s' }} aria-hidden="true" />

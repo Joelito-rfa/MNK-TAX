@@ -30,6 +30,13 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  try {
+    const loc = localStorage.getItem('mnktax-locale')
+    if (loc === 'fr' || loc === 'mg' || loc === 'en') {
+      const map: Record<string, string> = { fr: 'fr-MG', mg: 'mg-MG', en: 'en-US' }
+      config.headers['Accept-Language'] = map[loc]
+    }
+  } catch {}
   return config
 })
 
@@ -97,14 +104,41 @@ api.interceptors.response.use(
   },
 )
 
+export function apiErrorCode(error: unknown): string | null {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { code?: string } | undefined
+    if (data?.code) return data.code
+  }
+  return null
+}
+
+export function apiFieldErrors(error: unknown): Record<string, string> | null {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { fieldErrors?: Record<string, string> } | undefined
+    return data?.fieldErrors ?? null
+  }
+  return null
+}
+
 export function apiErrorMessage(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as { message?: string; error?: string } | undefined
+    const data = error.response?.data as { message?: string; error?: string; code?: string } | undefined
     if (data?.message) return data.message
     if (data?.error) return data.error
     return `Erreur HTTP ${error.response?.status ?? 'inconnue'}`
   }
   return error instanceof Error ? error.message : 'Erreur inconnue'
+}
+
+/** Use with t(): translate known error codes, fallback to raw message */
+export function apiErrorMessageI18n(error: unknown, t: (k: string) => string): string {
+  const code = apiErrorCode(error)
+  if (code) {
+    const key = `errors.${code}`
+    const translated = t(key)
+    if (translated !== key) return translated
+  }
+  return apiErrorMessage(error)
 }
 
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {

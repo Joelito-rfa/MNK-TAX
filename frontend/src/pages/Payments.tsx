@@ -148,7 +148,7 @@ export default function Payments() {
       {/* ══ KPI Cards ══ */}
       {stats && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-5 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-5 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800">
             <span className="absolute inset-x-0 top-0 h-0.5 bg-emerald-500" />
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
@@ -161,7 +161,7 @@ export default function Payments() {
               </div>
             </div>
           </div>
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-5 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-5 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800">
             <span className="absolute inset-x-0 top-0 h-0.5 bg-blue-500" />
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10">
@@ -173,7 +173,7 @@ export default function Payments() {
               </div>
             </div>
           </div>
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-5 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-5 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800">
             <span className="absolute inset-x-0 top-0 h-0.5 bg-amber-500" />
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10">
@@ -188,7 +188,7 @@ export default function Payments() {
               </div>
             </div>
           </div>
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-5 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-white p-5 transition-all duration-200 hover:shadow-md dark:border-slate-700/50 dark:bg-slate-800">
             <span className="absolute inset-x-0 top-0 h-0.5 bg-rose-500" />
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10">

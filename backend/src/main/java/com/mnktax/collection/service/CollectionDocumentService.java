@@ -177,12 +177,27 @@ public class CollectionDocumentService {
     }
 
     private void header(Document doc, String title) throws Exception {
-        Paragraph brand = new Paragraph("MNK-TAX", titleFont());
-        brand.setAlignment(Element.ALIGN_CENTER);
-        doc.add(brand);
-        Paragraph sub = new Paragraph("Gestion des Impôts — Service de recouvrement", smallFont());
-        sub.setAlignment(Element.ALIGN_CENTER);
-        doc.add(sub);
+        Font headerInstitutionFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, new Color(23, 37, 84));
+        Font headerSubFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.DARK_GRAY);
+        Font headerSmallFont = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.GRAY);
+
+        Paragraph p1 = new Paragraph("DGI MANAKARA", headerInstitutionFont);
+        p1.setAlignment(Element.ALIGN_CENTER);
+        doc.add(p1);
+
+        Paragraph p2 = new Paragraph("Service des Impôts de Manakara", headerSubFont);
+        p2.setAlignment(Element.ALIGN_CENTER);
+        doc.add(p2);
+
+        Paragraph p3 = new Paragraph("Rattaché à la DRG MANAKARA", headerSmallFont);
+        p3.setAlignment(Element.ALIGN_CENTER);
+        doc.add(p3);
+
+        Paragraph p4 = new Paragraph("Direction Régionale des Impôts de Vatovavy-Fitovinany", headerSmallFont);
+        p4.setAlignment(Element.ALIGN_CENTER);
+        doc.add(p4);
+
+        doc.add(blank());
         Paragraph t = new Paragraph(title, bigFont());
         t.setAlignment(Element.ALIGN_CENTER);
         doc.add(t);

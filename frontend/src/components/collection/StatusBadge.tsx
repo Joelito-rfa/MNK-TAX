@@ -1,15 +1,17 @@
 import { Badge } from '../ui'
+import { useI18n } from '../../lib/i18n'
 import { STATUS_CONFIG } from './constants'
 
 export function StatusBadge({ status }: { status: string }) {
+  const { t } = useI18n()
   const cfg = STATUS_CONFIG[status]
-  if (!cfg) return <Badge tone="slate">{status}</Badge>
+  if (!cfg) return <Badge tone="slate">{t(`status.${status}`) !== `status.${status}` ? t(`status.${status}`) : status}</Badge>
   return (
     <span
       className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${cfg.color} ${cfg.bg} ${cfg.border}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${cfg.color.replace('text-', 'bg-')}`} />
-      {cfg.label}
+      {t(cfg.key)}
     </span>
   )
 }

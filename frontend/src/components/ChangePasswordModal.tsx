@@ -192,7 +192,7 @@ export default function ChangePasswordModal({
           ref={glowRef}
           className="pointer-events-none absolute -inset-px transition-all duration-500 ease-out"
           style={{
-            background: 'radial-gradient(400px circle at var(--glow-x) var(--glow-y), rgba(139,92,246,0.12), transparent 60%)',
+            background: 'rgba(99,102,241,0.06)',
           }}
         />
         {/* Inner sharp highlight */}
@@ -200,7 +200,7 @@ export default function ChangePasswordModal({
           ref={glowInnerRef}
           className="pointer-events-none absolute inset-0 transition-all duration-300 ease-out"
           style={{
-            background: 'radial-gradient(180px circle at var(--glow-x) var(--glow-y), rgba(139,92,246,0.08), transparent 70%)',
+            background: 'rgba(99,102,241,0.04)',
           }}
         />
         {/* Border glow */}

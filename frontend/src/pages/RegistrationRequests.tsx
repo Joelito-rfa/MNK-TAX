@@ -122,18 +122,23 @@ function fmtDate(iso: string | null | undefined): string {
 function StatsCards({ stats }: { stats: Stats | undefined }) {
   if (!stats) return null
   const cards = [
-    { label: 'Total', value: stats.total, color: 'text-slate-900 dark:text-white' },
-    { label: 'En attente', value: stats.PENDING, color: 'text-amber-600 dark:text-amber-400' },
-    { label: 'En vérification', value: stats.UNDER_REVIEW, color: 'text-blue-600 dark:text-blue-400' },
-    { label: 'Approuvées', value: stats.APPROVED, color: 'text-emerald-600 dark:text-emerald-400' },
-    { label: 'Rejetées', value: stats.REJECTED, color: 'text-rose-600 dark:text-rose-400' },
+    { label: 'Total', value: stats.total, iconBg: 'bg-slate-100', iconColor: 'text-slate-500', icon: <Inbox className="h-5 w-5" /> },
+    { label: 'En attente', value: stats.PENDING, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', icon: <Clock className="h-5 w-5" /> },
+    { label: 'En vérification', value: stats.UNDER_REVIEW, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', icon: <Eye className="h-5 w-5" /> },
+    { label: 'Approuvées', value: stats.APPROVED, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', icon: <UserCheck className="h-5 w-5" /> },
+    { label: 'Rejetées', value: stats.REJECTED, iconBg: 'bg-rose-50', iconColor: 'text-rose-600', icon: <XCircle className="h-5 w-5" /> },
   ]
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
       {cards.map((c) => (
-        <div key={c.label} className="rounded-xl border border-slate-200/70 bg-white px-4 py-3 dark:border-slate-700/50 dark:bg-slate-800/50">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{c.label}</p>
-          <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
+        <div key={c.label} className="card fx-spot group relative overflow-hidden p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{c.label}</p>
+              <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{c.value}</p>
+            </div>
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg} ${c.iconColor} transition-transform duration-200 group-hover:scale-110`}>{c.icon}</span>
+          </div>
         </div>
       ))}
     </div>
@@ -468,7 +473,7 @@ export default function RegistrationRequests() {
   if (isLoading) return <Spinner label="Chargement des demandes..." />
 
   return (
-    <div className="space-y-6">
+    <div className="fx-simple space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

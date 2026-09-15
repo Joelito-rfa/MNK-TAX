@@ -116,7 +116,7 @@ export default function Register() {
       </div>
 
       {/* Panneau gauche — branding register */}
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-br from-indigo-900 via-sidebar to-brand-900 p-12 lg:flex">
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-sidebar p-12 lg:flex">
         {/* Orbes lumineuses */}
         <div className="absolute -right-32 -top-32 h-96 w-96 animate-float-slow rounded-full bg-indigo-400/20 blur-3xl" />
         <div className="absolute -bottom-40 -left-24 h-96 w-96 animate-float rounded-full bg-brand-400/10 blur-3xl" />

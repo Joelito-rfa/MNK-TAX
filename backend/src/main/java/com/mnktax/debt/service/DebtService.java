@@ -5,6 +5,8 @@ import com.mnktax.administration.service.SystemParameterService;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.ReferenceGenerator;
+import com.mnktax.communication.entity.CommunicationEventType;
+import com.mnktax.communication.service.CommunicationEventEngine;
 import com.mnktax.common.util.SecurityUtils;
 import com.mnktax.debt.dto.DebtDtos.DebtHistoryDto;
 import com.mnktax.debt.dto.DebtDtos.DebtStatsDto;
@@ -73,13 +75,15 @@ public class DebtService {
     private final DeclarationRepository declarationRepository;
     private final TaxpayerRepository taxpayerRepository;
     private final TaxTypeRepository taxTypeRepository;
+    private final CommunicationEventEngine communicationEventEngine;
 
     public DebtService(TaxDebtRepository debtRepository, DebtItemRepository itemRepository,
                        PenaltyRepository penaltyRepository, InterestRepository interestRepository,
                        DebtHistoryRepository historyRepository, DeadlineRepository deadlineRepository,
                        NotificationService notificationService, SystemParameterService parameterService,
                        DeclarationRepository declarationRepository,
-                       TaxpayerRepository taxpayerRepository, TaxTypeRepository taxTypeRepository) {
+                       TaxpayerRepository taxpayerRepository, TaxTypeRepository taxTypeRepository,
+                       @org.springframework.context.annotation.Lazy CommunicationEventEngine communicationEventEngine) {
         this.debtRepository = debtRepository;
         this.itemRepository = itemRepository;
         this.penaltyRepository = penaltyRepository;
@@ -91,6 +95,7 @@ public class DebtService {
         this.declarationRepository = declarationRepository;
         this.taxpayerRepository = taxpayerRepository;
         this.taxTypeRepository = taxTypeRepository;
+        this.communicationEventEngine = communicationEventEngine;
     }
 
     @Transactional
@@ -138,6 +143,10 @@ public class DebtService {
                 null, "Montant : " + principal);
         notificationService.notifyDebtIssued(assessment.getTaxpayer().getUserId(), saved.getReference(),
                 assessment.getTaxpayer().getNif(), principal);
+        communicationEventEngine.onEvent(CommunicationEventType.DEBT_CREATED, assessment.getTaxpayer(),
+                java.util.Map.of("debt_reference", saved.getReference(),
+                        "amount", principal.toPlainString(),
+                        "due_date", dueDate.toString()));
         return saved;
     }
 
@@ -258,6 +267,11 @@ public class DebtService {
             debtRepository.save(debt);
             addHistory(debt, "STATUS_CHANGE", "Statut changé vers EN_RETARD",
                     oldStatus.name(), DebtStatus.OVERDUE.name());
+            // Communication automatique : créance en retard (règles configurables).
+            communicationEventEngine.onEvent(CommunicationEventType.DEBT_OVERDUE, debt.getTaxpayer(),
+                    java.util.Map.of("debt_reference", debt.getReference(),
+                            "amount", debt.getBalance().toPlainString(),
+                            "due_date", debt.getDueDate().toString()));
             details.add(debt.getReference() + " (" + debt.getTaxpayer().getName()
                     + ") — solde " + debt.getBalance());
         }
@@ -524,6 +538,12 @@ public class DebtService {
         notificationService.notifyCollectionNotice(
                 debt.getTaxpayer() != null ? debt.getTaxpayer().getUserId() : null,
                 debt.getReference(), debt.getBalance());
+        if (debt.getTaxpayer() != null) {
+            communicationEventEngine.onEvent(CommunicationEventType.FORMAL_NOTICE, debt.getTaxpayer(),
+                    java.util.Map.of("debt_reference", debt.getReference(),
+                            "amount", debt.getBalance().toPlainString(),
+                            "due_date", debt.getDueDate() == null ? "" : debt.getDueDate().toString()));
+        }
     }
 
     @Transactional

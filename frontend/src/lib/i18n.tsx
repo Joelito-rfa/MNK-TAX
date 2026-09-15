@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react'
 import { fr } from '../locales/fr'
 import { mg } from '../locales/mg'
 import { en } from '../locales/en'
@@ -9,22 +9,44 @@ const STORAGE_KEY = 'mnktax-locale'
 
 const translations: Record<Locale, Record<string, string>> = { fr, mg, en }
 
+export const localeToIntl: Record<Locale, string> = {
+  fr: 'fr-MG',
+  mg: 'mg-MG',
+  en: 'en-US',
+}
+
+export type TVars = Record<string, string | number>
+
+function interpolate(template: string, vars?: TVars): string {
+  if (!vars) return template
+  return template.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? String(vars[k]) : `{${k}}`))
+}
+
 interface I18nContextValue {
   locale: Locale
   setLocale: (l: Locale) => void
-  t: (key: string) => string
+  t: (key: string, vars?: TVars) => string
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null)
 
+function getInitialLocale(): Locale {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored === 'fr' || stored === 'mg' || stored === 'en') return stored
+    const nav = navigator.language?.slice(0, 2)
+    if (nav === 'en') return 'en'
+    if (nav === 'mg') return 'mg'
+  } catch {}
+  return 'fr'
+}
+
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored === 'fr' || stored === 'mg' || stored === 'en') return stored
-    } catch {}
-    return 'fr'
-  })
+  const [locale, setLocaleState] = useState<Locale>(getInitialLocale)
+
+  useEffect(() => {
+    document.documentElement.lang = locale
+  }, [locale])
 
   const setLocale = useCallback((l: Locale) => {
     setLocaleState(l)
@@ -32,8 +54,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = l
   }, [])
 
-  const t = useCallback((key: string): string => {
-    return translations[locale]?.[key] ?? translations.fr[key] ?? key
+  const t = useCallback((key: string, vars?: TVars): string => {
+    const dict = translations[locale] ?? translations.fr
+    const raw = dict[key] ?? translations.fr[key] ?? key
+    if (import.meta.env.DEV && !(dict[key] ?? translations.fr[key])) {
+      console.warn(`[i18n] missing key "${key}" for locale "${locale}"`)
+    }
+    return interpolate(raw, vars)
   }, [locale])
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t])

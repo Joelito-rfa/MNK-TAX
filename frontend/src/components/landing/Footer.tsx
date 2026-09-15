@@ -49,7 +49,7 @@ export default function Footer({ onLogin, onRequestAccess }: FooterProps) {
               © {new Date().getFullYear()} MNK-TAX — Prototype académique, données fictives.
             </p>
             <p className="text-[11px] text-slate-600">
-              Gestion des impôts à Madagascar
+              DGI MANAKARA — Direction Régionale des Impôts de Vatovavy-Fitovinany
             </p>
           </div>
         </ScrollReveal>

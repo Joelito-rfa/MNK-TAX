@@ -26,6 +26,44 @@ html {
   --color-ink: #101828;
   --color-sidebar: #0f172a;
 
+  /* Material Design 3 — Surface hierarchy */
+  --color-surface-base: #FEFBFF;
+  --color-surface-dim: #DED8E1;
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-low: #F7F2FA;
+  --color-surface-container: #F1ECF4;
+  --color-surface-container-high: #ECE6F0;
+  --color-surface-container-highest: #E6E0E9;
+  --color-surface-bright: #FEFBFF;
+
+  /* Material Design 3 — Color roles */
+  --color-md-primary: #4F46E5;
+  --color-md-on-primary: #FFFFFF;
+  --color-md-primary-container: #E0DEFF;
+  --color-md-on-primary-container: #190648;
+  --color-md-secondary: #625B71;
+  --color-md-on-secondary: #FFFFFF;
+  --color-md-secondary-container: #E8DEF8;
+  --color-md-on-secondary-container: #1D192B;
+  --color-md-tertiary: #059669;
+  --color-md-on-tertiary: #FFFFFF;
+  --color-md-tertiary-container: #D1FAE5;
+  --color-md-on-tertiary-container: #002114;
+  --color-md-error: #DC2626;
+  --color-md-on-error: #FFFFFF;
+  --color-md-on-surface: #1C1B1F;
+  --color-md-on-surface-variant: #49454F;
+  --color-md-outline: #79747E;
+  --color-md-outline-variant: #CAC4D0;
+
+  /* Material Design 3 — Elevation */
+  --shadow-elevation-0: none;
+  --shadow-elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 1px rgb(0 0 0 / 0.1);
+  --shadow-elevation-2: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 2px 6px 2px rgb(0 0 0 / 0.1);
+  --shadow-elevation-3: 0 4px 8px 3px rgb(0 0 0 / 0.1), 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  --shadow-elevation-4: 0 6px 10px 4px rgb(0 0 0 / 0.1), 0 2px 3px 0 rgb(0 0 0 / 0.1);
+  --shadow-elevation-5: 0 8px 12px 6px rgb(0 0 0 / 0.1), 0 4px 4px 0 rgb(0 0 0 / 0.1);
+
   --shadow-card: 0 1px 2px 0 rgb(16 24 40 / 0.05);
   --shadow-card-hover: 0 6px 24px -6px rgb(16 24 40 / 0.12);
   --shadow-popover: 0 12px 32px -8px rgb(16 24 40 / 0.18);
@@ -94,6 +132,94 @@ html {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
 }
+
+/* ── Scène céleste de la carte DGI (soleil / lune + étoiles filantes) ── */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes spin-slower {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(6px, 4px); }
+}
+@keyframes twinkle {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+@keyframes shoot {
+  0% { transform: translate(0, 0) rotate(-35deg); opacity: 0; }
+  8% { opacity: 1; }
+  22% { opacity: 0; }
+  100% { transform: translate(120px, 84px) rotate(-35deg); opacity: 0; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.12); }
+}
+/* Phase de la lune : croissant → demi → plein → demi → croissant.
+   Uniquement des formes ellipse() de même type, interpolées en douceur sans glitch.
+   La partie retirée est coupée (invisible), aucun rond/trou ne se déplace visiblement. */
+@keyframes lune-phase {
+  0%   { clip-path: ellipse(52% 52% at 50% 50%); }
+  15%  { clip-path: ellipse(26% 52% at 22% 50%); }          /* croissant */
+  32%  { clip-path: ellipse(42% 52% at 40% 50%); }          /* premier quartier */
+  50%  { clip-path: ellipse(52% 52% at 50% 50%); }          /* pleine lune */
+  68%  { clip-path: ellipse(26% 52% at 78% 50%); }          /* croissant inverse */
+  84%  { clip-path: ellipse(42% 52% at 60% 50%); }
+  100% { clip-path: ellipse(52% 52% at 50% 50%); }
+}
+
+.animate-spin-slow { animation: spin-slow 18s linear infinite; }
+.animate-spin-slower { animation: spin-slower 30s linear infinite; }
+.animate-drift { animation: drift 7s ease-in-out infinite; }
+.animate-twinkle { animation: twinkle 3s ease-in-out infinite; }
+.animate-shoot { animation: shoot 4s ease-in infinite; }
+.animate-pulse-soft { animation: pulse-soft 4s ease-in-out infinite; }
+
+/* ── Animations modernes des astres de la carte DGI ── */
+@keyframes charm-drift {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-4px) rotate(2deg); }
+}
+@keyframes sun-breath {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.25); }
+}
+@keyframes lune-glow {
+  0% { transform: translateX(-70%); opacity: 0; }
+  35% { opacity: 0.55; }
+  65% { opacity: 0.55; }
+  100% { transform: translateX(70%); opacity: 0; }
+}
+.animate-charm-drift { animation: charm-drift 9s ease-in-out infinite; }
+.animate-sun-breath { animation: sun-breath 4s ease-in-out infinite; }
+.animate-lune-glow { animation: lune-glow 6s ease-in-out infinite; }
+
+/* ── NifCard : astre 3D soleil/lune (haut-gauche image) ── */
+.nif-celestial { perspective: 800px; width: 38px; height: 38px; }
+.nif-celestial-card { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: nif-float 3.8s ease-in-out infinite; }
+.nif-sun, .nif-moon { position: absolute; inset: 0; border-radius: 9999px; transform-style: preserve-3d; backface-visibility: hidden; }
+.nif-sun { background: radial-gradient(circle at 35% 30%, #fef08a 0%, #facc15 35%, #eab308 60%, #ca8a04 100%); box-shadow: 0 2px 10px rgb(234 179 8 / 0.6), 0 0 20px rgb(250 204 21 / 0.45), inset -3px -4px 8px rgb(202 138 4 / 0.5), inset 2px 2px 6px rgb(255 255 255 / 0.7); }
+.nif-sun-core { position: absolute; inset: 4px; border-radius: 9999px; background: radial-gradient(circle at 30% 25%, rgba(255,255,255,0.9) 0%, transparent 45%); }
+.nif-sun-ray { position: absolute; left: 50%; top: 50%; width: 2px; height: 46px; margin-left: -1px; margin-top: -23px; background: linear-gradient(to bottom, rgb(250 204 21 / 0.9), transparent); border-radius: 9999px; transform-origin: center; opacity: 0.7; }
+.nif-sun-ray-1 { transform: rotate(0deg) translateY(-2px); }
+.nif-sun-ray-2 { transform: rotate(45deg) translateY(-2px); }
+.nif-sun-ray-3 { transform: rotate(90deg) translateY(-2px); }
+.nif-sun-ray-4 { transform: rotate(135deg) translateY(-2px); }
+.nif-moon { background: radial-gradient(circle at 30% 28%, #e2e8f0 0%, #cbd5e1 40%, #94a3b8 75%, #64748b 100%); box-shadow: 0 2px 10px rgb(0 0 0 / 0.35), 0 0 18px rgb(148 163 184 / 0.4), inset -4px -5px 10px rgb(71 85 105 / 0.6), inset 2px 2px 6px rgb(255 255 255 / 0.5); animation: nif-lune-phase 60s linear infinite; }
+.nif-moon-crater { position: absolute; border-radius: 9999px; background: rgb(100 116 139 / 0.45); box-shadow: inset 1px 1px 3px rgb(0 0 0 / 0.3), inset -1px -1px 2px rgb(255 255 255 / 0.2); }
+.nif-moon-crater-1 { width: 9px; height: 9px; left: 7px; top: 8px; }
+.nif-moon-crater-2 { width: 6px; height: 6px; left: 18px; top: 14px; }
+.nif-moon-crater-3 { width: 5px; height: 5px; left: 10px; top: 20px; }
+html:not(.dark) .nif-moon { display: none; }
+.dark .nif-sun { display: none; }
+@keyframes nif-float { 0%,100% { transform: translateY(0) rotateX(8deg) rotateY(-10deg); } 50% { transform: translateY(-4px) rotateX(12deg) rotateY(10deg); } }
+@keyframes nif-spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+@keyframes nif-lune-phase { 0% { clip-path: ellipse(52% 52% at 50% 50%); } 15% { clip-path: ellipse(26% 52% at 22% 50%); } 32% { clip-path: ellipse(42% 52% at 40% 50%); } 50% { clip-path: ellipse(52% 52% at 50% 50%); } 68% { clip-path: ellipse(26% 52% at 78% 50%); } 84% { clip-path: ellipse(42% 52% at 60% 50%); } 100% { clip-path: ellipse(52% 52% at 50% 50%); } }
 
 @keyframes progress-grow {
   from { transform: scaleX(0); }
@@ -186,6 +312,95 @@ html {
     transform: translate3d(calc(var(--sway, 0px) * -0.4), 118vh, 0) rotate(-4deg);
     opacity: 0;
   }
+}
+
+/* ── Hero « Bienvenue » : effet 3D du fond (zoom lent + scène en perspective) ── */
+.hero-3d {
+  transform-style: preserve-3d;
+}
+/* Zoom Ken Burns très lent sur l'image active — depth sans distraction */
+@keyframes hero-ken-burns {
+  0%   { transform: translateZ(-30px) scale(1.12) translate3d(0, 0, 0); }
+  50%  { transform: translateZ(-30px) scale(1.17) translate3d(-0.8%, 0.6%, 0); }
+  100% { transform: translateZ(-30px) scale(1.12) translate3d(0, 0, 0); }
+}
+.hero-ken-burns {
+  animation: hero-ken-burns 18s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ── 3D Animation keyframes ─────────────────────── */
+@keyframes spin3d {
+  from { transform: rotateZ(0deg); }
+  to { transform: rotateZ(360deg); }
+}
+
+@keyframes float3d {
+  0%, 100% { transform: translateY(0) translateZ(0); }
+  25% { transform: translateY(-12px) translateZ(10px); }
+  50% { transform: translateY(-6px) translateZ(-5px); }
+  75% { transform: translateY(-15px) translateZ(8px); }
+}
+
+@keyframes rotatePrism {
+  0%, 100% { transform: rotateX(0deg) rotateY(0deg); }
+  25% { transform: rotateX(8deg) rotateY(-12deg); }
+  50% { transform: rotateX(-5deg) rotateY(8deg); }
+  75% { transform: rotateX(10deg) rotateY(-6deg); }
+}
+
+@keyframes rotateCube {
+  0%, 100% { transform: rotateX(0deg) rotateY(0deg); }
+  25% { transform: rotateX(15deg) rotateY(-20deg); }
+  50% { transform: rotateX(-10deg) rotateY(15deg); }
+  75% { transform: rotateX(12deg) rotateY(-8deg); }
+}
+
+@keyframes rotateGlobe {
+  from { transform: rotateY(0deg) rotateX(15deg); }
+  to { transform: rotateY(360deg) rotateX(15deg); }
+}
+
+@keyframes particlePulse {
+  0%, 100% { opacity: var(--p-op, 0.04); transform: scale(1); }
+  50% { opacity: calc(var(--p-op, 0.04) * 2.5); transform: scale(1.6); }
+}
+
+/* ── NifCard 3D (Sidebar menu.png) ── */
+.nif-3d-wrap {
+  perspective: 900px;
+  perspective-origin: center center;
+}
+.nif-3d-card {
+  transform-style: preserve-3d;
+  animation: nif-float-3d 7s ease-in-out infinite;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.6s ease, border-color 0.3s ease;
+  will-change: transform;
+}
+.nif-3d-img-wrap {
+  transform: translateZ(0);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.nif-3d-content {
+  transform: translateZ(28px);
+  transform-style: preserve-3d;
+}
+.nif-3d-wrap:hover .nif-3d-card {
+  transform: rotateX(6deg) rotateY(-7deg) translateZ(12px);
+  box-shadow: 0 18px 40px -12px rgb(15 23 42 / 0.35), 0 8px 16px -8px rgb(99 102 241 / 0.25);
+}
+.nif-3d-wrap:hover .nif-3d-img-wrap {
+  transform: translateZ(18px) scale(1.03);
+}
+@keyframes nif-float-3d {
+  0%, 100% { transform: rotateX(0deg) rotateY(0deg) translateZ(0); }
+  25% { transform: rotateX(1.5deg) rotateY(-1.5deg) translateZ(0); }
+  50% { transform: rotateX(-1deg) rotateY(1deg) translateZ(6px); }
+  75% { transform: rotateX(1deg) rotateY(1.2deg) translateZ(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nif-3d-card { animation: none; }
+  .nif-3d-wrap:hover .nif-3d-card { transform: none; }
 }
 
 /* ── Scroll reveal animations ─────────────────────── */
@@ -315,12 +530,12 @@ html {
     scroll-margin-top: 76px;
   }
 
-  /* Ligne traversante animée entre les tranches de modules */
+  /* Ligne traversante entre les tranches de modules (surface + indicateur uni) */
   .module-flow {
     position: relative;
     height: 2px;
     overflow: hidden;
-    background: linear-gradient(90deg, transparent, rgb(99 102 241 / 0.18), transparent);
+    background: rgb(99 102 241 / 0.12);
   }
   .module-flow::after {
     content: "";
@@ -329,7 +544,7 @@ html {
     left: 0;
     height: 100%;
     width: 45%;
-    background: linear-gradient(90deg, transparent, rgb(129 140 248 / 0.9), transparent);
+    background: rgb(99 102 241 / 0.7);
     animation: module-flow-run 2.6s ease-in-out infinite;
   }
   @keyframes module-flow-run {
@@ -365,42 +580,21 @@ html {
     z-index: -10;
     overflow: hidden;
     pointer-events: none;
-    background: linear-gradient(120deg, #f6f7fb 0%, #eef1f7 50%, #f4f5f9 100%);
-  }
-
-  /* Aurore sur pseudo-élément : transform uniquement → compositor GPU, fluide */
-  .site-bg::before {
-    content: "";
-    position: absolute;
-    inset: -30%;
-    pointer-events: none;
-    background:
-      radial-gradient(55% 70% at 12% 8%, rgb(99 102 241 / 0.07), transparent 65%),
-      radial-gradient(50% 65% at 88% 15%, rgb(14 165 233 / 0.06), transparent 65%),
-      radial-gradient(60% 55% at 75% 95%, rgb(16 185 129 / 0.05), transparent 65%);
-    animation: aurora-drift 36s ease-in-out infinite;
-    will-change: transform;
+    background: #FEFBFF;
   }
 
   .dark .site-bg {
-    background: linear-gradient(120deg, #0f1117 0%, #111318 50%, #0f1117 100%);
-  }
-
-  .dark .site-bg::before {
-    background:
-      radial-gradient(55% 70% at 12% 8%, rgb(99 102 241 / 0.04), transparent 65%),
-      radial-gradient(50% 65% at 88% 15%, rgb(14 165 233 / 0.03), transparent 65%),
-      radial-gradient(60% 55% at 75% 95%, rgb(16 185 129 / 0.03), transparent 65%);
+    background: #1C1B1F;
   }
 
   .dark .site-bg-orb-1 {
-    background: radial-gradient(circle at 35% 35%, rgb(99 102 241 / 0.08), transparent 70%);
+    background: rgb(99 102 241 / 0.10);
   }
   .dark .site-bg-orb-2 {
-    background: radial-gradient(circle at 60% 40%, rgb(56 189 248 / 0.06), transparent 70%);
+    background: rgb(56 189 248 / 0.08);
   }
   .dark .site-bg-orb-3 {
-    background: radial-gradient(circle at 50% 50%, rgb(16 185 129 / 0.05), transparent 70%);
+    background: rgb(16 185 129 / 0.07);
   }
 
   .site-bg-orb {
@@ -415,7 +609,7 @@ html {
     height: 520px;
     top: -160px;
     left: -140px;
-    background: radial-gradient(circle at 35% 35%, rgb(99 102 241 / 0.16), transparent 70%);
+    background: rgb(99 102 241 / 0.08);
     animation: drift-1 26s ease-in-out infinite;
   }
 
@@ -424,7 +618,7 @@ html {
     height: 440px;
     top: 28%;
     right: -180px;
-    background: radial-gradient(circle at 60% 40%, rgb(56 189 248 / 0.13), transparent 70%);
+    background: rgb(56 189 248 / 0.07);
     animation: drift-2 32s ease-in-out infinite;
   }
 
@@ -433,7 +627,7 @@ html {
     height: 560px;
     bottom: -200px;
     left: 32%;
-    background: radial-gradient(circle at 50% 50%, rgb(16 185 129 / 0.10), transparent 70%);
+    background: rgb(16 185 129 / 0.06);
     animation: drift-3 38s ease-in-out infinite;
   }
 
@@ -457,7 +651,7 @@ html {
     align-items: center;
     justify-content: center;
     border-radius: 4px;
-    background: linear-gradient(135deg, #a7f3d0 0%, #34d399 100%);
+    background: #34d399;
     box-shadow: 0 2px 6px rgb(0 0 0 / 0.15);
     font-weight: 800;
     letter-spacing: 0.02em;
@@ -478,26 +672,16 @@ html {
     border-radius: 2px;
   }
 
-  /* Voile de lisibilité : masque les animations de fond derrière le branding */
+  /* Voile de lisibilité : surface unie translucide derrière le branding */
   .brand-scrim {
     position: absolute;
     inset: -1.5rem -2rem;
     z-index: -10;
     pointer-events: none;
-    background: radial-gradient(
-      ellipse closest-side at 50% 50%,
-      rgb(15 23 42 / 0.78) 0%,
-      rgb(15 23 42 / 0.5) 58%,
-      rgb(15 23 42 / 0) 100%
-    );
+    background: rgb(15 23 42 / 0.55);
   }
   .dark .brand-scrim {
-    background: radial-gradient(
-      ellipse closest-side at 50% 50%,
-      rgb(11 15 26 / 0.82) 0%,
-      rgb(11 15 26 / 0.52) 58%,
-      rgb(11 15 26 / 0) 100%
-    );
+    background: rgb(11 15 26 / 0.6);
   }
 
   /* Panneau formulaire : voile opaque doux qui isole le texte des animations */
@@ -530,8 +714,8 @@ html {
     gap: 8px;
     padding: 8px 14px;
     border-radius: 14px;
-    background: linear-gradient(135deg, rgba(255 255 255 / 0.035) 0%, rgba(255 255 255 / 0.01) 100%);
-    border: 1px solid rgba(255 255 255 / 0.04);
+    background: rgba(255 255 255 / 0.04);
+    border: 1px solid rgba(255 255 255 / 0.05);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow:
@@ -542,8 +726,8 @@ html {
   }
 
   .dark .fiscal-card {
-    background: linear-gradient(135deg, rgba(255 255 255 / 0.025) 0%, rgba(255 255 255 / 0.005) 100%);
-    border-color: rgba(255 255 255 / 0.03);
+    background: rgba(255 255 255 / 0.03);
+    border-color: rgba(255 255 255 / 0.04);
   }
 
   @keyframes fiscal-card-drift {
@@ -673,12 +857,15 @@ html {
   }
 
   .fiscal-chart-bar {
-    background: linear-gradient(to top, var(--color-brand-400), var(--color-brand-300));
     opacity: 0;
     border-radius: 2px 2px 0 0;
     animation: fiscal-bar-grow 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
                fiscal-bar-shimmer 4s ease-in-out infinite;
     will-change: transform, opacity;
+  }
+
+  .fiscal-chart-bar:not([style*="background"]) {
+    background: var(--color-brand-500);
   }
 
   @keyframes fiscal-chart-in {
@@ -749,6 +936,16 @@ html {
 @layer components {
   .card {
     @apply rounded-2xl border border-slate-200/70 bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05)];
+    transition: box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s ease;
+    will-change: transform;
+  }
+  /* Hover-lift subtil (même easing que la landing) */
+  .grid > .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -8px rgb(16 24 40 / 0.14);
+  }
+  .dark .grid > .card:hover {
+    box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.5);
   }
   .dark .card {
     @apply border-slate-700/50 bg-slate-800 shadow-[0_1px_2px_rgba(0,0,0,0.3)];
@@ -825,6 +1022,37 @@ html {
   --color-surface: #0f1117;
   --color-ink: #e2e8f0;
   --color-sidebar: #0b0f1a;
+
+  /* Material Design 3 — Dark surfaces */
+  --color-surface-base: #1C1B1F;
+  --color-surface-dim: #141218;
+  --color-surface-container-lowest: #0F0D13;
+  --color-surface-container-low: #1D1B20;
+  --color-surface-container: #211F26;
+  --color-surface-container-high: #2B2930;
+  --color-surface-container-highest: #36343B;
+  --color-surface-bright: #3B383E;
+
+  /* Material Design 3 — Dark color roles */
+  --color-md-primary: #B8B0FF;
+  --color-md-on-primary: #2F1BA6;
+  --color-md-primary-container: #4635A0;
+  --color-md-on-primary-container: #E0DEFF;
+  --color-md-secondary: #CCC2DC;
+  --color-md-on-secondary: #332D41;
+  --color-md-secondary-container: #4A4458;
+  --color-md-on-secondary-container: #E8DEF8;
+  --color-md-tertiary: #6EE7B7;
+  --color-md-on-tertiary: #003823;
+  --color-md-tertiary-container: #005236;
+  --color-md-on-tertiary-container: #D1FAE5;
+  --color-md-error: #F2B8B5;
+  --color-md-on-error: #601410;
+  --color-md-on-surface: #E6E1E5;
+  --color-md-on-surface-variant: #CAC4D0;
+  --color-md-outline: #938F99;
+  --color-md-outline-variant: #49454F;
+
   --shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.25);
   --shadow-card-hover: 0 6px 24px -6px rgb(0 0 0 / 0.45);
   --shadow-popover: 0 12px 32px -8px rgb(0 0 0 / 0.55);
@@ -840,6 +1068,57 @@ html {
   --text-muted: #64748b;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Material Design tokens — rôles génériques + elevation + radius.
+   Les composants utilisent ces variables ; ne pas disperser
+   de couleurs ad hoc dans les pages.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --background: #f4f5f7;
+  --surface: #ffffff;
+  --surface-container: #f1ecf4;
+  --surface-hover: #f8fafc;
+  --surface-active: #eef2ff;
+  --border: rgb(15 23 42 / 0.08);
+  --text-primary: #101828;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --success: #059669;
+  --warning: #d97706;
+  --error: #dc2626;
+  --info: #0284c7;
+  --elevation-0: none;
+  --elevation-1: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 1px 3px 1px rgb(0 0 0 / 0.1);
+  --elevation-2: 0 1px 2px 0 rgb(0 0 0 / 0.05), 0 2px 6px 2px rgb(0 0 0 / 0.1);
+  --elevation-3: 0 4px 8px 3px rgb(0 0 0 / 0.1), 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  --elevation-4: 0 6px 10px 4px rgb(0 0 0 / 0.1), 0 2px 3px 0 rgb(0 0 0 / 0.1);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+.dark {
+  --background: #0f1117;
+  --surface: #181b25;
+  --surface-container: #211f26;
+  --surface-hover: #1e2230;
+  --surface-active: #262b3d;
+  --border: #2a2e3d;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --primary: #b8b0ff;
+  --primary-hover: #c9c3ff;
+}
+
+/* États focus accessibles (clavier) */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ── Global ── */
 .dark body {
   background-color: transparent;
@@ -853,17 +1132,17 @@ html {
 
 /* ── Fond animé ── */
 .dark .site-bg-orb-1 {
-  background: radial-gradient(circle at 35% 35%, rgb(99 102 241 / 0.25), transparent 70%);
+  background: rgb(99 102 241 / 0.12);
 }
 .dark .site-bg-orb-2 {
-  background: radial-gradient(circle at 60% 40%, rgb(56 189 248 / 0.20), transparent 70%);
+  background: rgb(56 189 248 / 0.10);
 }
 .dark .site-bg-orb-3 {
-  background: radial-gradient(circle at 50% 50%, rgb(16 185 129 / 0.16), transparent 70%);
+  background: rgb(16 185 129 / 0.08);
 }
 
 .dark .money-note {
-  background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+  background: #065f46;
   color: #a7f3d0;
   text-shadow: 0 1px 0 rgb(0 0 0 / 0.3);
 }
@@ -1229,7 +1508,7 @@ html:not(.dark) .landing footer {
   background-image:
     radial-gradient(
       260px circle at var(--mx) var(--my),
-      rgb(129 140 248 / 0.16),
+      rgb(129 140 248 / 0.12),
       transparent 65%
     );
   transition:
@@ -1251,9 +1530,9 @@ html:not(.dark) .landing footer {
   background: conic-gradient(
     from var(--landing-angle),
     transparent 0deg,
-    transparent 250deg,
-    rgb(129 140 248 / 0.9) 310deg,
-    rgb(52 211 153 / 0.7) 330deg,
+    transparent 260deg,
+    rgb(129 140 248 / 0.7) 310deg,
+    rgb(52 211 153 / 0.5) 330deg,
     transparent 360deg
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -1271,12 +1550,12 @@ html:not(.dark) .landing footer {
   z-index: 1;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(105deg, transparent 42%, rgb(99 102 241 / 0.12) 50%, transparent 58%);
+  background: linear-gradient(105deg, transparent 42%, rgb(99 102 241 / 0.08) 50%, transparent 58%);
   transform: translateX(-130%);
   transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .dark .landing :is([class*="hover:-translate-y-1"], section [class*="rounded-3xl"][class*="border"])::after {
-  background: linear-gradient(105deg, transparent 42%, rgb(255 255 255 / 0.1) 50%, transparent 58%);
+  background: linear-gradient(105deg, transparent 42%, rgb(255 255 255 / 0.06) 50%, transparent 58%);
 }
 /* Halo de profondeur sous la carte */
 .landing :is([class*="hover:-translate-y-1"], section [class*="rounded-3xl"][class*="border"]) > :first-child {
@@ -1290,15 +1569,15 @@ html:not(.dark) .landing footer {
 @media (hover: hover) {
   .landing :is([class*="hover:-translate-y-1"], section [class*="rounded-3xl"][class*="border"]):hover {
     --ty: -4px;
-    border-color: rgb(99 102 241 / 0.35) !important;
+    border-color: rgb(99 102 241 / 0.30) !important;
     box-shadow:
-      0 28px 56px -22px rgb(99 102 241 / 0.4),
-      0 4px 12px rgb(15 23 42 / 0.1);
+      0 8px 16px -4px rgb(99 102 241 / 0.25),
+      0 2px 4px rgb(15 23 42 / 0.08);
   }
   .dark .landing :is([class*="hover:-translate-y-1"], section [class*="rounded-3xl"][class*="border"]):hover {
     box-shadow:
-      0 28px 56px -22px rgb(99 102 241 / 0.5),
-      0 4px 12px rgb(0 0 0 / 0.45);
+      0 8px 16px -4px rgb(99 102 241 / 0.35),
+      0 2px 4px rgb(0 0 0 / 0.3);
   }
   .landing :is([class*="hover:-translate-y-1"], section [class*="rounded-3xl"][class*="border"]):hover::before {
     opacity: 1;
@@ -1308,9 +1587,8 @@ html:not(.dark) .landing footer {
     transform: translateX(130%);
   }
   .landing :is([class*="hover:-translate-y-1"], section [class*="rounded-3xl"][class*="border"]):hover :is(div, span)[class*="rounded-"]:has(> svg) {
-    transform: scale(1.12) rotate(-8deg) translateY(-2px);
-    box-shadow: 0 8px 20px -8px rgb(99 102 241 / 0.55);
-    animation: landing-halo 2.2s ease-in-out infinite;
+    transform: scale(1.08) rotate(-4deg);
+    box-shadow: 0 4px 12px -2px rgb(99 102 241 / 0.40);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1350,7 +1628,7 @@ html:not(.dark) .landing footer {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(105deg, transparent 40%, rgb(255 255 255 / 0.35) 50%, transparent 60%);
+  background: linear-gradient(105deg, transparent 40%, rgb(255 255 255 / 0.25) 50%, transparent 60%);
   transform: translateX(-130%);
   animation: dash-shimmer 3.8s ease-in-out infinite;
   animation-delay: var(--d, 0s);
@@ -1410,7 +1688,7 @@ html:not(.dark) .dash-tip {
 .dash-grid span {
   display: block;
   height: 1px;
-  background: linear-gradient(90deg, rgb(148 163 184 / 0.25), transparent);
+  background: rgb(148 163 184 / 0.25);
 }
 /* KPI en cascade (DashboardPreview : au scroll) */
 .dash-scope .dash-kpi {
@@ -1495,7 +1773,7 @@ html:not(.dark) .notif-row {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgb(129 140 248 / 0.9), rgb(52 211 153 / 0.7), transparent);
+  background: linear-gradient(90deg, transparent, rgb(99 102 241 / 0.6), rgb(16 185 129 / 0.4), transparent);
   background-size: 200% 100%;
   animation: actor-beam 2.4s linear infinite;
 }
@@ -1590,7 +1868,165 @@ html:not(.dark) .notif-row {
   from { opacity: 0; transform: translateX(-8px); }
   to { opacity: 1; transform: none; }
 }
+/* ═══════════════════════════════════════════════════════════════
+   APP — full landing généralisé (Dashboard + pages pilotes) :
+   .fx-spot (tilt + spotlight + faisceau + reflet), .fx-btn,
+   .fx-page stagger, Recharts entrance. Même easing que la landing
+   (0.22, 1, 0.36, 1) + ressort (0.34, 1.56, 0.64, 1).
+   ═══════════════════════════════════════════════════════════════ */
+.fx-spot {
+  --mx: 50%;
+  --my: -20%;
+  --rx: 0deg;
+  --ry: 0deg;
+  --ty: 0px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transform:
+    perspective(1000px)
+    rotateX(var(--rx))
+    rotateY(var(--ry))
+    translateY(var(--ty));
+  background-image:
+    radial-gradient(
+      260px circle at var(--mx) var(--my),
+      rgb(129 140 248 / 0.10),
+      transparent 65%
+    );
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.5s ease,
+    border-color 0.3s ease,
+    background-color 0.3s ease;
+  will-change: transform;
+}
+.fx-spot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--landing-angle),
+    transparent 0deg,
+    transparent 260deg,
+    rgb(129 140 248 / 0.7) 310deg,
+    rgb(52 211 153 / 0.5) 330deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+.fx-spot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 42%, rgb(99 102 241 / 0.08) 50%, transparent 58%);
+  transform: translateX(-130%);
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dark .fx-spot::after {
+  background: linear-gradient(105deg, transparent 42%, rgb(255 255 255 / 0.06) 50%, transparent 58%);
+}
+.fx-spot > * { position: relative; z-index: 2; }
+@media (hover: hover) {
+  .fx-spot:hover {
+    --ty: -4px;
+    border-color: rgb(99 102 241 / 0.30) !important;
+    box-shadow:
+      0 8px 16px -4px rgb(99 102 241 / 0.25),
+      0 2px 4px rgb(15 23 42 / 0.08);
+  }
+  .fx-spot:hover::before { opacity: 1; animation: landing-spin 4.5s linear infinite; }
+  .fx-spot:hover::after { transform: translateX(130%); }
+}
+/* Boutons fluides : lift + ressort, comme nav-anim-btn */
+.fx-btn { transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease, background-color 0.25s ease, color 0.25s ease; }
+.fx-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -10px rgb(99 102 241 / 0.55); }
+.fx-btn:active { transform: translateY(0) scale(0.96); }
+/* Inputs : focus lift doux */
+.fx-focus:focus { transform: translateY(-1px); }
+/* Stagger d'entrée des pages pilotes (header → filtres → tableau) */
+.fx-page > *:nth-child(1) { animation: reveal-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.fx-page > *:nth-child(2) { animation: reveal-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both; }
+.fx-page > *:nth-child(3) { animation: reveal-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both; }
+.fx-page > *:nth-child(4) { animation: reveal-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both; }
+/* ── Menu (sidebar) + header : animations SIMPLES et sobres ── */
+@keyframes side-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.side-list > li { animation: side-in 0.25s ease-out both; }
+.side-list > li:nth-child(1) { animation-delay: 0.02s; }
+.side-list > li:nth-child(2) { animation-delay: 0.04s; }
+.side-list > li:nth-child(3) { animation-delay: 0.06s; }
+.side-list > li:nth-child(4) { animation-delay: 0.08s; }
+.side-list > li:nth-child(5) { animation-delay: 0.10s; }
+.side-list > li:nth-child(6) { animation-delay: 0.12s; }
+.side-list > li:nth-child(7) { animation-delay: 0.14s; }
+.side-list > li:nth-child(8) { animation-delay: 0.16s; }
+.side-list > li:nth-child(n+9) { animation-delay: 0.18s; }
+@keyframes header-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+.header-in { animation: header-in 0.25s ease-out both; }
+/* Boutons du header : simple fondu + léger scale, sans lift ni halo */
+.hbtn { transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease; }
+.hbtn:active { transform: scale(0.94); }
+/* Recharts : entrée fluide des conteneurs + shimmer */
+.rechart-entrance { animation: reveal-scale-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.rechart-shimmer { position: relative; overflow: hidden; }
+.rechart-shimmer::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgb(255 255 255 / 0.18) 50%, transparent 60%);
+  transform: translateX(-130%); animation: dash-shimmer 4.2s ease-in-out infinite;
+}
+/* ═══════════════════════════════════════════════════════════════
+   Référentiels + Administration : animations de DONNÉES simples.
+   Scope .fx-simple : pas de tilt/spotlight/faisceau, pas de cascade ;
+   simple fondu rapide. L'identité des cartes (couleurs, icônes) reste.
+   ═══════════════════════════════════════════════════════════════ */
+.fx-simple .fx-spot {
+  transform: none;
+  background-image: none;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.fx-simple .fx-spot::before,
+.fx-simple .fx-spot::after {
+  display: none;
+}
+@media (hover: hover) {
+  .fx-simple .fx-spot:hover {
+    transform: none;
+    border-color: rgb(99 102 241 / 0.25) !important;
+    box-shadow: 0 4px 12px -6px rgb(16 24 40 / 0.12);
+  }
+}
+.fx-simple tbody tr {
+  animation: fade-in 0.2s ease-out both;
+}
+.fx-simple .grid > .card,
+.fx-simple .kpi-grid > .card {
+  animation: fade-in 0.25s ease-out both;
+}
+.fx-simple.fx-page > * {
+  animation: fade-in 0.3s ease-out both;
+}
 @media (prefers-reduced-motion: reduce) {
+  .side-list > li, .header-in { animation: none !important; }
+  .hbtn { transition: none !important; }
+  .fx-spot, .fx-spot::before, .fx-spot::after, .fx-btn, .rechart-entrance, .rechart-shimmer::after { animation: none !important; transition: none !important; transform: none !important; }
   .dash-scope .dash-bar,
   .dash-scope .dash-kpi {
     transform: none;

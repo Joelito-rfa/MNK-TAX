@@ -6,6 +6,7 @@ import Header from './Header'
 import Sidebar from './Sidebar'
 import FallingMoney from './FallingMoney'
 import AiAssistant from './AiAssistant'
+import { useSpotlight } from '../lib/useSpotlight'
 
 export default function Layout() {
   const { user } = useAuth()
@@ -26,6 +27,7 @@ export default function Layout() {
   }
 
   const permissions = user?.permissions ?? []
+  useSpotlight(location.pathname)
 
   return (
     <div className="h-screen overflow-hidden">

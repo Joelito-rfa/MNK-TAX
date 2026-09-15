@@ -7,7 +7,7 @@ export default function NotFound() {
   const { t } = useI18n()
   return (
     <div className="flex animate-fade-in flex-col items-center justify-center py-24">
-      <p className="animate-pop-in bg-gradient-to-br from-brand-600 to-brand-800 bg-clip-text text-6xl font-bold text-transparent">404</p>
+      <p className="animate-pop-in bg-brand-700 bg-clip-text text-6xl font-bold text-transparent">404</p>
       <h1 className="mt-3 animate-slide-up text-xl font-semibold text-slate-900 dark:text-slate-100" style={{ animationDelay: '0.1s' }}>{t('error.notFound')}</h1>
       <p className="mt-1 animate-slide-up text-sm text-slate-500 dark:text-slate-400" style={{ animationDelay: '0.2s' }}>{t('error.notFound.text')}</p>
       <Link to="/" className="mt-6 animate-slide-up" style={{ animationDelay: '0.3s' }}>

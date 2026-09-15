@@ -23,7 +23,8 @@ import {
 } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiPost } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
-import { fmtDate } from '../lib/format'
+import { useI18n } from '../lib/i18n'
+import { useLocaleFormatters } from '../lib/format'
 import type { Deadline, TaxType } from '../types'
 import { Button, Card, EmptyState, Field, Input, Modal, Select, Badge } from '../components/ui'
 import { useToast } from '../components/Toast'
@@ -135,6 +136,8 @@ function isSameDay(d1: string, d2: string): boolean {
 /* ═══════════════════════════ Main Component ═══════════════════════════ */
 
 export default function Deadlines() {
+  const { t } = useI18n()
+  const { fmtDate } = useLocaleFormatters()
   const toast = useToast()
 
   const [viewMode, setViewMode] = useState<ViewMode>('calendar')
@@ -257,7 +260,7 @@ export default function Deadlines() {
   const handleExport = () => {
     const rows = filteredDeadlines.length > 0 ? filteredDeadlines : deadlines
     if (rows.length === 0) {
-      toast.info('Aucune echeance a exporter')
+      toast.info(t("deadlines.noExport"))
       return
     }
     downloadCsv(
@@ -273,7 +276,7 @@ export default function Deadlines() {
         ]
       }),
     )
-    toast.success('Export termine')
+    toast.success(t('toast.exportDone'))
   }
 
   /* ── Calendar grid ── */
@@ -330,7 +333,7 @@ export default function Deadlines() {
   if (isLoading) return <DeadlinesSkeleton />
 
   return (
-    <div className="space-y-6 animate-page-in">
+    <div className="fx-simple space-y-6 animate-page-in">
       {/* ═══════════════ HEADER ═══════════════ */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -358,9 +361,9 @@ export default function Deadlines() {
           </button>
           <button
             onClick={() => setCreateOpen(true)}
-            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
           >
-            <span className="absolute inset-0 bg-gradient-to-r from-violet-500 to-indigo-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+            <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
             <Plus className="relative h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
             <span className="relative">Nouvelle echeance</span>
           </button>
@@ -600,7 +603,7 @@ export default function Deadlines() {
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Rechercher une echeance..."
+                placeholder={t('common.search')}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
               {searchQuery && (
@@ -1104,13 +1107,13 @@ function CreateDeadlineModal({ onClose }: { onClose: () => void }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['deadlines'] })
       onClose()
-      toast.success('Echeance creee')
+      toast.success(t('toast.saveSuccess'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
   return (
-    <Modal open onClose={onClose} title="Nouvelle echeance" subtitle="Date configurable, jamais codee en dur.">
+    <Modal open onClose={onClose} title={t("deadlines.newDeadline")} subtitle="Date configurable, jamais codee en dur.">
       <form
         onSubmit={(e) => { e.preventDefault(); create.mutate() }}
         className="space-y-4"

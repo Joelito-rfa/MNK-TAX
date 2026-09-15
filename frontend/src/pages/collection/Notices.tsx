@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertCircle, Inbox, Mail, Plus, RefreshCw, X } from 'lucide-react'
+import { useI18n } from '../../lib/i18n'
+import { useLocaleFormatters } from '../../lib/format'
 import { apiErrorMessage, apiGet, apiPost } from '../../lib/api'
-import { fmtDate, fmtMGA } from '../../lib/format'
 import type { CollectionDebtRow, CollectionStats, DebtStatus, Page, TaxType } from '../../types'
 import { Button, Card, EmptyState, Pagination, Select, Spinner, Table, Td, Th } from '../../components/ui'
 import { useToast } from '../../components/Toast'
@@ -37,6 +38,8 @@ export default function CollectionNotices() {
 
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { t } = useI18n()
+  const { fmtMGA, fmtDate, fmtDateTime } = useLocaleFormatters()
 
   const buildParams = () => {
     const p = new URLSearchParams({ page: String(page), size: String(size), inCollection: 'true' })
@@ -62,13 +65,13 @@ export default function CollectionNotices() {
 
   const createNotice = useMutation({
     mutationFn: () => apiPost('/collection/notices', { debtId: Number(noticeDebtId), noticeType: 'MISE_EN_DEMEURE', content: noticeContent || undefined }),
-    onSuccess: () => { invalidateQueries(); setNoticeOpen(false); setNoticeDebtId(''); setNoticeContent(''); toast.success('Mise en demeure émise') },
+    onSuccess: () => { invalidateQueries(); setNoticeOpen(false); setNoticeDebtId(''); setNoticeContent(''); toast.success(t('collection.noticeIssued')) },
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
   const [payForm, setPayForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), method: 'CASH' })
   const registerPayment = useMutation({
     mutationFn: () => apiPost('/collection/payment', { debtId: selectedDebt!.id, amount: Number(payForm.amount), paymentDate: payForm.paymentDate, method: payForm.method }),
-    onSuccess: () => { invalidateQueries(); setPaymentOpen(false); setSelectedDebt(null); setPayForm({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), method: 'CASH' }); toast.success('Paiement enregistré') },
+    onSuccess: () => { invalidateQueries(); setPaymentOpen(false); setSelectedDebt(null); setPayForm({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), method: 'CASH' }); toast.success(t('collection.paymentSaved')) },
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
 
@@ -92,12 +95,12 @@ export default function CollectionNotices() {
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">Mises en demeure</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Créances en phase de mise en demeure</p>
+          <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">{t('collection.notices')}</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('collection.subtitle')}</p>
         </div>
         <div className="flex flex-wrap shrink-0 items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-4 w-4" /> Actualiser</Button>
-          <button onClick={() => openNotice()} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:from-orange-500 hover:to-amber-500 active:scale-[0.98]">
+          <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
+          <button onClick={() => openNotice()} className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:bg-orange-500 active:scale-[0.98]">
             <Plus className="h-4 w-4" /> Nouvelle mise en demeure
           </button>
         </div>
@@ -142,7 +145,7 @@ export default function CollectionNotices() {
           </div>
         ) : !data || data.content.length === 0 ? (
           <div className="py-14">
-            <EmptyState icon={<Inbox className="h-10 w-10" />} title="Aucune mise en demeure" subtitle="Aucune créance n'est en phase de mise en demeure." />
+            <EmptyState icon={<Inbox className="h-10 w-10" />} title={t("collection.noResult")} subtitle={t("common.noResult")} />
             {hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={resetFilters}><X className="h-4 w-4" /> Réinitialiser</Button></div>}
           </div>
         ) : (
@@ -152,7 +155,7 @@ export default function CollectionNotices() {
                 <div className="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
                   <Table>
                     <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
-                      <tr><Th>Réf.</Th><Th>NIF</Th><Th>Contribuable</Th><Th>Impôt</Th><Th>Reste</Th><Th>Statut</Th><Th>Priorité</Th><Th>Dernière action</Th><Th className="w-12"></Th></tr>
+                      <tr><Th>{t('common.reference')}</Th><Th>NIF</Th><Th>Contribuable</Th><Th>Impôt</Th><Th>Reste</Th><Th>Statut</Th><Th>Priorité</Th><Th>Dernière action</Th><Th className="w-12"></Th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
                       {data.content.map((d) => (
@@ -164,7 +167,7 @@ export default function CollectionNotices() {
                           <Td><span className="font-semibold text-orange-600 dark:text-orange-400">{fmtMGA(d.balance)}</span></Td>
                           <Td><StatusBadge status={d.debtStatus} /></Td>
                           <Td><PriorityBadge priority={d.collectionPriority} /></Td>
-                          <Td><div className="max-w-[170px]">{d.lastAction ? <><p className="truncate text-xs text-slate-600 dark:text-slate-400">{ACTION_ICONS[d.lastActionType ?? ''] ?? ''} {ACTION_LABELS[d.lastActionType ?? ''] ?? d.lastAction}</p>{d.lastActionDate && <p className="text-[10px] text-slate-400 dark:text-slate-500">le {fmtDate(d.lastActionDate)}</p>}</> : <span className="text-xs text-slate-400">—</span>}</div></Td>
+                          <Td><div className="max-w-[170px]">{d.lastAction ? <><p className="truncate text-xs text-slate-600 dark:text-slate-400">{ACTION_ICONS[d.lastActionType ?? ''] ?? ''} {t(ACTION_KEYS[d.lastActionType ?? ''] ?? 'common.unknown') ?? d.lastAction}</p>{d.lastActionDate && <p className="text-[10px] text-slate-400 dark:text-slate-500">le {fmtDate(d.lastActionDate)}</p>}</> : <span className="text-xs text-slate-400">—</span>}</div></Td>
                           <Td><RowActions debt={d} onView={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }} onPayment={() => { setSelectedDebt(d); setPaymentOpen(true) }} onCall={() => {}} onReminder={() => {}} onNotice={() => openNotice(String(d.id))} onCommandment={() => {}} onAtd={() => {}} onPaymentPlan={() => navigate(`/collection/plans?debt=${d.id}`)} onHistory={() => {}} /></Td>
                         </tr>
                       ))}
@@ -197,7 +200,7 @@ export default function CollectionNotices() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Contenu (facultatif)</label>
-                <textarea rows={4} value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder="ex : Invitation à régulariser la créance dans les délais prévus par la réglementation applicable." className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
+                <textarea rows={4} value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder={t('common.description')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="secondary" onClick={() => setNoticeOpen(false)}>Annuler</Button>

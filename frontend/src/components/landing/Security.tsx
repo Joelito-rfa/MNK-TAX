@@ -197,7 +197,7 @@ export default function Security() {
                     </span>
                   ))}
                 </div>
-                <div className="h-px w-8 bg-gradient-to-r from-brand-500/40 to-transparent sm:h-12 sm:w-px sm:rotate-0" />
+                <div className="h-px w-8 bg-brand-500/25 sm:h-12 sm:w-px sm:rotate-0" />
                 <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-brand-300">
                   {criticalGuards.map((g, i) => (
                     <span key={g} className="flex items-center gap-2">
@@ -257,7 +257,7 @@ export default function Security() {
             <Button
               onClick={() => navigate('/login')}
               size="lg"
-              className="rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 px-8 text-white shadow-xl shadow-brand-600/25"
+              className="rounded-2xl bg-brand-600 px-8 text-white shadow-xl shadow-brand-600/25"
             >
               Accéder à la plateforme
             </Button>

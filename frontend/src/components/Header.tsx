@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Bell,
   CheckCheck,
   ChevronDown,
+  Globe,
   Key,
   LogOut,
   Menu,
@@ -19,7 +20,7 @@ import { apiGet, apiPost } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../lib/theme'
 import { useI18n, type Locale } from '../lib/i18n'
-import { fmtDateTime } from '../lib/format'
+import { useLocaleFormatters } from '../lib/format'
 import type { Message, Notification, Page } from '../types'
 import { Avatar } from './Avatar'
 import { UserAvatar } from './UserAvatar'
@@ -45,6 +46,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
   const toast = useToast()
   const { resolved, toggle: cycleTheme } = useTheme()
   const { locale, setLocale, t } = useI18n()
+  const { fmtDateTime } = useLocaleFormatters()
 
   const { data: unread } = useQuery({
     queryKey: ['notifications', 'unread'],
@@ -79,6 +81,33 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
     toast.success(t('header.markAllRead'))
   }
 
+  // Après ouverture du dropdown, tout marquer comme lu automatiquement
+  // (le badge disparaît sans action manuelle supplémentaire)
+  useEffect(() => {
+    if (openMenu !== 'notifications' || !unread?.count) return
+    const timer = setTimeout(async () => {
+      try {
+        await apiPost('/notifications/read-all')
+        queryClient.invalidateQueries({ queryKey: ['notifications'] })
+        queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] })
+      } catch { /* silencieux */ }
+    }, 1200)
+    return () => clearTimeout(timer)
+  }, [openMenu, unread?.count, queryClient])
+
+  // Même comportement pour les messages : ouverture = lus automatiquement
+  useEffect(() => {
+    if (openMenu !== 'messages' || !unreadMessages?.count) return
+    const timer = setTimeout(async () => {
+      try {
+        await apiPost('/messages/read-all')
+        queryClient.invalidateQueries({ queryKey: ['messages'] })
+        queryClient.invalidateQueries({ queryKey: ['messages', 'unread'] })
+      } catch { /* silencieux */ }
+    }, 1200)
+    return () => clearTimeout(timer)
+  }, [openMenu, unreadMessages?.count, queryClient])
+
   async function markNotificationRead(id: number) {
     await apiPost(`/notifications/${id}/read`)
     queryClient.invalidateQueries({ queryKey: ['notifications'] })
@@ -97,22 +126,22 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
     navigate('/login')
   }
 
-  const languages: { code: Locale; label: string; initial: string; color: string; flag: string }[] = [
-    { code: 'fr', label: 'Français', initial: 'FR', color: 'bg-blue-600', flag: '🇫🇷' },
-    { code: 'mg', label: 'Malagasy', initial: 'MG', color: 'bg-emerald-600', flag: '🇲🇬' },
-    { code: 'en', label: 'English', initial: 'EN', color: 'bg-rose-600', flag: '🇬🇧' },
+  const languages: { code: Locale; label: string; initial: string; color: string }[] = [
+    { code: 'fr', label: 'Français', initial: 'FR', color: 'bg-blue-600' },
+    { code: 'mg', label: 'Malagasy', initial: 'MG', color: 'bg-emerald-600' },
+    { code: 'en', label: 'English', initial: 'EN', color: 'bg-rose-600' },
   ]
 
   return (
     <>
-      <header className="z-30 h-16 shrink-0 border-b border-slate-200/80 bg-white/80 backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-900/80">
+      <header className="header-in z-30 h-16 shrink-0 border-b border-slate-200/80 bg-white/80 backdrop-blur-md dark:border-slate-700/50 dark:bg-slate-900/80">
         <div className="flex h-full items-center justify-between gap-2 px-3 sm:gap-3 sm:px-4 lg:px-6">
           {/* ── Left zone: burger + recherche inline ── */}
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               onClick={onToggleSidebar}
-              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-              aria-label="Afficher ou masquer le menu"
+              className="hbtn rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+              aria-label={t('a11y.openMenu')}
             >
               <Menu className="h-5 w-5 lg:hidden" />
               {sidebarOpen ? (
@@ -243,8 +272,8 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
             {/* Theme toggle */}
             <button
               onClick={cycleTheme}
-              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-              aria-label={resolved === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+              className="hbtn rounded-xl p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+              aria-label={resolved === 'dark' ? t('nav.theme.light') : t('nav.theme.dark')}
             >
               {resolved === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
@@ -253,11 +282,12 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
             <div className="relative">
               <button
                 onClick={() => setOpenMenu(openMenu === 'lang' ? null : 'lang')}
-                className="flex items-center gap-1.5 rounded-xl px-2 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                className="hbtn flex items-center gap-1.5 rounded-xl px-2 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
               >
                 {(() => { const l = languages.find((x) => x.code === locale); return l ? (
-                  <span className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white ${l.color}`}>{l.flag}</span>
+                  <span className={`flex h-5 w-5 items-center justify-center rounded text-[9px] font-bold text-white ${l.color}`}>{l.initial}</span>
                 ) : null })()}
+                <Globe className="h-4 w-4" />
               </button>
               {openMenu === 'lang' && (
                 <DropdownPanel onClose={() => setOpenMenu(null)} width="w-48">
@@ -272,7 +302,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
                             : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
                         }`}
                       >
-                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white ${lang.color}`}>{lang.flag}</span>
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white ${lang.color}`}>{lang.initial}</span>
                         <span>{lang.label}</span>
                         {locale === lang.code && <span className="ml-auto text-brand-500 dark:text-brand-400">✓</span>}
                       </button>
@@ -289,7 +319,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
             <div className="relative">
               <button
                 onClick={() => setOpenMenu(openMenu === 'user' ? null : 'user')}
-                className="flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="hbtn flex items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700"
               >
                 <Avatar name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`} size="md" src={avatarUrl} />
                 <span className="hidden text-left md:block">
@@ -351,7 +381,7 @@ function MenuButton({
     <button
       onClick={onClick}
       aria-label={label}
-      className={`relative rounded-xl p-2 transition ${active ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200'}`}
+      className={`hbtn relative rounded-xl p-2 ${active ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200'}`}
     >
       {children}
     </button>

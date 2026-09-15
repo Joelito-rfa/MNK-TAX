@@ -355,7 +355,7 @@ export default function AuditLogs() {
   const totalPages = data?.totalPages ?? 0
 
   return (
-    <div className="space-y-5">
+    <div className="fx-simple space-y-5">
       {/* === 1. HEADER === */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

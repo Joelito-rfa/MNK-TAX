@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 500" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="cielsky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8ec5e8"/>
+      <stop offset="45%" stop-color="#b8dcf2"/>
+      <stop offset="100%" stop-color="#e8f4fa"/>
+    </linearGradient>
+    <linearGradient id="mer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2f7fb5"/>
+      <stop offset="60%" stop-color="#3f97c9"/>
+      <stop offset="100%" stop-color="#6db8d8"/>
+    </linearGradient>
+    <linearGradient id="sable" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f2e2bd"/>
+      <stop offset="100%" stop-color="#e3cd9e"/>
+    </linearGradient>
+    <linearGradient id="colline" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5f9e6e"/>
+      <stop offset="100%" stop-color="#3d7a52"/>
+    </linearGradient>
+    <linearGradient id="lueur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="b24"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="b12"><feGaussianBlur stdDeviation="12"/></filter>
+  </defs>
+
+  <!-- Ciel -->
+  <rect width="1600" height="260" fill="url(#cielsky)"/>
+  <circle cx="1180" cy="90" r="58" fill="#fff7e0" opacity="0.95"/>
+  <circle cx="1180" cy="90" r="96" fill="#fff3cf" opacity="0.45" filter="url(#b12)"/>
+  <ellipse cx="300" cy="80" rx="220" ry="42" fill="#ffffff" opacity="0.55" filter="url(#b12)"/>
+  <ellipse cx="760" cy="120" rx="180" ry="34" fill="#ffffff" opacity="0.4" filter="url(#b12)"/>
+
+  <!-- Collines / végétation au loin -->
+  <path d="M0 260 Q 220 190 470 250 T 900 245 T 1300 255 L1600 240 V320 H0 Z" fill="url(#colline)" opacity="0.85"/>
+  <path d="M0 280 Q 300 230 620 270 T 1180 275 T 1600 265 V340 H0 Z" fill="#4c8a5e" opacity="0.9"/>
+
+  <!-- Océan -->
+  <rect y="300" width="1600" height="120" fill="url(#mer)"/>
+  <g stroke="#ffffff" stroke-linecap="round" opacity="0.5">
+    <line x1="120" y1="330" x2="300" y2="330" stroke-width="4"/>
+    <line x1="520" y1="352" x2="720" y2="352" stroke-width="4"/>
+    <line x1="980" y1="336" x2="1180" y2="336" stroke-width="4"/>
+    <line x1="1320" y1="360" x2="1500" y2="360" stroke-width="4"/>
+    <line x1="300" y1="382" x2="460" y2="382" stroke-width="4"/>
+    <line x1="820" y1="392" x2="1000" y2="392" stroke-width="4"/>
+  </g>
+  <ellipse cx="1180" cy="150" rx="300" ry="60" fill="#fff3cf" opacity="0.25" filter="url(#b24)"/>
+  <path d="M1040 300 L1180 150 L1320 300 Z" fill="#fff3cf" opacity="0.18" filter="url(#b12)"/>
+
+  <!-- Pirogue à balancier (emblématique du canal des Pangalanes) -->
+  <g transform="translate(430 322)">
+    <path d="M0 22 Q 55 34 110 22 Q 55 28 0 22 Z" fill="#7a5230"/>
+    <path d="M0 22 Q 55 30 110 22 L 104 28 Q 55 34 6 28 Z" fill="#5e3d22"/>
+    <line x1="55" y1="22" x2="55" y2="-14" stroke="#5e3d22" stroke-width="3"/>
+    <path d="M55 -14 L88 8 L55 8 Z" fill="#f4f0e6"/>
+    <line x1="96" y1="14" x2="96" y2="24" stroke="#5e3d22" stroke-width="3"/>
+    <line x1="86" y1="24" x2="108" y2="24" stroke="#5e3d22" stroke-width="3"/>
+  </g>
+
+  <!-- Plage -->
+  <path d="M0 420 Q 400 396 800 416 T 1600 412 V500 H0 Z" fill="url(#sable)"/>
+  <path d="M0 420 Q 400 396 800 416 T 1600 412 V426 Q 1200 436 800 426 T 0 432 Z" fill="#ffffff" opacity="0.5"/>
+
+  <!-- Palmiers -->
+  <g>
+    <g transform="translate(180 420)">
+      <path d="M-6 0 Q -2 -90 8 -140 L 18 -138 Q 6 -88 8 0 Z" fill="#8a6238"/>
+      <g transform="translate(12 -140)">
+        <path d="M0 0 Q -52 -18 -84 6 Q -46 -4 0 8 Z" fill="#3f7a4e"/>
+        <path d="M0 0 Q 52 -20 86 4 Q 46 -6 0 8 Z" fill="#356b44"/>
+        <path d="M0 0 Q -30 -44 -68 -48 Q -28 -30 0 4 Z" fill="#478a58"/>
+        <path d="M0 0 Q 32 -46 70 -50 Q 30 -30 0 4 Z" fill="#3f7a4e"/>
+        <path d="M0 0 Q -8 -52 4 -74 Q 12 -46 6 0 Z" fill="#52965f"/>
+        <circle cx="-6" cy="6" r="5" fill="#8a6238"/>
+        <circle cx="6" cy="8" r="5" fill="#7a5230"/>
+      </g>
+    </g>
+    <g transform="translate(1420 430) scale(0.88)">
+      <path d="M-6 0 Q 0 -86 10 -132 L 20 -130 Q 8 -84 8 0 Z" fill="#8a6238"/>
+      <g transform="translate(14 -132)">
+        <path d="M0 0 Q -50 -20 -82 4 Q -44 -4 0 8 Z" fill="#3f7a4e"/>
+        <path d="M0 0 Q 50 -18 84 6 Q 46 -6 0 8 Z" fill="#356b44"/>
+        <path d="M0 0 Q -30 -44 -66 -50 Q -28 -30 0 4 Z" fill="#478a58"/>
+        <path d="M0 0 Q 32 -44 68 -48 Q 30 -28 0 4 Z" fill="#3f7a4e"/>
+        <path d="M0 0 Q -6 -50 6 -72 Q 14 -44 6 0 Z" fill="#52965f"/>
+        <circle cx="-6" cy="6" r="5" fill="#8a6238"/>
+        <circle cx="6" cy="8" r="5" fill="#7a5230"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Case de plage / toit de chaume discret -->
+  <g transform="translate(1120 388)" opacity="0.9">
+    <path d="M-46 0 Q 0 -34 46 0 Z" fill="#a9814b"/>
+    <rect x="-30" y="0" width="60" height="30" fill="#d9c39a"/>
+    <rect x="-8" y="10" width="16" height="20" fill="#7a5230"/>
+  </g>
+
+  <!-- Oiseaux -->
+  <g stroke="#3d5a72" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6">
+    <path d="M640 96 Q 652 86 664 96"/>
+    <path d="M690 112 Q 700 104 710 112"/>
+    <path d="M1330 84 Q 1342 74 1354 84"/>
+  </g>
+
+  <!-- Lueur basse pour la lisibilité du texte -->
+  <rect y="360" width="1600" height="140" fill="url(#lueur)" opacity="0.15"/>
+</svg>

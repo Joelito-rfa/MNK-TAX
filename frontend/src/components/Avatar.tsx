@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 
-const gradients = [
-  'from-brand-500 to-brand-700',
-  'from-sky-500 to-indigo-600',
-  'from-emerald-500 to-teal-600',
-  'from-amber-500 to-orange-600',
-  'from-rose-500 to-pink-600',
-  'from-violet-500 to-purple-600',
+const solids = [
+  'bg-brand-600',
+  'bg-sky-600',
+  'bg-emerald-600',
+  'bg-amber-600',
+  'bg-rose-600',
+  'bg-violet-600',
 ]
 
 function initials(name: string): string {
@@ -49,11 +49,11 @@ export function Avatar({
 
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0
-  const gradient = gradients[Math.abs(hash) % gradients.length]
+  const solid = solids[Math.abs(hash) % solids.length]
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-gradient-to-br font-bold text-white shadow-sm ${gradient} ${sizes[size]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full font-bold text-white shadow-sm ${solid} ${sizes[size]} ${className}`}
     >
       {initials(name)}
     </span>

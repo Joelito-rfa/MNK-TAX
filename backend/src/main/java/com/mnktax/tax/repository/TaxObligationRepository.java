@@ -32,4 +32,9 @@ public interface TaxObligationRepository extends JpaRepository<TaxObligation, Lo
 
     @Query("SELECT o FROM TaxObligation o WHERE o.status = 'ACTIVE' AND o.endDate IS NOT NULL AND o.endDate < :today")
     List<TaxObligation> findExpiredObligations(@Param("today") LocalDate today);
+
+    /** Obligations dont l'échéance de déclaration approche (fenêtre J+x / J-x). */
+    @Query("SELECT o FROM TaxObligation o WHERE o.status = 'ACTIVE' AND o.declarationStatus = 'NOT_SUBMITTED' " +
+            "AND o.declarationDeadline >= :from AND o.declarationDeadline <= :to")
+    List<TaxObligation> findDueBetween(@Param("from") LocalDate from, @Param("to") LocalDate to);
 }

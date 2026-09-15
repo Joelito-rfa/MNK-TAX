@@ -312,7 +312,7 @@ export default function About({ onLogin }: { onLogin: () => void }) {
                         </span>
                         <span className="text-[11px] font-medium text-slate-300">{step.label}</span>
                       </button>
-                      {i < cycle.length - 1 && <span aria-hidden="true" className="mt-2 h-px w-12 bg-gradient-to-r from-brand-500/30 to-brand-500/10" />}
+                      {i < cycle.length - 1 && <span aria-hidden="true" className="mt-2 h-px w-12 bg-brand-500/20" />}
                     </li>
                   ))}
                 </ol>
@@ -352,7 +352,7 @@ export default function About({ onLogin }: { onLogin: () => void }) {
             <Button
               onClick={onLogin}
               size="lg"
-              className="group rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 px-8 text-white shadow-xl shadow-brand-600/25"
+              className="group rounded-2xl bg-brand-600 px-8 text-white shadow-xl shadow-brand-600/25"
             >
               Découvrir la plateforme
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />

@@ -4,6 +4,8 @@ import com.mnktax.audit.service.AuditService;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.ReferenceGenerator;
+import com.mnktax.communication.entity.CommunicationEventType;
+import com.mnktax.communication.service.CommunicationEventEngine;
 import com.mnktax.common.util.SecurityUtils;
 import com.mnktax.debt.entity.DebtHistory;
 import com.mnktax.debt.entity.DebtStatus;
@@ -69,6 +71,7 @@ public class PaymentService {
     private final NotificationService notificationService;
     private final TaxObligationService obligationService;
     private final DeclarationRepository declarationRepository;
+    private final CommunicationEventEngine communicationEventEngine;
 
     public PaymentService(PaymentRepository paymentRepository, PaymentAllocationRepository allocationRepository,
                           TaxDebtRepository debtRepository, DebtHistoryRepository debtHistoryRepository,
@@ -77,7 +80,8 @@ public class PaymentService {
                           ReceiptService receiptService, ReceiptRepository receiptRepository,
                           AuditService auditService, NotificationService notificationService,
                           @Lazy TaxObligationService obligationService,
-                          DeclarationRepository declarationRepository) {
+                          DeclarationRepository declarationRepository,
+                          @Lazy CommunicationEventEngine communicationEventEngine) {
         this.paymentRepository = paymentRepository;
         this.allocationRepository = allocationRepository;
         this.debtRepository = debtRepository;
@@ -90,6 +94,7 @@ public class PaymentService {
         this.notificationService = notificationService;
         this.obligationService = obligationService;
         this.declarationRepository = declarationRepository;
+        this.communicationEventEngine = communicationEventEngine;
     }
 
     @Transactional
@@ -191,6 +196,11 @@ public class PaymentService {
             notificationService.notifyReceiptReady(debt.getTaxpayer().getUserId(), receipt.getReference(),
                     debt.getTaxpayer().getNif());
         }
+        // Communication automatique : paiement reçu + quittance (règles configurables).
+        communicationEventEngine.onEvent(CommunicationEventType.PAYMENT_RECEIVED, debt.getTaxpayer(),
+                java.util.Map.of("reference", payment.getReference(),
+                        "amount", payment.getAmount().toPlainString(),
+                        "receipt_reference", receipt == null ? "—" : receipt.getReference()));
         if (allocated.signum() > 0 && allocated.compareTo(payment.getAmount()) < 0) {
             notificationService.notifyTaxpayer(debt.getTaxpayer().getUserId(),
                     com.mnktax.notification.entity.NotificationType.PAYMENT_RECEIVED,

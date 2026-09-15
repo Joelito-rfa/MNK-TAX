@@ -131,6 +131,25 @@ function NifCard() {
         loading="lazy"
         className="h-52 w-full object-cover object-top transition-transform duration-500 ease-out group-hover:scale-105"
       />
+      {/* ── Astre 3D : soleil (clair) / lune (sombre) en haut à gauche ── */}
+      <div className="nif-celestial pointer-events-none absolute left-3 top-3 z-10" aria-hidden="true">
+        <div className="nif-celestial-card">
+          {/* Soleil - visible en mode clair */}
+          <div className="nif-sun">
+            <span className="nif-sun-core" />
+            <span className="nif-sun-ray nif-sun-ray-1" />
+            <span className="nif-sun-ray nif-sun-ray-2" />
+            <span className="nif-sun-ray nif-sun-ray-3" />
+            <span className="nif-sun-ray nif-sun-ray-4" />
+          </div>
+          {/* Lune - visible en mode sombre */}
+          <div className="nif-moon">
+            <span className="nif-moon-crater nif-moon-crater-1" />
+            <span className="nif-moon-crater nif-moon-crater-2" />
+            <span className="nif-moon-crater nif-moon-crater-3" />
+          </div>
+        </div>
+      </div>
       {/* ── Fond flottant animé ── */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         {/* Halos flottants */}

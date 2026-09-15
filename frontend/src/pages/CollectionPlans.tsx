@@ -15,8 +15,9 @@ import {
   Search,
   X,
 } from 'lucide-react'
+import { useI18n } from '../lib/i18n'
+import { useLocaleFormatters } from '../lib/format'
 import { apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
-import { fmtDate, fmtMGA } from '../lib/format'
 import type { CollectionDebtRow, InstallmentStatus, Page, PaymentPlan, PaymentPlanStatus } from '../types'
 import {
   Button,
@@ -404,32 +405,26 @@ export default function CollectionPlans() {
         </Button>
       </div>
 
-      {/* ── Synthèse ── */}
+      {/* ── Synthèse (style Règles fiscales) ── */}
       {stats && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-5 dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
-            <span className="absolute inset-x-0 top-0 h-0.5 bg-sky-500" />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Échéanciers en cours</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.activePlans}</p>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-5 dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
-            <span className="absolute inset-x-0 top-0 h-0.5 bg-emerald-500" />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Soldés</p>
-            <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.completedPlans}</p>
-          </div>
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-5 dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
-            <span className="absolute inset-x-0 top-0 h-0.5 bg-amber-500" />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tranches en retard</p>
-            <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.overdueInstallments}</p>
-            {stats.plansWithOverdue > 0 && (
-              <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{stats.plansWithOverdue} échéancier(s) concerné(s)</p>
-            )}
-          </div>
-          <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 bg-gradient-to-br from-white to-slate-50/60 p-5 dark:border-slate-700/50 dark:from-slate-800 dark:to-slate-800/40">
-            <span className="absolute inset-x-0 top-0 h-0.5 bg-slate-500" />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Annulés</p>
-            <p className="mt-1 text-2xl font-bold text-slate-600 dark:text-slate-400">{stats.cancelledPlans}</p>
-          </div>
+          {[
+            { iconBg: 'bg-sky-50', iconColor: 'text-sky-600', icon: <CalendarDays className="h-5 w-5" />, label: 'Échéanciers en cours', value: stats.activePlans, sub: undefined as string | undefined },
+            { iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', icon: <CircleDollarSign className="h-5 w-5" />, label: 'Soldés', value: stats.completedPlans, sub: undefined as string | undefined },
+            { iconBg: 'bg-amber-50', iconColor: 'text-amber-600', icon: <Clock className="h-5 w-5" />, label: 'Tranches en retard', value: stats.overdueInstallments, sub: stats.plansWithOverdue > 0 ? `${stats.plansWithOverdue} échéancier(s) concerné(s)` : undefined },
+            { iconBg: 'bg-slate-100', iconColor: 'text-slate-500', icon: <Ban className="h-5 w-5" />, label: 'Annulés', value: stats.cancelledPlans, sub: undefined as string | undefined },
+          ].map((c) => (
+            <div key={c.label} className="card fx-spot group relative overflow-hidden p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{c.label}</p>
+                  <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{c.value}</p>
+                </div>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg} ${c.iconColor} transition-transform duration-200 group-hover:scale-110`}>{c.icon}</span>
+              </div>
+              {c.sub && <div className="mt-3 text-xs text-slate-400 dark:text-slate-500">{c.sub}</div>}
+            </div>
+          ))}
         </div>
       )}
 

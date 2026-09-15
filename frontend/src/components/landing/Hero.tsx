@@ -21,7 +21,7 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
             {/* Title */}
             <h1 className="text-4xl font-bold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl lg:text-6xl dark:text-white">
               La gestion fiscale,
-              <span className="mt-2 block bg-gradient-to-r from-brand-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent dark:from-brand-400 dark:via-violet-400 dark:to-indigo-400">
+              <span className="mt-2 block text-brand-700 dark:text-brand-300">
                 simplifiée et connectée.
               </span>
             </h1>
@@ -33,7 +33,7 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
             {/* CTAs */}
             <div className="mt-10 flex flex-wrap gap-4">
               <Button onClick={onLogin} size="lg"
-                className="group rounded-2xl bg-gradient-to-r from-brand-600 to-indigo-600 px-8 text-white shadow-xl shadow-brand-600/25 transition-all duration-200 hover:shadow-2xl hover:shadow-brand-600/30 hover:scale-[1.02] active:scale-[0.98]">
+                className="group rounded-2xl bg-brand-600 px-8 text-white shadow-xl shadow-brand-600/25 transition-all duration-200 hover:shadow-2xl hover:shadow-brand-600/30 hover:scale-[1.02] active:scale-[0.98]">
                 Commencer
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Button>
@@ -60,7 +60,7 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
           {/* Right — Dashboard Preview */}
           <div className="relative animate-slide-in-right hidden lg:block">
             {/* Glow behind card */}
-            <div className="absolute -inset-8 rounded-3xl bg-gradient-to-br from-brand-500/20 to-indigo-500/10 blur-3xl" />
+            <div className="absolute -inset-8 rounded-3xl bg-brand-500/5 blur-3xl" />
 
             <div className="relative rounded-3xl border border-white/[0.08] bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl">
               {/* Header */}
@@ -101,7 +101,7 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
                       style={{
                         height: `${h}%`,
                         background: i === 11
-                          ? 'linear-gradient(to top, #6366f1, #818cf8)'
+                          ? '#6366f1'
                           : 'rgba(99,102,241,0.15)',
                         animationDelay: `${0.5 + i * 0.06}s`,
                         ['--d' as string]: `${0.5 + i * 0.06}s`,

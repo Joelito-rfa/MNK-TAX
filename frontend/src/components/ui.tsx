@@ -8,6 +8,8 @@ import {
 } from 'react'
 import {
   AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -85,7 +87,7 @@ export function Button({
 }) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-4 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${buttonStyles[variant]} ${buttonSizes[size]} ${className}`}
+      className={`fx-btn inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-200 hover:-translate-y-px focus-visible:outline-none focus-visible:ring-4 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 ${buttonStyles[variant]} ${buttonSizes[size]} ${className}`}
       disabled={disabled || loading}
       {...props}
     >
@@ -105,7 +107,7 @@ export function Card({ children, className = '', hover = false, onClick }: { chi
   return (
     <div
       onClick={onClick}
-      className={`card animate-fade-in transition-shadow duration-200 ${hover ? 'hover:shadow-card-hover' : ''} ${className}`}
+      className={`card fx-spot animate-fade-in transition-all duration-200 ${hover ? 'hover:-translate-y-0.5 hover:shadow-card-hover' : ''} ${className}`}
     >
       {children}
     </div>
@@ -146,7 +148,7 @@ export function PageHeader({
   className?: string
 }) {
   return (
-    <div className={`flex flex-wrap items-end justify-between gap-4 ${className}`}>
+    <div className={`flex animate-slide-up flex-wrap items-end justify-between gap-4 ${className}`}>
       <div>
         <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
@@ -225,7 +227,7 @@ const badgeTones: Record<BadgeTone, string> = {
 export function Badge({ tone = 'slate', children, className = '' }: { tone?: BadgeTone; children: ReactNode; className?: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${badgeTones[tone]} ${className}`}
+      className={`inline-flex animate-pop-in items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${badgeTones[tone]} ${className}`}
     >
       {children}
     </span>
@@ -321,10 +323,14 @@ export function StatCard({
     <Card hover className={`group relative overflow-hidden p-5 ${className}`} >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
-          <p className="mt-2 truncate text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">{value}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
+          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
         </div>
-        {icon && <IconTile tone={tone}>{icon}</IconTile>}
+        {icon && (
+          <span className="transition-transform duration-200 group-hover:scale-110">
+            <IconTile tone={tone}>{icon}</IconTile>
+          </span>
+        )}
       </div>
       {(delta || sub) && (
         <div className="mt-3 flex items-center gap-2 text-xs">
@@ -338,6 +344,8 @@ export function StatCard({
                     : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
               }`}
             >
+              {deltaTone === 'up' && <ArrowUpRight className="h-3 w-3" />}
+              {deltaTone === 'down' && <ArrowDownRight className="h-3 w-3" />}
               {delta}
             </span>
           )}

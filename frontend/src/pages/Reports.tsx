@@ -37,6 +37,8 @@ import type {
   ReportStats,
 } from '../types'
 import { Button, Card, EmptyState, Modal, StatusBadge } from '../components/ui'
+import { useI18n } from '../lib/i18n'
+import { useLocaleFormatters } from '../lib/format'
 import { useToast } from '../components/Toast'
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
@@ -48,7 +50,7 @@ interface ReportCardDef {
   icon: React.ReactNode
   iconBg: string
   iconColor: string
-  gradient: string
+  header: string
   available: boolean
   formats: string[]
 }
@@ -105,13 +107,7 @@ const methodLabels: Record<string, string> = {
 
 
 
-function fmtMGA(v: number): string {
-  return new Intl.NumberFormat('fr-MG', { style: 'decimal', maximumFractionDigits: 0 }).format(v) + ' MGA'
-}
 
-function fmtNumber(v: number): string {
-  return new Intl.NumberFormat('fr-FR').format(v)
-}
 
 function formatIcon(fmt: string) {
   switch (fmt) {
@@ -142,7 +138,7 @@ function getReportCards(): ReportCardDef[] {
       icon: <Wallet className="h-6 w-6" />,
       iconBg: 'bg-violet-50',
       iconColor: 'text-violet-600',
-      gradient: 'from-violet-500 to-violet-600',
+      header: 'bg-brand-600',
       available: true,
       formats: ['PDF', 'CSV'],
     },
@@ -153,7 +149,7 @@ function getReportCards(): ReportCardDef[] {
       icon: <CreditCard className="h-6 w-6" />,
       iconBg: 'bg-emerald-50',
       iconColor: 'text-emerald-600',
-      gradient: 'from-emerald-500 to-emerald-600',
+      header: 'bg-emerald-600',
       available: true,
       formats: ['PDF', 'Excel'],
     },
@@ -164,7 +160,7 @@ function getReportCards(): ReportCardDef[] {
       icon: <FileText className="h-6 w-6" />,
       iconBg: 'bg-pink-50',
       iconColor: 'text-pink-600',
-      gradient: 'from-pink-500 to-rose-500',
+      header: 'bg-rose-600',
       available: true,
       formats: ['PDF', 'CSV'],
     },
@@ -175,7 +171,7 @@ function getReportCards(): ReportCardDef[] {
       icon: <ClipboardList className="h-6 w-6" />,
       iconBg: 'bg-blue-50',
       iconColor: 'text-blue-600',
-      gradient: 'from-blue-500 to-blue-600',
+      header: 'bg-blue-600',
       available: true,
       formats: ['PDF', 'Excel', 'CSV'],
     },
@@ -186,7 +182,7 @@ function getReportCards(): ReportCardDef[] {
       icon: <Users className="h-6 w-6" />,
       iconBg: 'bg-amber-50',
       iconColor: 'text-amber-600',
-      gradient: 'from-amber-500 to-amber-600',
+      header: 'bg-amber-600',
       available: true,
       formats: ['PDF', 'Excel'],
     },
@@ -197,7 +193,7 @@ function getReportCards(): ReportCardDef[] {
       icon: <TrendingUp className="h-6 w-6" />,
       iconBg: 'bg-rose-50',
       iconColor: 'text-rose-600',
-      gradient: 'from-rose-500 to-rose-600',
+      header: 'bg-rose-600',
       available: true,
       formats: ['PDF', 'CSV'],
     },
@@ -208,7 +204,7 @@ function getReportCards(): ReportCardDef[] {
       icon: <Activity className="h-6 w-6" />,
       iconBg: 'bg-sky-50',
       iconColor: 'text-sky-600',
-      gradient: 'from-sky-500 to-sky-600',
+      header: 'bg-sky-600',
       available: true,
       formats: ['PDF'],
     },
@@ -218,6 +214,8 @@ function getReportCards(): ReportCardDef[] {
 /* ═══════════════════════════ Main Component ═══════════════════════════ */
 
 export default function Reports() {
+  const { t } = useI18n()
+  const { fmtMGA, fmtNumber } = useLocaleFormatters()
   const toast = useToast()
   const queryClient = useQueryClient()
   const [periodOpen, setPeriodOpen] = useState(false)
@@ -422,7 +420,7 @@ export default function Reports() {
         ]),
       )
     },
-    onSuccess: () => toast.success('Export recouvrement termine'),
+    onSuccess: () => toast.success(t('toast.exportDone')),
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
@@ -438,7 +436,7 @@ export default function Reports() {
         ]),
       )
     },
-    onSuccess: () => toast.success('Export paiements termine'),
+    onSuccess: () => toast.success(t('toast.exportDone')),
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
@@ -454,7 +452,7 @@ export default function Reports() {
         ]),
       )
     },
-    onSuccess: () => toast.success('Export declarations termine'),
+    onSuccess: () => toast.success(t('toast.exportDone')),
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
@@ -470,7 +468,7 @@ export default function Reports() {
         ]),
       )
     },
-    onSuccess: () => toast.success('Export contribuables termine'),
+    onSuccess: () => toast.success(t('toast.exportDone')),
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
@@ -486,7 +484,7 @@ export default function Reports() {
         ]),
       )
     },
-    onSuccess: () => toast.success('Export quittances termine'),
+    onSuccess: () => toast.success(t('toast.exportDone')),
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
@@ -516,7 +514,7 @@ export default function Reports() {
     queryClient.invalidateQueries({ queryKey: ['report-payments'] })
     queryClient.invalidateQueries({ queryKey: ['report-declarations'] })
     queryClient.invalidateQueries({ queryKey: ['report-taxpayers'] })
-    toast.success('Donnees actualisees')
+    toast.success(t('toast.saveSuccess'))
   }, [queryClient, toast])
 
   const handlePreview = useCallback((reportId: string) => {
@@ -594,7 +592,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="fx-simple space-y-6">
       {/* === 1. HEADER === */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -650,9 +648,9 @@ export default function Reports() {
           {/* Generer un rapport */}
           <button
             onClick={() => setGenerateModalOpen(true)}
-            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
           >
-            <span className="absolute inset-0 bg-gradient-to-r from-violet-500 to-indigo-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+            <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
             <Plus className="relative h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
             <span className="relative">Generer un rapport</span>
           </button>
@@ -782,7 +780,7 @@ export default function Reports() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un rapport..."
+                placeholder={t('reports.searchPlaceholder')}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-400"
               />
               {search && (
@@ -1011,7 +1009,7 @@ function ReportCardComponent({
   return (
     <Card hover className="group relative flex flex-col overflow-hidden">
       {/* Header colore */}
-      <div className={`relative bg-gradient-to-r ${report.gradient} px-5 py-4`}>
+      <div className={`relative ${report.header} px-5 py-4`}>
         <div className="flex items-start justify-between">
           <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 text-white backdrop-blur-sm">
             {report.icon}
@@ -1083,9 +1081,9 @@ function ReportCardComponent({
         <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
           <button
             onClick={onGenerate}
-            className="group/btn relative flex-1 inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-violet-500/20 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="group/btn relative flex-1 inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-violet-500/20 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
           >
-            <span className="absolute inset-0 bg-gradient-to-r from-violet-500 to-indigo-500 opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100" />
+            <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100" />
             <Zap className="relative h-3.5 w-3.5 transition-transform duration-200 group-hover/btn:scale-110" />
             <span className="relative">Generer</span>
           </button>

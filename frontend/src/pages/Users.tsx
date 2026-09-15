@@ -203,7 +203,7 @@ export default function Users() {
   if (isLoading) return <UsersSkeleton />
 
   return (
-    <div className="space-y-6">
+    <div className="fx-simple space-y-6">
       {/* === 1. HEADER === */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -226,9 +226,9 @@ export default function Users() {
           {can('USER_WRITE') && (
             <button
               onClick={() => setCreateOpen(true)}
-              className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+              className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
             >
-              <span className="absolute inset-0 bg-gradient-to-r from-violet-500 to-indigo-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+              <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
               <Plus className="relative h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
               <span className="relative">Nouvel utilisateur</span>
             </button>
@@ -345,7 +345,7 @@ export default function Users() {
                   {/* Avatar + Nom */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-500 text-sm font-bold text-white">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white">
                         {initials(user.firstName, user.lastName)}
                       </div>
                       <div className="min-w-0">
@@ -539,7 +539,7 @@ function UserProfilePanel({ user, onClose, onEdit }: { user: UserType; onClose: 
       <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-500 text-lg font-bold text-white">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-600 text-lg font-bold text-white">
               {initials(user.firstName, user.lastName)}
             </div>
             <div>

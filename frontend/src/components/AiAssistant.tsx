@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Bot, Send, Sparkles, X, GripHorizontal, RotateCcw, AlertCircle } from 'lucide-react'
 import { apiErrorMessage, apiPost } from '../lib/api'
+import { useI18n } from '../lib/i18n'
 
 type Position = { x: number; y: number }
 
@@ -15,7 +16,7 @@ type ChatInput = { role: string; content: string }
 /* ── Bot face (vivant) ── */
 function BotFace({ active }: { active: boolean }) {
   return (
-    <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-600 shadow-lg shadow-indigo-500/40 ring-2 ring-white/20">
+    <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 shadow-lg shadow-indigo-500/40 ring-2 ring-white/20">
       <Bot className="h-6 w-6 text-white" />
       <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-violet-500/40" style={{ animationDuration: '2.5s' }} />
       <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
@@ -33,6 +34,7 @@ function defaultPos(): Position {
 
 /* ── M-TAX AI ── */
 export default function AiAssistant() {
+  const { t } = useI18n()
   const [pos, setPos] = useState<Position>(defaultPos)
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([])
@@ -69,7 +71,7 @@ export default function AiAssistant() {
     chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' })
   }, [msgs, typing])
 
-  /* ── outils de glisser ── */
+  /* ── outils de {t("common.drag")} ── */
   const onPointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
     movedRef.current = false
@@ -141,11 +143,11 @@ export default function AiAssistant() {
         onPointerCancel={onPointerUp}
         className="fixed z-[60] flex items-center gap-1"
         style={{ left: pos.x, top: pos.y, touchAction: 'none' }}
-        title={open ? "Fermer M-TAX AI" : "Ouvrir M-TAX AI"}
+        title={open ? t("ai.close") : t("ai.open")}
       >
         {!open && (
           <span className="flex h-8 items-center gap-0.5 rounded-full bg-slate-900/70 px-2 text-[10px] font-medium text-white backdrop-blur dark:bg-white/15">
-            <GripHorizontal className="h-3.5 w-3.5" /> glisser
+            <GripHorizontal className="h-3.5 w-3.5" /> {t("common.drag")}
           </span>
         )}
         <button
@@ -155,7 +157,7 @@ export default function AiAssistant() {
             setOpen((o) => !o)
           }}
           className={`select-none rounded-2xl transition-transform active:scale-95 ${dragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
-          aria-label={open ? "Fermer M-TAX AI" : "Ouvrir M-TAX AI"}
+          aria-label={open ? t("ai.close") : t("ai.open")}
         >
           <BotFace active={open} />
         </button>
@@ -168,7 +170,7 @@ export default function AiAssistant() {
           style={{ width: 360, maxWidth: 'calc(100vw - 1rem)', right: 20, bottom: 88, height: 480, maxHeight: 'calc(100vh - 130px)' }}
         >
           {/* En-tête */}
-          <div className="flex shrink-0 items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-violet-600 to-indigo-600 px-4 py-3 dark:border-slate-700">
+          <div className="flex shrink-0 items-center gap-3 border-b border-slate-100 bg-brand-600 px-4 py-3 dark:border-slate-700">
             <BotFace active />
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 text-sm font-semibold text-white">
@@ -176,7 +178,7 @@ export default function AiAssistant() {
               </p>
               <p className="text-[11px] text-white/80">En ligne · à votre service</p>
             </div>
-            <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-white/80 transition hover:bg-white/15 hover:text-white" aria-label="Fermer">
+            <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-white/80 transition hover:bg-white/15 hover:text-white" aria-label={t("a11y.close")}>
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -195,7 +197,7 @@ export default function AiAssistant() {
                 <div
                   className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm ${
                     m.role === 'user'
-                      ? 'rounded-br-sm bg-gradient-to-r from-violet-600 to-indigo-600 text-white'
+                      ? 'rounded-br-sm bg-brand-600 text-white'
                       : 'rounded-bl-sm border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-700/50 dark:text-slate-200'
                   }`}
                 >
@@ -219,14 +221,14 @@ export default function AiAssistant() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Écrire un message…"
+              placeholder={t("ai.placeholder")}
               className="h-9 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400"
             />
             <button
               type="submit"
               disabled={!input.trim() || typing}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-indigo-500/20 transition hover:from-violet-500 hover:to-indigo-500 disabled:opacity-40"
-              aria-label="Envoyer"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-md shadow-indigo-500/20 transition hover:bg-brand-500 disabled:opacity-40"
+              aria-label={t("ai.send")}
             >
               {typing ? <AlertCircle className="h-4 w-4 animate-pulse" /> : <Send className="h-4 w-4" />}
             </button>
@@ -234,7 +236,7 @@ export default function AiAssistant() {
               type="button"
               onClick={resetPos}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
-              title="Remettre le bouton en bas à droite"
+              title={t("ai.resetPosition")}
             >
               <RotateCcw className="h-4 w-4" />
             </button>

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useI18n } from '../../lib/i18n'
+import { useLocaleFormatters } from '../../lib/format'
 import { Filter, Search, X } from 'lucide-react'
-import { fmtMGA } from '../../lib/format'
 import type { TaxType } from '../../types'
 import { Button, Field, Input, Select } from '../ui'
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from './constants'
@@ -57,6 +57,8 @@ export function CollectionFilters({
   activeTabLabel?: string
   onRemoveChip: (kind: keyof AdvancedFilters | 'q' | 'taxType' | 'period' | 'tab') => void
 }) {
+  const { t } = useI18n()
+  const { fmtMGA } = useLocaleFormatters()
   return (
     <>
       {/* ── Filtres principaux ── */}
@@ -66,8 +68,8 @@ export function CollectionFilters({
           <input
             value={searchQ}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Rechercher par NIF, nom ou référence…"
-            aria-label="Rechercher par NIF, nom ou référence"
+            placeholder={t('collection.filters.search')}
+            aria-label={t('collection.filters.search')}
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400 dark:focus:bg-slate-700"
           />
         </div>
@@ -75,9 +77,9 @@ export function CollectionFilters({
           <Select
             value={taxTypeFilter}
             onChange={(e) => onTaxTypeChange(e.target.value)}
-            aria-label="Filtrer par impôt"
+            aria-label={t('collection.filters.tax')}
           >
-            <option value="">Tous les impôts</option>
+            <option value="">{t('collection.filters.allTaxes')}</option>
             {taxTypes?.map((tt) => (
               <option key={tt.code} value={tt.code}>
                 {tt.code} — {tt.name}
@@ -89,9 +91,9 @@ export function CollectionFilters({
           <Select
             value={periodFilter}
             onChange={(e) => onPeriodChange(e.target.value)}
-            aria-label="Filtrer par période"
+            aria-label={t('collection.filters.period')}
           >
-            <option value="">Toutes périodes</option>
+            <option value="">{t('collection.filters.allPeriods')}</option>
             {(periods ?? []).map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
@@ -105,7 +107,7 @@ export function CollectionFilters({
               : 'border-slate-200 text-slate-500 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-700'
           }`}
         >
-          <Filter className="h-4 w-4" /> Plus de filtres
+          <Filter className="h-4 w-4" /> {t('collection.filters.more')}
           {activeFilterCount > 0 && (
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
               {activeFilterCount}
@@ -119,30 +121,30 @@ export function CollectionFilters({
         <div className="animate-fade-in border-b border-slate-100 dark:border-slate-700/50 px-5 py-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {!advApplied.status && (
-              <Field label="Statut">
+              <Field label={t('common.status')}>
                 <Select
                   value={advDraft.status}
                   onChange={(e) => onAdvDraftChange({ ...advDraft, status: e.target.value })}
                 >
-                  <option value="">Tous les statuts</option>
+                  <option value="">{t('common.all')}</option>
                   {STATUS_OPTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
+                    <option key={s.value} value={s.value}>{t(s.key)}</option>
                   ))}
                 </Select>
               </Field>
             )}
-            <Field label="Priorité">
+            <Field label={t('common.status') === 'Statut' ? 'Priorité' : t('priority.LOW') ? t('common.status') : 'Priorité'}>
               <Select
                 value={advDraft.priority}
                 onChange={(e) => onAdvDraftChange({ ...advDraft, priority: e.target.value })}
               >
-                <option value="">Toutes les priorités</option>
+                <option value="">{t('common.all')}</option>
                 {PRIORITY_OPTIONS.map((pr) => (
-                  <option key={pr.value} value={pr.value}>{pr.label}</option>
+                  <option key={pr.value} value={pr.value}>{t(pr.key)}</option>
                 ))}
               </Select>
             </Field>
-            <Field label="Reste à payer min. (MGA)">
+            <Field label={t('collection.filters.search')}>
               <Input
                 type="number"
                 min="0"
@@ -151,23 +153,23 @@ export function CollectionFilters({
                 onChange={(e) => onAdvDraftChange({ ...advDraft, balanceMin: e.target.value })}
               />
             </Field>
-            <Field label="Reste à payer max. (MGA)">
+            <Field label={t('collection.filters.search')}>
               <Input
                 type="number"
                 min="0"
-                placeholder="Illimité"
+                placeholder={t('common.all')}
                 value={advDraft.balanceMax}
                 onChange={(e) => onAdvDraftChange({ ...advDraft, balanceMax: e.target.value })}
               />
             </Field>
-            <Field label="Échéance à partir du">
+            <Field label={t('common.date')}>
               <Input
                 type="date"
                 value={advDraft.dueFrom}
                 onChange={(e) => onAdvDraftChange({ ...advDraft, dueFrom: e.target.value })}
               />
             </Field>
-            <Field label="Échéance jusqu'au">
+            <Field label={t('common.date')}>
               <Input
                 type="date"
                 value={advDraft.dueTo}
@@ -177,10 +179,10 @@ export function CollectionFilters({
           </div>
           <div className="mt-3 flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={onResetFilters}>
-              <X className="h-3.5 w-3.5" /> Réinitialiser
+              <X className="h-3.5 w-3.5" /> {t('common.reset')}
             </Button>
             <Button size="sm" onClick={onApplyAdvanced}>
-              Appliquer les filtres
+              {t('common.apply')}
             </Button>
           </div>
         </div>
@@ -189,13 +191,13 @@ export function CollectionFilters({
       {/* ── Puces des filtres actifs ── */}
       {hasFilters && (
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 dark:border-slate-700/50 px-5 py-2.5">
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Filtres :</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('common.filter')} :</span>
           {searchQ && (
             <button
               onClick={() => onRemoveChip('q')}
               className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400"
             >
-              Recherche : {searchQ} <X className="h-3 w-3" />
+              {searchQ} <X className="h-3 w-3" />
             </button>
           )}
           {taxTypeFilter && (
@@ -203,7 +205,7 @@ export function CollectionFilters({
               onClick={() => onRemoveChip('taxType')}
               className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400"
             >
-              Impôt : {taxTypeFilter} <X className="h-3 w-3" />
+              {taxTypeFilter} <X className="h-3 w-3" />
             </button>
           )}
           {periodFilter && (
@@ -211,7 +213,7 @@ export function CollectionFilters({
               onClick={() => onRemoveChip('period')}
               className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400"
             >
-              Période : {periodFilter} <X className="h-3 w-3" />
+              {periodFilter} <X className="h-3 w-3" />
             </button>
           )}
           {activeTabLabel && (
@@ -219,7 +221,7 @@ export function CollectionFilters({
               onClick={() => onRemoveChip('tab')}
               className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400"
             >
-              Onglet : {activeTabLabel} <X className="h-3 w-3" />
+              {activeTabLabel} <X className="h-3 w-3" />
             </button>
           )}
           {advApplied.status && (
@@ -227,7 +229,7 @@ export function CollectionFilters({
               onClick={() => onRemoveChip('status')}
               className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
             >
-              Statut : {STATUS_OPTIONS.find((s) => s.value === advApplied.status)?.label} <X className="h-3 w-3" />
+              {STATUS_OPTIONS.find((s) => s.value === advApplied.status) ? t(STATUS_OPTIONS.find((s) => s.value === advApplied.status)!.key) : advApplied.status} <X className="h-3 w-3" />
             </button>
           )}
           {advApplied.priority && (
@@ -235,21 +237,21 @@ export function CollectionFilters({
               onClick={() => onRemoveChip('priority')}
               className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-400"
             >
-              Priorité : {PRIORITY_OPTIONS.find((s) => s.value === advApplied.priority)?.label} <X className="h-3 w-3" />
+              {PRIORITY_OPTIONS.find((s) => s.value === advApplied.priority) ? t(PRIORITY_OPTIONS.find((s) => s.value === advApplied.priority)!.key) : advApplied.priority} <X className="h-3 w-3" />
             </button>
           )}
           {advApplied.balanceMin && (
             <button onClick={() => onRemoveChip('balanceMin')} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
-              Reste ≥ {fmtMGA(Number(advApplied.balanceMin))} <X className="h-3 w-3" />
+              ≥ {fmtMGA(Number(advApplied.balanceMin))} <X className="h-3 w-3" />
             </button>
           )}
           {advApplied.balanceMax && (
             <button onClick={() => onRemoveChip('balanceMax')} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
-              Reste ≤ {fmtMGA(Number(advApplied.balanceMax))} <X className="h-3 w-3" />
+              ≤ {fmtMGA(Number(advApplied.balanceMax))} <X className="h-3 w-3" />
             </button>
           )}
           <button onClick={onResetFilters} className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-            Tout effacer
+            {t('common.clear')}
           </button>
         </div>
       )}

@@ -45,18 +45,26 @@ public class ReceiptPdfService {
             Font amountFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, new Color(22, 163, 74));
             Font statusFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, new Color(22, 163, 74));
 
-            // ── En-tête ──
-            Paragraph title = new Paragraph("MNK-TAX", titleFont);
-            title.setAlignment(Element.ALIGN_CENTER);
-            document.add(title);
+            // ── En-tête institutionnel ──
+            Font headerInstitutionFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, new Color(23, 37, 84));
+            Font headerSubFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.DARK_GRAY);
+            Font headerSmallFont = FontFactory.getFont(FontFactory.HELVETICA, 8, Color.GRAY);
 
-            Paragraph slogan = new Paragraph("Gestion des Impôts — Prototype Académique", subFont);
-            slogan.setAlignment(Element.ALIGN_CENTER);
-            document.add(slogan);
+            Paragraph p1 = new Paragraph("DGI MANAKARA", headerInstitutionFont);
+            p1.setAlignment(Element.ALIGN_CENTER);
+            document.add(p1);
 
-            Paragraph institution = new Paragraph("DGI Manakara", subFont);
-            institution.setAlignment(Element.ALIGN_CENTER);
-            document.add(institution);
+            Paragraph p2 = new Paragraph("Service des Impôts de Manakara", headerSubFont);
+            p2.setAlignment(Element.ALIGN_CENTER);
+            document.add(p2);
+
+            Paragraph p3 = new Paragraph("Rattaché à la DRG MANAKARA", headerSmallFont);
+            p3.setAlignment(Element.ALIGN_CENTER);
+            document.add(p3);
+
+            Paragraph p4 = new Paragraph("Direction Régionale des Impôts de Vatovavy-Fitovinany", headerSmallFont);
+            p4.setAlignment(Element.ALIGN_CENTER);
+            document.add(p4);
             document.add(new Paragraph(" "));
 
             // ── Ligne séparatrice ──
@@ -192,7 +200,8 @@ public class ReceiptPdfService {
             document.add(new Paragraph(" "));
             Paragraph footer = new Paragraph(
                     "Document généré par le prototype académique MNK-TAX.\n" +
-                            "Données de démonstration fictives — ne constitue pas une quittance officielle de la DGI.",
+                            "Données de démonstration fictives — ne constitue pas une quittance officielle de la DGI MANAKARA.\n" +
+                            "Direction Régionale des Impôts de Vatovavy-Fitovinany.",
                     smallFont);
             footer.setAlignment(Element.ALIGN_CENTER);
             document.add(footer);

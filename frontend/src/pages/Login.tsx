@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useLocation, useNavigate, Navigate } from 'react-router-dom'
-import { FileText, Fingerprint, Lock, ShieldCheck, TrendingDown, User, ArrowLeft } from 'lucide-react'
+import { Link, useLocation, useNavigate, Navigate } from 'react-router-dom'
+import { FileText, Fingerprint, Lock, Moon, ShieldCheck, Sun, TrendingDown, User, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { useTheme } from '../lib/theme'
 import { useI18n, type Locale } from '../lib/i18n'
 import { apiErrorMessage } from '../lib/api'
 import { Button, Field, Input } from '../components/ui'
@@ -41,6 +42,7 @@ export default function Login() {
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
   const { locale, setLocale, t } = useI18n()
+  const { resolved, toggle: cycleTheme } = useTheme()
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -87,8 +89,17 @@ export default function Login() {
         </a>
 
         <div className="relative flex min-h-screen bg-slate-50 dark:bg-[#0f1117]">
-      {/* Language switcher at top right */}
-      <div className="absolute top-4 right-4 z-20" ref={langRef}>
+      {/* Theme + language switchers at top right */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-1">
+        <button
+          onClick={cycleTheme}
+          className="rounded-xl p-2.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+          aria-label={resolved === 'dark' ? t('nav.theme.light') : t('nav.theme.dark')}
+          title={resolved === 'dark' ? t('nav.theme.light') : t('nav.theme.dark')}
+        >
+          {resolved === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
+        <div className="relative" ref={langRef}>
         <button
           onClick={() => setLangOpen(!langOpen)}
           className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
@@ -120,6 +131,7 @@ export default function Login() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Fond animé global du site */}
@@ -131,7 +143,7 @@ export default function Login() {
       </div>
 
       {/* Panneau gauche — branding */}
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden border-r border-slate-200 bg-gradient-to-br from-white via-slate-50 to-brand-50/60 p-12 dark:border-transparent dark:bg-sidebar dark:from-sidebar dark:via-sidebar dark:to-sidebar lg:flex">
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden border-r border-slate-200 bg-white p-12 dark:border-transparent dark:bg-sidebar dark:bg-sidebar lg:flex">
         <FiscalAnimation />
         {/* Bouton retour à l'accueil — desktop, haut droit du panneau gauche */}
         <a
@@ -224,7 +236,14 @@ export default function Login() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500 lg:hidden">
+          <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+            {t('login.register.noAccount')}{' '}
+            <Link to="/register" className="font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300">
+              {t('login.register.link')}
+            </Link>
+          </p>
+
+          <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500 lg:hidden">
             {t('login.prototype')}
           </p>
         </div>

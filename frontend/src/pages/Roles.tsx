@@ -139,7 +139,7 @@ export default function Roles() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="fx-simple space-y-6">
       <PageHeader
         title="Rôles et permissions"
         subtitle="Centre de gouvernance des accès"

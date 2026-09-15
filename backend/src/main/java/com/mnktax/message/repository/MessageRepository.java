@@ -97,4 +97,40 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
                                      Pageable pageable);
 
     List<Message> findBySenderIdAndRecipientIdAndThreadIdOrderByCreatedAtAsc(Long senderId, Long recipientId, Long threadId);
+
+    // ─── Centre de communication (V29/V30) ──────────────────────
+
+    Page<Message> findByStatusOrderByCreatedAtDesc(com.mnktax.communication.entity.MessageStatus status, Pageable pageable);
+
+    long countByStatus(com.mnktax.communication.entity.MessageStatus status);
+
+    long countByStatusIn(java.util.List<com.mnktax.communication.entity.MessageStatus> statuses);
+
+    /** Envois du centre de communication (statuts agrégés), recherche plein texte simple. */
+    @Query("SELECT m FROM Message m LEFT JOIN com.mnktax.taxpayer.entity.Taxpayer tp ON tp.id = m.taxpayerId " +
+           "WHERE m.status IN (com.mnktax.communication.entity.MessageStatus.QUEUED, " +
+           "com.mnktax.communication.entity.MessageStatus.SENDING, " +
+           "com.mnktax.communication.entity.MessageStatus.SENT, " +
+           "com.mnktax.communication.entity.MessageStatus.FAILED) " +
+           "AND (:status IS NULL OR m.status = :status) " +
+           "AND (:search IS NULL OR :search = '' OR " +
+           "LOWER(m.subject) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(m.content) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(m.senderName) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(tp.name) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(tp.nif) LIKE LOWER(CONCAT('%',:search,'%'))) " +
+           "ORDER BY m.createdAt DESC")
+    Page<Message> findSentCommunication(@Param("status") com.mnktax.communication.entity.MessageStatus status,
+                                        @Param("search") String search, Pageable pageable);
+
+    /** Dernière communication automatique d'un contribuable (anti-doublon relances). */
+    @Query("SELECT m FROM Message m WHERE m.taxpayerId = :taxpayerId " +
+           "AND m.messageType = :messageType " +
+           "AND m.status <> com.mnktax.communication.entity.MessageStatus.CANCELLED " +
+           "AND m.createdAt >= :since " +
+           "ORDER BY m.createdAt DESC")
+    List<Message> findRecentAutomatic(@Param("taxpayerId") Long taxpayerId,
+                                      @Param("messageType") String messageType,
+                                      @Param("since") java.time.Instant since,
+                                      Pageable pageable);
 }

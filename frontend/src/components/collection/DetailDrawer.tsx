@@ -15,12 +15,13 @@ import {
   X,
 } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiGetBlob, apiPatch, apiPost } from '../../lib/api'
-import { fmtDate, fmtMGA } from '../../lib/format'
+import { useI18n } from '../../lib/i18n'
+import { useLocaleFormatters } from '../../lib/format'
 import type { CollectionDebtRow, CollectionDetail, DebtStatus } from '../../types'
 import { Button, Field, Input, Select, Spinner, Textarea } from '../ui'
 import { useToast } from '../Toast'
 import { UserAvatar } from '../UserAvatar'
-import { TERMINAL_STATUSES, ACTION_LABELS, ACTION_ICONS } from './constants'
+import { TERMINAL_STATUSES, ACTION_KEYS, ACTION_ICONS } from './constants'
 import { StatusBadge } from './StatusBadge'
 import { PriorityBadge } from './PriorityBadge'
 import { PaymentProgress } from './PaymentProgress'
@@ -73,6 +74,8 @@ export function DetailDrawer({
 }) {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { t } = useI18n()
+  const { fmtDate, fmtMGA } = useLocaleFormatters()
   const [disputeOpen, setDisputeOpen] = useState(false)
   const [disputeReason, setDisputeReason] = useState('')
   const [disputeAmount, setDisputeAmount] = useState('')
@@ -102,7 +105,7 @@ export function DetailDrawer({
         contestationDate: new Date().toISOString().slice(0, 10),
       }),
     onSuccess: () => {
-      toast.success('Litige déclaré — créance en contentieux')
+      toast.success(t('toast.actionSaved'))
       setDisputeOpen(false)
       setDisputeReason('')
       setDisputeAmount('')
@@ -118,7 +121,7 @@ export function DetailDrawer({
         notes: decisionNotes.trim() || null,
       }),
     onSuccess: () => {
-      toast.success('Décision enregistrée')
+      toast.success(t('toast.saveSuccess'))
       setDecisionOpen(false)
       setDecisionNotes('')
       invalidate()
@@ -130,7 +133,7 @@ export function DetailDrawer({
     mutationFn: () =>
       apiPatch(`/debts/${debtId}/suspend`, { reason: suspendReason.trim() || 'Suspension depuis le recouvrement' }),
     onSuccess: () => {
-      toast.success('Créance suspendue')
+      toast.success(t('toast.actionSaved'))
       setSuspendOpen(false)
       setSuspendReason('')
       invalidate()
@@ -141,7 +144,7 @@ export function DetailDrawer({
   const resumeDebt = useMutation({
     mutationFn: () => apiPatch(`/debts/${debtId}/resume`),
     onSuccess: () => {
-      toast.success('Créance réactivée')
+      toast.success(t('toast.actionSaved'))
       invalidate()
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -151,7 +154,7 @@ export function DetailDrawer({
     mutationFn: () =>
       apiPatch(`/debts/${debtId}/close`, { reason: closeReason.trim() || 'Clôture depuis le recouvrement' }),
     onSuccess: () => {
-      toast.success('Créance clôturée')
+      toast.success(t('toast.actionSaved'))
       setCloseOpen(false)
       setCloseReason('')
       invalidate()
@@ -177,7 +180,7 @@ export function DetailDrawer({
       a.download = `${kind === 'mise-en-demeure' ? 'mise-en-demeure' : 'lettre-relance'}_${detail?.reference ?? debtId}_${new Date().toISOString().slice(0, 10)}.pdf`
       a.click()
       URL.revokeObjectURL(url)
-      toast.success('Document PDF généré')
+      toast.success(t('toast.pdfGenerated'))
     } catch (err) {
       toast.error(apiErrorMessage(err))
     } finally {
@@ -208,19 +211,19 @@ export function DetailDrawer({
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
       role="dialog"
       aria-modal="true"
-      aria-label="Détail de la créance"
+      aria-label={t("collection.drawer.title")}
     >
       <div className="fixed inset-y-0 right-0 w-full max-w-xl animate-drawer-in border-l border-slate-200/70 bg-white shadow-popover dark:border-slate-700/50 dark:bg-slate-800">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Détail de la créance</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t("collection.drawer.title")}</h3>
             {detail && <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">{detail.reference}</p>}
           </div>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-            aria-label="Fermer le détail"
+            aria-label={t("collection.drawer.close")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -229,7 +232,7 @@ export function DetailDrawer({
         {/* Body */}
         <div className="h-[calc(100vh-60px)] overflow-y-auto px-5 py-4">
           {isLoading || !detail ? (
-            <Spinner label="Chargement du dossier…" />
+            <Spinner label={t("common.loading")} />
           ) : (
             <div className="space-y-6">
               {/* ── Info contribuable ── */}
@@ -293,7 +296,7 @@ export function DetailDrawer({
                         <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                              {ACTION_ICONS[a.type]} {ACTION_LABELS[a.type] ?? a.type}
+                              {ACTION_ICONS[a.type]} {t(ACTION_KEYS[a.type] ?? 'common.unknown')}
                             </span>
                             <span className="text-[10px] text-slate-400 dark:text-slate-500">{fmtDate(a.actionDate)}</span>
                           </div>
@@ -413,7 +416,7 @@ export function DetailDrawer({
                     onClick={() => downloadDocument('mise-en-demeure')}
                     disabled={docBusy !== null}
                     loading={docBusy === 'mise-en-demeure'}
-                    title="Télécharger la mise en demeure (PDF)"
+                    title={t("collection.drawer.downloadNotice")}
                   >
                     <FileText className="h-3.5 w-3.5" /> Mise en demeure PDF
                   </Button>
@@ -423,7 +426,7 @@ export function DetailDrawer({
                     onClick={() => downloadDocument('relance')}
                     disabled={docBusy !== null}
                     loading={docBusy === 'relance'}
-                    title="Télécharger la lettre de relance (PDF)"
+                    title={t("collection.drawer.downloadReminder")}
                   >
                     <FileText className="h-3.5 w-3.5" /> Lettre de relance PDF
                   </Button>
@@ -441,7 +444,7 @@ export function DetailDrawer({
                       <Button
                         size="sm"
                         onClick={() => onPayment(toRow(detail))}
-                        className="bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                        className="bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
                       >
                         <CreditCard className="h-3.5 w-3.5" /> Enregistrer un paiement
                       </Button>

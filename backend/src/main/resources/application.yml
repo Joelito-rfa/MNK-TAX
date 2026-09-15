@@ -59,11 +59,35 @@ mnk-tax:
   receipt:
     base-url: ${RECEIPT_BASE_URL:http://localhost:5177}
     storage-dir: ${RECEIPT_STORAGE_DIR:./data/receipts}
+  scheduler:
+    zone: ${SCHEDULER_TIMEZONE:Indian/Antananarivo}
+    communication-cron: ${COMM_SCHEDULER_CRON:0 15 7 * * *}
   document:
     storage-dir: ${DOCUMENT_STORAGE_DIR:./data/documents}
   avatar:
     storage-dir: ${AVATAR_STORAGE_DIR:./data/avatars}
   seed-demo: ${SEED_DEMO:true}
+  communication:
+    mail:
+      # Réel uniquement si MAIL_HOST est défini — l'état effectif est vérifié sur MAIL_HOST
+      enabled: ${MAIL_ENABLED:false}
+      from-address: ${MAIL_FROM_ADDRESS:no-reply@mnk-tax.mg}
+      from-name: ${MAIL_FROM_NAME:MNK-TAX — Administration fiscale}
+      base-url: ${MAIL_BASE_URL:http://localhost:5177}
+    sms:
+      # Fournisseur SMS réel requis — aucun faux statut "envoyé" sans configuration
+      enabled: ${SMS_ENABLED:false}
+      provider: ${SMS_PROVIDER:none}
+      account-sid: ${SMS_ACCOUNT_SID:}
+      auth-token: ${SMS_AUTH_TOKEN:}
+      from-number: ${SMS_FROM_NUMBER:}
+    queue:
+      batch-size: ${COMM_QUEUE_BATCH_SIZE:50}
+      max-attempts: ${COMM_QUEUE_MAX_ATTEMPTS:3}
+      retry-backoff-minutes: ${COMM_QUEUE_RETRY_BACKOFF_MINUTES:5}
+    test:
+      email-recipient: ${COMM_TEST_EMAIL:}
+      sms-recipient: ${COMM_TEST_SMS:}
 logging:
   level:
     com.mnktax: ${LOG_LEVEL:INFO}

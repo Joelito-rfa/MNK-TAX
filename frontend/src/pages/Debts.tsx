@@ -371,7 +371,7 @@ export default function Debts() {
             </Button>
             <Button
               onClick={() => { reset(); setCreateOpen(true) }}
-              className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/25 hover:from-violet-500 hover:to-indigo-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
+              className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
             >
               <Plus className="h-4 w-4" /> Ajouter une créance
             </Button>
@@ -390,7 +390,7 @@ export default function Debts() {
               onClick={() => { setPriority(item.key); setPage(0) }}
               className={`group flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
                 isActive
-                  ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/20'
+                  ? 'bg-brand-600 text-white shadow-md shadow-violet-500/20'
                   : 'bg-white border border-slate-200 text-slate-600 hover:border-violet-300 hover:text-violet-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:border-violet-500/50 dark:hover:text-violet-400'
               }`}
             >

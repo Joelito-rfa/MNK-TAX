@@ -854,6 +854,221 @@ export interface MessageStats {
   urgentCount: number
 }
 
+/* ── Centre de communication multicanal (/api/communication) ── */
+export type CommChannel = 'IN_APP' | 'EMAIL' | 'SMS'
+export type CommMessageStatus =
+  | 'DRAFT' | 'SCHEDULED' | 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'CANCELLED'
+export type CommDeliveryStatus =
+  | 'PENDING' | 'SENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | 'BOUNCED' | 'READ' | 'CANCELLED'
+export type CommPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'
+export type CommAudience = 'SINGLE' | 'IDS' | 'ALL' | 'WITH_DEBT' | 'OVERDUE' | 'TAX_TYPE' | 'DUE_SOON'
+
+export interface CommComposeRequest {
+  taxpayerId?: number | null
+  userId?: number | null
+  username?: string | null
+  audience?: CommAudience | null
+  taxTypeCode?: string | null
+  taxpayerIds?: number[] | null
+  channels: CommChannel[]
+  subject?: string | null
+  content?: string | null
+  templateCode?: string | null
+  language?: string | null
+  priority?: CommPriority | null
+  messageType?: string | null
+  scheduledAt?: string | null
+  requireConfirmation?: boolean | null
+}
+
+export interface CommComposePreview {
+  audience: string
+  recipientCount: number
+  channels: CommChannel[]
+  missingEmail: number
+  missingPhone: number
+  warnings: string[]
+}
+
+export interface CommComposeResult {
+  messageId: number
+  status: string
+  recipients: number
+  channels: CommChannel[]
+  warning: string | null
+}
+
+export interface CommDelivery {
+  id: number
+  messageId: number
+  channel: CommChannel
+  recipientAddress: string | null
+  status: CommDeliveryStatus
+  attemptCount: number
+  maxAttempts: number
+  lastError: string | null
+  nextRetryAt: string | null
+  providerMessageId: string | null
+  sentAt: string | null
+  deliveredAt: string | null
+  readAt: string | null
+  createdAt: string
+}
+
+export interface CommSentMessage {
+  id: number
+  recipientName: string
+  taxpayerId: number | null
+  taxpayerName: string | null
+  taxpayerNif: string | null
+  subject: string | null
+  channels: string | null
+  messageType: string | null
+  priority: CommPriority
+  status: CommMessageStatus
+  lastError: string | null
+  scheduledAt: string | null
+  createdAt: string
+  deliveries: CommDelivery[]
+}
+
+export interface CommStats {
+  messagesSent: number
+  messagesFailed: number
+  messagesScheduled: number
+  messagesQueued: number
+  messagesRead: number
+  emailsSent: number
+  smsSent: number
+  notificationsSent: number
+  deliveryRate: number
+  readRate: number
+  failureRate: number
+}
+
+export interface CommProviderStatus {
+  channel: CommChannel
+  provider: string
+  status: 'CONNECTED' | 'INCOMPLETE' | 'DISCONNECTED'
+  detail: string
+}
+
+export interface CommProvidersStatus {
+  providers: CommProviderStatus[]
+  queuePending: number
+  queueFailed: number
+  maxAttempts: number
+  retryBackoffMinutes: number
+}
+
+export interface CommTemplate {
+  id: number
+  code: string
+  category: string
+  channels: string
+  subjectFr: string | null
+  subjectMg: string | null
+  subjectEn: string | null
+  bodyFr: string
+  bodyMg: string
+  bodyEn: string
+  smsBodyFr: string | null
+  smsBodyMg: string | null
+  smsBodyEn: string | null
+  enabled: boolean
+}
+
+export interface CommTemplateRenderRequest {
+  templateCode: string
+  language: string
+  variables: Record<string, string>
+}
+
+export interface CommTemplateRenderResult {
+  subject: string | null
+  body: string | null
+  smsBody: string | null
+}
+
+export interface CommCampaign {
+  id: number
+  reference: string
+  name: string
+  audience: string
+  channels: string
+  createdByName: string | null
+  recipientCount: number
+  sentCount: number
+  failedCount: number
+  readCount: number
+  status: 'QUEUED' | 'SENDING' | 'COMPLETED' | 'FAILED'
+  createdAt: string
+}
+
+export interface CommCampaignRequest {
+  name: string
+  audience: CommAudience
+  taxTypeCode?: string | null
+  taxpayerIds?: number[] | null
+  channels: CommChannel[]
+  subject?: string | null
+  content?: string | null
+  templateCode?: string | null
+  priority?: CommPriority | null
+  scheduledAt?: string | null
+  requireConfirmation?: boolean | null
+}
+
+export interface CommCampaignAudiencePreview {
+  recipientCount: number
+  missingEmail: number
+  missingPhone: number
+}
+
+export interface CommEventRule {
+  id: number
+  eventType: string
+  templateCode: string
+  channels: string
+  priority: CommPriority
+  dayOffset: number | null
+  enabled: boolean
+}
+
+export interface CommUpdateEventRuleRequest {
+  channels?: string | null
+  priority?: CommPriority | null
+  dayOffset?: number | null
+  enabled?: boolean | null
+}
+
+export interface CommTestSendRequest {
+  channel: 'EMAIL' | 'SMS'
+  subject?: string | null
+  content?: string | null
+}
+
+export interface CommTestSendResult {
+  success: boolean
+  message: string
+}
+
+export interface CommSaveTemplateRequest {
+  code: string
+  category?: string | null
+  channels?: string | null
+  subjectFr?: string | null
+  subjectMg?: string | null
+  subjectEn?: string | null
+  bodyFr?: string | null
+  bodyMg?: string | null
+  bodyEn?: string | null
+  smsBodyFr?: string | null
+  smsBodyMg?: string | null
+  smsBodyEn?: string | null
+  enabled?: boolean | null
+}
+
 export interface SystemParameter {
   id: number
   key: string

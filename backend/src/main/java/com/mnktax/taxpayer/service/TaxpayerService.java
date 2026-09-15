@@ -4,6 +4,7 @@ import com.mnktax.audit.service.AuditService;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.NifValidator;
+import com.mnktax.common.util.PhoneUtil;
 import com.mnktax.debt.entity.DebtStatus;
 import com.mnktax.debt.repository.TaxDebtRepository;
 import com.mnktax.declaration.entity.DeclarationStatus;
@@ -13,6 +14,7 @@ import com.mnktax.tax.entity.TaxRegime;
 import com.mnktax.tax.repository.TaxCenterRepository;
 import com.mnktax.tax.repository.TaxObligationRepository;
 import com.mnktax.tax.repository.TaxRegimeRepository;
+import com.mnktax.taxpayer.dto.TaxpayerDtos;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.ActivityDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.AddressDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.CreateTaxpayerRequest;
@@ -108,6 +110,22 @@ public class TaxpayerService {
                 .orElse(null);
     }
 
+    /**
+     * Coordonnées de communication d'un contribuable (composeur) —
+     * accessible aux agents MESSAGE_WRITE uniquement.
+     */
+    @Transactional(readOnly = true)
+    public TaxpayerDtos.TaxpayerContactDto getContact(Long id) {
+        return TaxpayerDtos.TaxpayerContactDto.from(find(id));
+    }
+
+    /** Liste des coordonnées pour recherche du composeur (NIF, nom, email, téléphone). */
+    @Transactional(readOnly = true)
+    public Page<TaxpayerDtos.TaxpayerContactDto> contacts(String q, Pageable pageable) {
+        return taxpayerRepository.search(blankToNull(q), null, null, null, null, null, null, pageable)
+                .map(TaxpayerDtos.TaxpayerContactDto::from);
+    }
+
     @Transactional
     public TaxpayerDetailDto create(CreateTaxpayerRequest request, HttpServletRequest http) {
         String nif = resolveNif(request.nif());
@@ -119,6 +137,7 @@ public class TaxpayerService {
                 .firstName(request.firstName())
                 .lastName(request.lastName())
                 .phone(request.phone())
+                .phoneNormalized(PhoneUtil.normalize(request.phone()))
                 .email(request.email())
                 .address(request.address())
                 .birthDate(request.birthDate())
@@ -174,6 +193,7 @@ public class TaxpayerService {
         taxpayer.setFirstName(request.firstName());
         taxpayer.setLastName(request.lastName());
         taxpayer.setPhone(request.phone());
+        taxpayer.setPhoneNormalized(PhoneUtil.normalize(request.phone()));
         taxpayer.setEmail(request.email());
         taxpayer.setAddress(request.address());
         taxpayer.setBirthDate(request.birthDate());

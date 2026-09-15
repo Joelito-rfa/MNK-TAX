@@ -221,7 +221,7 @@ export default function Profile() {
         {/* ═══ Carte d'identité ═══ */}
         <div className="lg:col-span-1">
           <Card className="overflow-hidden">
-            <div className="flex flex-col items-center gap-4 bg-gradient-to-br from-brand-600 to-brand-800 px-6 py-8 text-center">
+            <div className="flex flex-col items-center gap-4 bg-brand-700 px-6 py-8 text-center">
               <div className="group relative">
                 <Avatar
                   name={fullName || user.username}

@@ -1,5 +1,6 @@
 package com.mnktax.message.entity;
 
+import com.mnktax.communication.entity.MessageStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -105,4 +106,40 @@ public class Message {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    // ─── Centre de communication multicanal (V29/V30) ──────────
+
+    /** Canaux demandés : "IN_APP,EMAIL,SMS". */
+    @Column(length = 100)
+    private String channels;
+
+    /** Type fiscal : TAX_DEADLINE | OVERDUE | PAYMENT | COLLECTION | FORMAL_NOTICE | SYSTEM | GENERAL. */
+    @Column(name = "message_type", length = 30)
+    private String messageType;
+
+    /** Code du modèle utilisé (si généré depuis un template). */
+    @Column(name = "template_code", length = 60)
+    private String templateCode;
+
+    /** Campagne d'origine (diffusion), null pour un message individuel. */
+    @Column(name = "campaign_id")
+    private Long campaignId;
+
+    /** Dernière erreur d'envoi (canal externe), null sinon. */
+    @Column(name = "last_error", length = 500)
+    private String lastError;
+
+    /** Statut d'envoi agrégé du cycle de vie multicanal. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    @Builder.Default
+    private MessageStatus status = MessageStatus.SENT;
+
+    /** Date d'envoi programmé (statut SCHEDULED jusqu'au traitement). */
+    @Column(name = "scheduled_at")
+    private Instant scheduledAt;
+
+    /** Auteur réel de l'envoi (login), distinct de senderName. */
+    @Column(name = "created_by", length = 100)
+    private String createdBy;
 }

@@ -197,7 +197,7 @@ export default function Features() {
           <button
             type="button"
             onClick={() => navigate(featured.path)}
-            className="group mb-4 w-full cursor-pointer rounded-3xl border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-white/[0.02] p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-brand-500/30 hover:shadow-2xl hover:shadow-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:p-8"
+            className="group mb-4 w-full cursor-pointer rounded-3xl border border-white/[0.08] bg-white/[0.04] p-6 text-left transition-all duration-300 hover:-translate-y-1 hover:border-brand-500/30 hover:shadow-2xl hover:shadow-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:p-8"
           >
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="max-w-xl">
@@ -282,7 +282,7 @@ export default function Features() {
                     <span className="whitespace-nowrap text-[11px] font-medium text-slate-300">{step}</span>
                   </div>
                   {i < workflow.length - 1 && (
-                    <span aria-hidden="true" className="h-px w-5 bg-gradient-to-r from-brand-500/40 to-brand-500/10" />
+                    <span aria-hidden="true" className="h-px w-5 bg-brand-500/20" />
                   )}
                 </div>
               ))}

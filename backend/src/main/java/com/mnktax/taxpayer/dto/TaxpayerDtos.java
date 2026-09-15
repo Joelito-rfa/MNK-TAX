@@ -74,6 +74,16 @@ public final class TaxpayerDtos {
         }
     }
 
+    /** DTO léger pour le composeur : coordonnées de communication du contribuable. */
+    public record TaxpayerContactDto(
+            Long id, String nif, String name, String email, String phone,
+            String phoneNormalized, String language, String preferredChannels) {
+        public static TaxpayerContactDto from(Taxpayer t) {
+            return new TaxpayerContactDto(t.getId(), t.getNif(), t.getName(), t.getEmail(),
+                    t.getPhone(), t.getPhoneNormalized(), t.getLanguage(), t.getPreferredChannels());
+        }
+    }
+
     public record TaxpayerDetailDto(Long id, String nif, TaxpayerType type, String name, String businessName,
                                     String firstName, String lastName, String phone, String email, String address,
                                     LocalDate birthDate, String legalRepresentative, LocalDate registrationDate,
