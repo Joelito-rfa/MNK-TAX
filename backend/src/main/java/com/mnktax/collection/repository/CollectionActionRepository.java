@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,6 +57,48 @@ public interface CollectionActionRepository extends JpaRepository<CollectionActi
               )
             """)
     List<CollectionAction> findLatestByDebtIds(@Param("debtIds") java.util.Collection<Long> debtIds);
+
+    /**
+     * Dernière relance amiable (type REMINDER) de chaque créance d'une liste.
+     * Sert au suivi fiscal : délai écoulé depuis la relance et alerte sur la
+     * prochaine relance prévue. Au plus une ligne par créance.
+     */
+    @Query("""
+            SELECT a FROM CollectionAction a
+            WHERE a.debt.id IN :debtIds
+              AND a.type = com.mnktax.collection.entity.CollectionActionType.REMINDER
+              AND NOT EXISTS (
+                    SELECT a2 FROM CollectionAction a2
+                    WHERE a2.debt = a.debt
+                      AND a2.type = com.mnktax.collection.entity.CollectionActionType.REMINDER
+                      AND (a2.actionDate > a.actionDate
+                           OR (a2.actionDate = a.actionDate AND a2.id > a.id))
+              )
+            """)
+    List<CollectionAction> findLatestRemindersByDebtIds(@Param("debtIds") java.util.Collection<Long> debtIds);
+
+    /**
+     * Nombre de créances non soldées dont la dernière relance amiable prévoit une
+     * prochaine relance déjà dépassée : alimente l'alerte « relances en retard ».
+     */
+    @Query("""
+            SELECT COUNT(DISTINCT a.debt.id) FROM CollectionAction a
+            WHERE a.type = com.mnktax.collection.entity.CollectionActionType.REMINDER
+              AND a.nextActionDate IS NOT NULL
+              AND a.nextActionDate < :today
+              AND a.debt.balance > 0
+              AND a.debt.status NOT IN (com.mnktax.debt.entity.DebtStatus.PAID,
+                                        com.mnktax.debt.entity.DebtStatus.CANCELLED,
+                                        com.mnktax.debt.entity.DebtStatus.CLOSED)
+              AND NOT EXISTS (
+                    SELECT a2 FROM CollectionAction a2
+                    WHERE a2.debt = a.debt
+                      AND a2.type = com.mnktax.collection.entity.CollectionActionType.REMINDER
+                      AND (a2.actionDate > a.actionDate
+                           OR (a2.actionDate = a.actionDate AND a2.id > a.id))
+              )
+            """)
+    long countOverdueReminders(@Param("today") LocalDate today);
 
     @Query("""
             SELECT a FROM CollectionAction a

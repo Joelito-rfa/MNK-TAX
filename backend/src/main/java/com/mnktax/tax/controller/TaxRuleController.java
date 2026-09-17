@@ -74,6 +74,14 @@ public class TaxRuleController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/versions/recent")
+    @PreAuthorize("hasAuthority('" + Permissions.RULE_READ + "')")
+    @Operation(summary = "Dernières modifications de règles (toutes règles confondues)")
+    public ResponseEntity<List<TaxRuleVersionDto>> recentVersions(
+            @RequestParam(required = false, defaultValue = "50") int limit) {
+        return ResponseEntity.ok(taxRuleService.recentVersions(limit));
+    }
+
     @GetMapping("/{id}/versions")
     @PreAuthorize("hasAuthority('" + Permissions.RULE_READ + "')")
     @Operation(summary = "Historique des versions d'une règle fiscale")

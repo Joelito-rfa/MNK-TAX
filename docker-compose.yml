@@ -40,6 +40,21 @@ services:
       JWT_SECRET: ${JWT_SECRET:-Y2hhbmdlLW1lLWludGVybmFsLXNlY3JldC1mb3ItbW5rLXRheC1wcm90b3R5cGUtMDAx}
       SEED_DEMO: ${SEED_DEMO:-true}
       RECEIPT_BASE_URL: ${RECEIPT_BASE_URL:-http://localhost:3000}
+      # Centre de communication — Email (SMTP réel)
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@mnk-tax.mg}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-MNK-TAX — Administration fiscale}
+      # Envois test (destination explicite uniquement)
+      COMM_TEST_EMAIL: ${COMM_TEST_EMAIL:-}
+      COMM_TEST_SMS: ${COMM_TEST_SMS:-}
+      # Centre de communication — SMS (fournisseur réel)
+      SMS_PROVIDER: ${SMS_PROVIDER:-none}
+      SMS_ACCOUNT_SID: ${SMS_ACCOUNT_SID:-}
+      SMS_AUTH_TOKEN: ${SMS_AUTH_TOKEN:-}
+      SMS_FROM_NUMBER: ${SMS_FROM_NUMBER:-}
     volumes:
       - backend-data:/app/data
     depends_on:

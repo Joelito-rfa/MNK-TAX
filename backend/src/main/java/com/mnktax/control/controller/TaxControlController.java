@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -71,6 +72,14 @@ public class TaxControlController {
                                                 @RequestBody ControlDtos.UpdateControlRequest req,
                                                 HttpServletRequest http) {
         return ResponseEntity.ok(controlService.update(id, req, http));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.CONTROL_WRITE + "')")
+    @Operation(summary = "Supprimer un contrôle fiscal ouvert")
+    public ResponseEntity<Void> delete(@PathVariable Long id, HttpServletRequest http) {
+        controlService.delete(id, http);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/close")

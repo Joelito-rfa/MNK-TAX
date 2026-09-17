@@ -20,7 +20,6 @@ import { useLocaleFormatters } from '../../lib/format'
 import type { CollectionDebtRow, CollectionDetail, DebtStatus } from '../../types'
 import { Button, Field, Input, Select, Spinner, Textarea } from '../ui'
 import { useToast } from '../Toast'
-import { UserAvatar } from '../UserAvatar'
 import { TERMINAL_STATUSES, ACTION_KEYS, ACTION_ICONS } from './constants'
 import { StatusBadge } from './StatusBadge'
 import { PriorityBadge } from './PriorityBadge'
@@ -50,6 +49,12 @@ function toRow(detail: CollectionDetail): CollectionDebtRow {
     lastResponsible: null,
     nextAction: null,
     nextActionDate: null,
+    // Le détail d'une créance n'expose pas le suivi de relance (propre au tableau).
+    lastReminderDate: null,
+    daysSinceLastReminder: 0,
+    nextReminderDate: null,
+    daysLateNextReminder: 0,
+    nextReminderOverdue: false,
   }
 }
 
@@ -131,7 +136,7 @@ export function DetailDrawer({
 
   const suspendDebt = useMutation({
     mutationFn: () =>
-      apiPatch(`/debts/${debtId}/suspend`, { reason: suspendReason.trim() || 'Suspension depuis le recouvrement' }),
+      apiPatch(`/debts/${debtId}/suspend`, { reason: suspendReason.trim() || t('collection.drawer.suspendReasonPh') }),
     onSuccess: () => {
       toast.success(t('toast.actionSaved'))
       setSuspendOpen(false)
@@ -152,7 +157,7 @@ export function DetailDrawer({
 
   const closeDebt = useMutation({
     mutationFn: () =>
-      apiPatch(`/debts/${debtId}/close`, { reason: closeReason.trim() || 'Clôture depuis le recouvrement' }),
+      apiPatch(`/debts/${debtId}/close`, { reason: closeReason.trim() || t('collection.drawer.closeReasonPh') }),
     onSuccess: () => {
       toast.success(t('toast.actionSaved'))
       setCloseOpen(false)
@@ -238,43 +243,43 @@ export function DetailDrawer({
               {/* ── Info contribuable ── */}
               <section>
                 <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Contribuable
+                  {t('collection.drawer.taxpayer')}
                 </h4>
                 <div className="space-y-2 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
-                  <InfoRow label="Nom" value={detail.taxpayer.name} strong />
+                  <InfoRow label={t('collection.drawer.f.name')} value={detail.taxpayer.name} strong />
                   <InfoRow label="NIF" value={detail.taxpayer.nif} mono />
-                  {detail.taxpayer.phone && <InfoRow label="Téléphone" value={detail.taxpayer.phone} />}
-                  {detail.taxpayer.email && <InfoRow label="Email" value={detail.taxpayer.email} />}
-                  {detail.taxpayer.address && <InfoRow label="Adresse" value={detail.taxpayer.address} />}
-                  {detail.taxpayer.taxCenterName && <InfoRow label="Centre fiscal" value={detail.taxpayer.taxCenterName} />}
-                  {detail.taxpayer.taxRegimeCode && <InfoRow label="Régime" value={detail.taxpayer.taxRegimeCode} />}
+                  {detail.taxpayer.phone && <InfoRow label={t('profile.phone')} value={detail.taxpayer.phone} />}
+                  {detail.taxpayer.email && <InfoRow label={t('profile.email')} value={detail.taxpayer.email} />}
+                  {detail.taxpayer.address && <InfoRow label={t('taxpayers.adresse')} value={detail.taxpayer.address} />}
+                  {detail.taxpayer.taxCenterName && <InfoRow label={t('collection.drawer.f.taxCenter')} value={detail.taxpayer.taxCenterName} />}
+                  {detail.taxpayer.taxRegimeCode && <InfoRow label={t('collection.drawer.f.regime')} value={detail.taxpayer.taxRegimeCode} />}
                 </div>
               </section>
 
               {/* ── Info créance ── */}
               <section>
                 <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Créance
+                  {t('collection.drawer.debt')}
                 </h4>
                 <div className="space-y-2 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
-                  <InfoRow label="Impôt / Période" value={`${detail.taxTypeCode} — ${detail.period}`} />
-                  <InfoRow label="Montant principal" value={fmtMGA(detail.principalAmount)} />
-                  {detail.penaltyAmount > 0 && <InfoRow label="Pénalités" value={fmtMGA(detail.penaltyAmount)} warn />}
-                  {detail.interestAmount > 0 && <InfoRow label="Intérêts" value={fmtMGA(detail.interestAmount)} warn />}
-                  <InfoRow label="Montant total" value={fmtMGA(detail.totalAmount)} strong />
-                  <InfoRow label="Montant payé" value={fmtMGA(detail.paidAmount)} paid />
-                  <InfoRow label="Reste à payer" value={fmtMGA(detail.balance)} balance />
-                  <InfoRow label="Échéance" value={fmtDate(detail.dueDate)} />
+                  <InfoRow label={t('collection.drawer.f.taxPeriod')} value={`${detail.taxTypeCode} — ${detail.period}`} />
+                  <InfoRow label={t('collection.drawer.f.principal')} value={fmtMGA(detail.principalAmount)} />
+                  {detail.penaltyAmount > 0 && <InfoRow label={t('collection.drawer.f.penalties')} value={fmtMGA(detail.penaltyAmount)} warn />}
+                  {detail.interestAmount > 0 && <InfoRow label={t('collection.drawer.f.interest')} value={fmtMGA(detail.interestAmount)} warn />}
+                  <InfoRow label={t('collection.drawer.f.total')} value={fmtMGA(detail.totalAmount)} strong />
+                  <InfoRow label={t('collection.drawer.f.paid')} value={fmtMGA(detail.paidAmount)} paid />
+                  <InfoRow label={t('collection.drawer.f.remaining')} value={fmtMGA(detail.balance)} balance />
+                  <InfoRow label={t('collection.drawer.f.dueDate')} value={fmtDate(detail.dueDate)} />
                   {detail.daysOverdue > 0 && (
-                    <InfoRow label="Jours de retard" value={`${detail.daysOverdue} jours`} overdue />
+                    <InfoRow label={t('collection.drawer.f.daysOverdue')} value={t('collection.drawer.f.days', { count: detail.daysOverdue })} overdue />
                   )}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-slate-500 dark:text-slate-400">Statut</span>
+                    <span className="text-sm text-slate-500 dark:text-slate-400">{t('collection.drawer.f.status')}</span>
                     <StatusBadge status={detail.debtStatus} />
                   </div>
-                  <InfoRow label="Priorité" value={<PriorityBadge priority={detail.collectionPriority} />} />
-                  <InfoRow label="Origine" value={detail.origin} />
-                  {detail.observations && <InfoRow label="Observations" value={detail.observations} />}
+                  <InfoRow label={t('collection.drawer.f.priority')} value={<PriorityBadge priority={detail.collectionPriority} />} />
+                  <InfoRow label={t('collection.drawer.f.origin')} value={detail.origin} />
+                  {detail.observations && <InfoRow label={t('collection.drawer.f.observations')} value={detail.observations} />}
                   <div className="pt-1">
                     <PaymentProgress paid={detail.paidAmount} total={detail.totalAmount} />
                   </div>
@@ -284,10 +289,10 @@ export function DetailDrawer({
               {/* ── Historique des actions (timeline) ── */}
               <section>
                 <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Historique des actions ({detail.actions.length})
+                  {t('collection.drawer.history', { count: detail.actions.length })}
                 </h4>
                 {detail.actions.length === 0 ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Aucune action enregistrée.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{t('collection.drawer.noHistory')}</p>
                 ) : (
                   <div className="relative ml-3 space-y-4 border-l-2 border-slate-200 dark:border-slate-700">
                     {detail.actions.map((a) => (
@@ -319,19 +324,19 @@ export function DetailDrawer({
               <section>
                 <div className="mb-3 flex items-center justify-between">
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Litiges / contentieux ({detail.disputes.length})
+                    {t('collection.drawer.disputes', { count: detail.disputes.length })}
                   </h4>
                   {canAct && !isDisputed && (
                     <button
                       onClick={() => setDisputeOpen(true)}
                       className="inline-flex items-center gap-1 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs font-semibold text-red-500 transition hover:bg-red-500/15"
                     >
-                      <Scale className="h-3.5 w-3.5" /> Déclarer un litige
+                      <Scale className="h-3.5 w-3.5" /> {t('collection.drawer.declareDispute')}
                     </button>
                   )}
                 </div>
                 {detail.disputes.length === 0 ? (
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Aucun litige déclaré.</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{t('collection.drawer.noDisputes')}</p>
                 ) : (
                   <div className="space-y-2">
                     {detail.disputes.map((d) => (
@@ -353,14 +358,14 @@ export function DetailDrawer({
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
                           {d.contestedAmount != null && (
                             <span className="rounded-full bg-red-500/10 px-2 py-0.5 font-medium text-red-500">
-                              Contesté : {fmtMGA(d.contestedAmount)}
+                              {t('collection.drawer.dispute.contested', { amount: fmtMGA(d.contestedAmount) })}
                             </span>
                           )}
                           {d.status === 'OPEN' ? (
-                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 font-medium text-amber-500">En cours</span>
+                            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 font-medium text-amber-500">{t('collection.drawer.dispute.open')}</span>
                           ) : (
                             <span className="rounded-full bg-slate-500/10 px-2 py-0.5 font-medium text-slate-500">
-                              Décision : {d.decision === 'SUSTAINED' ? 'admise' : d.decision === 'REJECTED' ? 'rejetée' : 'retirée'}
+                              {t('collection.drawer.dispute.decision', { decision: d.decision === 'SUSTAINED' ? t('collection.drawer.dispute.sustained') : d.decision === 'REJECTED' ? t('collection.drawer.dispute.rejected') : t('collection.drawer.dispute.withdrawn') })}
                             </span>
                           )}
                           {d.decisionNotes && <span className="text-slate-400">— {d.decisionNotes}</span>}
@@ -372,7 +377,7 @@ export function DetailDrawer({
                               variant="secondary"
                               onClick={() => { setDecisionOpen(true); setDecisionChoice('REJECTED') }}
                             >
-                              <Gavel className="h-3.5 w-3.5" /> Rendre une décision
+                              <Gavel className="h-3.5 w-3.5" /> {t('collection.drawer.makeDecision')}
                             </Button>
                           </div>
                         )}
@@ -386,7 +391,7 @@ export function DetailDrawer({
               {detail.notices.length > 0 && (
                 <section>
                   <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Mises en demeure / courriers ({detail.notices.length})
+                    {t('collection.drawer.notices', { count: detail.notices.length })}
                   </h4>
                   <ul className="space-y-2">
                     {detail.notices.map((n) => (
@@ -407,7 +412,7 @@ export function DetailDrawer({
               {/* ── Documents PDF ── */}
               <section>
                 <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Documents PDF
+                  {t('collection.drawer.documents')}
                 </h4>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -418,7 +423,7 @@ export function DetailDrawer({
                     loading={docBusy === 'mise-en-demeure'}
                     title={t("collection.drawer.downloadNotice")}
                   >
-                    <FileText className="h-3.5 w-3.5" /> Mise en demeure PDF
+                    <FileText className="h-3.5 w-3.5" /> {t('collection.drawer.noticePdf')}
                   </Button>
                   <Button
                     size="sm"
@@ -428,7 +433,7 @@ export function DetailDrawer({
                     loading={docBusy === 'relance'}
                     title={t("collection.drawer.downloadReminder")}
                   >
-                    <FileText className="h-3.5 w-3.5" /> Lettre de relance PDF
+                    <FileText className="h-3.5 w-3.5" /> {t('collection.drawer.reminderPdf')}
                   </Button>
                 </div>
               </section>
@@ -437,7 +442,7 @@ export function DetailDrawer({
               {canAct && (
                 <section>
                   <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Actions rapides
+                    {t('collection.drawer.quickActions')}
                   </h4>
                   <div className="flex flex-wrap gap-2">
                     {detail.balance > 0 && (
@@ -446,37 +451,37 @@ export function DetailDrawer({
                         onClick={() => onPayment(toRow(detail))}
                         className="bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
                       >
-                        <CreditCard className="h-3.5 w-3.5" /> Enregistrer un paiement
+                        <CreditCard className="h-3.5 w-3.5" /> {t('collection.drawer.recordPayment')}
                       </Button>
                     )}
                     <Button size="sm" variant="secondary" onClick={() => onReminder(toRow(detail))}>
-                      <Send className="h-3.5 w-3.5" /> Envoyer une relance
+                      <Send className="h-3.5 w-3.5" /> {t('collection.drawer.sendReminder')}
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => onNotice(toRow(detail))}>
-                      <Mail className="h-3.5 w-3.5" /> Mise en demeure
+                      <Mail className="h-3.5 w-3.5" /> {t('collection.drawer.notice')}
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => onAction(toRow(detail), 'commandment')}>
-                      <FileWarning className="h-3.5 w-3.5" /> Commandement
+                      <FileWarning className="h-3.5 w-3.5" /> {t('collection.drawer.commandment')}
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => onAction(toRow(detail), 'atd')}>
-                      <FileSpreadsheet className="h-3.5 w-3.5" /> ATD
+                      <FileSpreadsheet className="h-3.5 w-3.5" /> {t('collection.drawer.atd')}
                     </Button>
                     <Button size="sm" variant="secondary" onClick={() => onPlan(toRow(detail))}>
-                      <CalendarDays className="h-3.5 w-3.5" /> Plan de paiement
+                      <CalendarDays className="h-3.5 w-3.5" /> {t('collection.drawer.plan')}
                     </Button>
                     {!isSuspended && !isDisputed && (
                       <Button size="sm" variant="secondary" onClick={() => setSuspendOpen(true)}>
-                        <Ban className="h-3.5 w-3.5" /> Suspendre
+                        <Ban className="h-3.5 w-3.5" /> {t('collection.drawer.suspend')}
                       </Button>
                     )}
                     {isSuspended && (
                       <Button size="sm" variant="secondary" onClick={() => resumeDebt.mutate()} loading={resumeDebt.isPending}>
-                        <RotateCcw className="h-3.5 w-3.5" /> Réactiver
+                        <RotateCcw className="h-3.5 w-3.5" /> {t('collection.drawer.reactivate')}
                       </Button>
                     )}
                     {!isSuspended && (
                       <Button size="sm" variant="danger" onClick={() => setCloseOpen(true)}>
-                        <Ban className="h-3.5 w-3.5" /> Clôturer
+                        <Ban className="h-3.5 w-3.5" /> {t('collection.drawer.closeDebt')}
                       </Button>
                     )}
                   </div>
@@ -488,18 +493,18 @@ export function DetailDrawer({
                 <div className="space-y-4">
                   <section>
                     <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Déclarer un litige
+                      {t('collection.drawer.disputeTitle')}
                     </h4>
                     <div className="space-y-3 rounded-xl bg-red-500/5 p-4">
-                      <Field label="Motif de la contestation">
+                      <Field label={t('collection.drawer.disputeReason')}>
                         <Textarea
                           value={disputeReason}
                           onChange={(e) => setDisputeReason(e.target.value)}
                           rows={3}
-                          placeholder="Ex. : erreur de liquidation, base contestée, double imposition…"
+                          placeholder={t('collection.drawer.disputeReasonPh')}
                         />
                       </Field>
-                      <Field label="Montant contesté (facultatif, MGA)">
+                      <Field label={t('collection.drawer.disputedAmountOpt')}>
                         <Input
                           type="number"
                           min="0"
@@ -510,7 +515,7 @@ export function DetailDrawer({
                       </Field>
                       <div className="flex justify-end gap-2 pt-1">
                         <Button size="sm" variant="ghost" onClick={() => { setDisputeOpen(false); setDisputeReason(''); setDisputeAmount('') }}>
-                          Annuler
+                          {t('collection.drawer.cancel')}
                         </Button>
                         <Button
                           size="sm"
@@ -518,7 +523,7 @@ export function DetailDrawer({
                           disabled={!disputeReason.trim() || createDispute.isPending}
                           loading={createDispute.isPending}
                         >
-                          <Scale className="h-3.5 w-3.5" /> Déclarer le litige
+                          <Scale className="h-3.5 w-3.5" /> {t('collection.drawer.declare')}
                         </Button>
                       </div>
                     </div>
@@ -530,38 +535,37 @@ export function DetailDrawer({
                 <div className="space-y-4">
                   <section>
                     <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      Décision sur le litige {openDispute.reference}
+                      {t('collection.drawer.decisionTitle', { ref: openDispute.reference })}
                     </h4>
                     <div className="space-y-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
-                      <Field label="Décision">
+                      <Field label={t('collection.drawer.decision')}>
                         <Select value={decisionChoice} onChange={(e) => setDecisionChoice(e.target.value as 'SUSTAINED' | 'REJECTED' | 'WITHDRAWN')}>
-                          <option value="REJECTED">Rejetée (contestation écartée)</option>
-                          <option value="WITHDRAWN">Retirée (par le contribuable)</option>
-                          <option value="SUSTAINED">Admise (régularisation à effectuer)</option>
+                          <option value="REJECTED">{t('collection.drawer.decision.rejected')}</option>
+                          <option value="WITHDRAWN">{t('collection.drawer.decision.withdrawn')}</option>
+                          <option value="SUSTAINED">{t('collection.drawer.decision.sustained')}</option>
                         </Select>
                       </Field>
                       {decisionChoice === 'SUSTAINED' && (
                         <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-xs text-sky-600 dark:text-sky-400">
-                          Une décision d'admission ne réduit ni n'annule rien automatiquement : la régularisation
-                          (annulation, réduction ou clôture) reste une action explicite et autorisée.
+                          {t('collection.drawer.decisionHint')}
                         </p>
                       )}
-                      <Field label="Motif / notes (facultatif)">
+                      <Field label={t('collection.drawer.decisionNotesOpt')}>
                         <Textarea
                           value={decisionNotes}
                           onChange={(e) => setDecisionNotes(e.target.value)}
                           rows={2}
-                          placeholder="Référence de la décision, observations…"
+                          placeholder={t('collection.drawer.decisionNotesPh')}
                         />
                       </Field>
                       <div className="flex justify-end gap-2 pt-1">
-                        <Button size="sm" variant="ghost" onClick={() => setDecisionOpen(false)}>Annuler</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDecisionOpen(false)}>{t('collection.drawer.cancel')}</Button>
                         <Button
                           size="sm"
                           onClick={() => resolveDispute.mutate()}
                           loading={resolveDispute.isPending}
                         >
-                          Enregistrer la décision
+                          {t('collection.drawer.saveDecision')}
                         </Button>
                       </div>
                     </div>
@@ -572,26 +576,26 @@ export function DetailDrawer({
               {suspendOpen && (
                 <section>
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Suspendre la créance
+                    {t('collection.drawer.suspendTitle')}
                   </h4>
                   <div className="space-y-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
-                    <Field label="Motif de la suspension">
+                    <Field label={t('collection.drawer.suspendReason')}>
                       <Textarea
                         value={suspendReason}
                         onChange={(e) => setSuspendReason(e.target.value)}
                         rows={2}
-                        placeholder="Litige en instruction, moratoire, procédure en cours…"
+                        placeholder={t('collection.drawer.suspendReasonPh')}
                       />
                     </Field>
                     <div className="flex justify-end gap-2 pt-1">
-                      <Button size="sm" variant="ghost" onClick={() => setSuspendOpen(false)}>Annuler</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setSuspendOpen(false)}>{t('collection.drawer.cancel')}</Button>
                       <Button
                         size="sm"
                         variant="secondary"
                         onClick={() => suspendDebt.mutate()}
                         loading={suspendDebt.isPending}
                       >
-                        <Ban className="h-3.5 w-3.5" /> Suspendre
+                        <Ban className="h-3.5 w-3.5" /> {t('collection.drawer.suspend')}
                       </Button>
                     </div>
                   </div>
@@ -601,25 +605,24 @@ export function DetailDrawer({
               {closeOpen && (
                 <section>
                   <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Clôturer la créance
+                    {t('collection.drawer.closeTitle')}
                   </h4>
                   <div className="space-y-3 rounded-xl bg-rose-500/5 p-4">
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Une créance clôturée n'est plus recouvrée. Motif (irrécouvrable, régularisée, décision de
-                      gestion…) :
+                      {t('collection.drawer.closeHint')}
                     </p>
-                    <Field label="Motif de la clôture">
+                    <Field label={t('collection.drawer.closeReason')}>
                       <Textarea
                         value={closeReason}
                         onChange={(e) => setCloseReason(e.target.value)}
                         rows={2}
-                        placeholder="Raison de la clôture…"
+                        placeholder={t('collection.drawer.closeReasonPh')}
                       />
                     </Field>
                     <div className="flex justify-end gap-2 pt-1">
-                      <Button size="sm" variant="ghost" onClick={() => setCloseOpen(false)}>Annuler</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setCloseOpen(false)}>{t('collection.drawer.cancel')}</Button>
                       <Button size="sm" variant="danger" onClick={() => closeDebt.mutate()} loading={closeDebt.isPending}>
-                        <Ban className="h-3.5 w-3.5" /> Clôturer définitivement
+                        <Ban className="h-3.5 w-3.5" /> {t('collection.drawer.closeFinal')}
                       </Button>
                     </div>
                   </div>

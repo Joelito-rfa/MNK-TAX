@@ -8,6 +8,7 @@ import com.mnktax.refund.dto.RefundDtos;
 import com.mnktax.refund.dto.RefundDtos.RefundDto;
 import com.mnktax.refund.dto.RefundDtos.RefundStatsDto;
 import com.mnktax.refund.entity.Refund;
+import com.mnktax.refund.entity.RefundReason;
 import com.mnktax.refund.entity.RefundStatus;
 import com.mnktax.refund.repository.RefundRepository;
 import com.mnktax.taxpayer.entity.Taxpayer;
@@ -18,6 +19,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,8 +41,12 @@ public class RefundService {
     }
 
     @Transactional(readOnly = true)
-    public Page<RefundDto> search(RefundStatus status, Long taxpayerId, String q, Pageable pageable) {
-        return refundRepository.search(status, taxpayerId, q, pageable).map(RefundDto::from);
+    public Page<RefundDto> search(RefundStatus status, RefundReason reason, Long taxpayerId, String q,
+                                  Instant from, Instant to, BigDecimal minAmount, BigDecimal maxAmount,
+                                  Pageable pageable) {
+        String term = (q == null || q.isBlank()) ? null : q.trim();
+        return refundRepository.search(status, reason, taxpayerId, term, from, to, minAmount, maxAmount, pageable)
+                .map(RefundDto::from);
     }
 
     @Transactional(readOnly = true)
@@ -73,6 +79,43 @@ public class RefundService {
         r = refundRepository.save(r);
         auditService.record("CREATE", "REFUND", r.getId().toString(), null, r, http);
         return RefundDto.from(r);
+    }
+
+    @Transactional
+    public RefundDto update(Long id, RefundDtos.UpdateRefundRequest req, HttpServletRequest http) {
+        Refund r = refundRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Remboursement non trouvé : " + id));
+
+        if (r.getStatus() != RefundStatus.PENDING && r.getStatus() != RefundStatus.UNDER_REVIEW) {
+            throw new BusinessException("INVALID_STATUS",
+                    "Seul un remboursement en attente peut être modifié.");
+        }
+
+        Object old = RefundDto.from(r);
+
+        if (req.reason() != null) r.setReason(req.reason());
+        if (req.description() != null) r.setDescription(req.description());
+        if (req.amount() != null) r.setAmount(req.amount());
+        r.setUpdatedAt(Instant.now());
+
+        r = refundRepository.save(r);
+        auditService.record("UPDATE", "REFUND", id.toString(), old, r, http);
+        return RefundDto.from(r);
+    }
+
+    @Transactional
+    public void delete(Long id, HttpServletRequest http) {
+        Refund r = refundRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Remboursement non trouvé : " + id));
+
+        if (r.getStatus() != RefundStatus.PENDING) {
+            throw new BusinessException("INVALID_STATUS",
+                    "Seul un remboursement en attente peut être supprimé.");
+        }
+
+        RefundDto old = RefundDto.from(r);
+        refundRepository.delete(r);
+        auditService.record("DELETE", "REFUND", id.toString(), old, null, http);
     }
 
     @Transactional

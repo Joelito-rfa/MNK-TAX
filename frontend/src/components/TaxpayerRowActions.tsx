@@ -21,7 +21,7 @@ export default function TaxpayerRowActions({
   onSuspend,
   onReactivate,
 }: Props) {
-  const { isOpen, toggle, close, triggerProps, dropdownProps } = useDropdown()
+  const { isOpen, close, triggerProps, dropdownProps } = useDropdown()
   const btnRef = useRef<HTMLButtonElement>(null)
   const [pos, setPos] = useState({ top: 0, left: 0 })
 

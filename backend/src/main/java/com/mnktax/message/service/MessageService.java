@@ -181,9 +181,19 @@ public class MessageService {
     @Transactional
     public MessageDto send(SendMessageRequest request, HttpServletRequest httpRequest) {
         Long senderId = SecurityUtils.currentUserId();
-        User recipient = userRepository.findByUsername(request.recipientUsername().trim())
-                .orElseThrow(() -> new BusinessException("RECIPIENT_NOT_FOUND",
-                        "Destinataire inconnu : " + request.recipientUsername()));
+        // Destinataire par identifiant (replies) ou par nom d'utilisateur.
+        User recipient;
+        if (request.recipientId() != null) {
+            recipient = userRepository.findById(request.recipientId())
+                    .orElseThrow(() -> new BusinessException("RECIPIENT_NOT_FOUND",
+                            "Destinataire introuvable : #" + request.recipientId()));
+        } else if (request.recipientUsername() != null && !request.recipientUsername().isBlank()) {
+            recipient = userRepository.findByUsername(request.recipientUsername().trim())
+                    .orElseThrow(() -> new BusinessException("RECIPIENT_NOT_FOUND",
+                            "Destinataire inconnu : " + request.recipientUsername()));
+        } else {
+            throw new BusinessException("RECIPIENT_REQUIRED", "Le destinataire est requis.");
+        }
         if (!recipient.isEnabled()) {
             throw new BusinessException("RECIPIENT_DISABLED", "Le compte du destinataire est désactivé.");
         }

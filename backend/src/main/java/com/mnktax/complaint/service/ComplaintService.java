@@ -114,6 +114,21 @@ public class ComplaintService {
     }
 
     @Transactional
+    public void delete(Long id, HttpServletRequest http) {
+        Complaint c = complaintRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Réclamation non trouvée : " + id));
+
+        if (c.getStatus() != ComplaintStatus.OPEN) {
+            throw new BusinessException("INVALID_STATUS",
+                    "Seule une réclamation ouverte peut être supprimée.");
+        }
+
+        ComplaintDto old = ComplaintDto.from(c);
+        complaintRepository.delete(c);
+        auditService.record("DELETE", "COMPLAINT", id.toString(), old, null, http);
+    }
+
+    @Transactional
     public ComplaintResponseDto addResponse(Long complaintId, ComplaintDtos.AddResponseRequest req,
                                             HttpServletRequest http) {
         Complaint c = complaintRepository.findById(complaintId)

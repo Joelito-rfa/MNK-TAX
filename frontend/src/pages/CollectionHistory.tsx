@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import { apiGet } from '../lib/api'
+import { useLocaleFormatters } from '../lib/format'
 import { useI18n } from '../lib/i18n'
 import type { CollectionAction, CollectionHistoryEvent, CollectionNotice, Page } from '../types'
 import {
@@ -73,6 +74,7 @@ const EVENT_TYPE_LABELS_BASE: Record<string, string> = {
   INTEREST_APPLIED: 'Intérêts appliqués',
   ADJUSTMENT: 'Ajustement',
   REMINDER_CREATED: 'Relance créée',
+  ACTION_CREATED: 'Action de recouvrement',
   DISPUTE_CREATED: 'Litige déclaré',
   DISPUTE_RESOLVED: 'Décision sur litige',
   DISPUTE_REOPENED: 'Litige levé',
@@ -112,17 +114,19 @@ function useSection<T>(key: string, url: string, enabled: boolean, deps: unknown
   return { data: result.data, isLoading: result.isLoading, isError: result.isError }
 }
 
-function EventChip({ label }: { label: string }) {
+function EventChip({ label, labels }: { label: string; labels: Record<string, string> }) {
   const tone = eventTone(label)
   return (
     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${tone}`}>
-      {EVENT_TYPE_LABELS[label] ?? label}
+      {labels[label] ?? label}
     </span>
   )
 }
 
+// Étape fiscale 6 : Historique — journal append-only horodaté (events/actions/notices), traçabilité fiscale
 export default function CollectionHistory() {
   const { t } = useI18n()
+  const { fmtDate, fmtDateTime } = useLocaleFormatters()
 
   const EVENT_TYPE_LABELS: Record<string, string> = {
     ...EVENT_TYPE_LABELS_BASE,
@@ -245,7 +249,7 @@ export default function CollectionHistory() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <EventChip label={ev.eventType} />
+                      <EventChip label={ev.eventType} labels={EVENT_TYPE_LABELS} />
                       <span className="font-mono text-xs text-brand-700 dark:text-brand-400">{ev.debtReference}</span>
                       <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{ev.taxpayerName}</span>
                       <span className="font-mono text-xs text-slate-400">{ev.nif}</span>

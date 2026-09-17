@@ -8,7 +8,10 @@ import com.mnktax.payment.dto.PaymentDtos.PaymentDto;
 import com.mnktax.payment.dto.PaymentDtos.PaymentStatsDto;
 import com.mnktax.payment.dto.PaymentDtos.ReconcileResult;
 import com.mnktax.payment.entity.PaymentStatus;
-import com.mnktax.payment.service.PaymentService;
+import com.mnktax.payment.service.PaymentAllocationService;
+import com.mnktax.payment.service.PaymentCancellationService;
+import com.mnktax.payment.service.PaymentQueryService;
+import com.mnktax.payment.service.PaymentRecordingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,10 +40,19 @@ import java.util.Map;
 @Tag(name = "Paiements", description = "Enregistrement, allocation et gestion des paiements")
 public class PaymentController {
 
-    private final PaymentService paymentService;
+    private final PaymentRecordingService recordingService;
+    private final PaymentAllocationService allocationService;
+    private final PaymentCancellationService cancellationService;
+    private final PaymentQueryService queryService;
 
-    public PaymentController(PaymentService paymentService) {
-        this.paymentService = paymentService;
+    public PaymentController(PaymentRecordingService recordingService,
+                             PaymentAllocationService allocationService,
+                             PaymentCancellationService cancellationService,
+                             PaymentQueryService queryService) {
+        this.recordingService = recordingService;
+        this.allocationService = allocationService;
+        this.cancellationService = cancellationService;
+        this.queryService = queryService;
     }
 
     @GetMapping
@@ -58,7 +70,7 @@ public class PaymentController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(paymentService.search(status, taxpayerId, method, from, to, q,
+        return ResponseEntity.ok(queryService.search(status, taxpayerId, method, from, to, q,
                 debtId, taxTypeCode, declarationId, center, pageable));
     }
 
@@ -66,23 +78,22 @@ public class PaymentController {
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_READ + "')")
     @Operation(summary = "Détail d'un paiement")
     public ResponseEntity<PaymentDto> get(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentService.get(id));
+        return ResponseEntity.ok(queryService.get(id));
     }
 
     @PostMapping
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_WRITE + "')")
-    @Operation(summary = "Enregistrer un paiement",
-            description = "Transaction : paiement → allocation (principal/pénalité/intérêt) → mise à jour du solde → quittance → audit.")
+    @Operation(summary = "Enregistrer un paiement")
     public ResponseEntity<PaymentDto> record(@Valid @RequestBody CreatePaymentRequest request,
-                                             HttpServletRequest http) {
-        return ResponseEntity.ok(paymentService.record(request, http));
+                                              HttpServletRequest http) {
+        return ResponseEntity.ok(recordingService.record(request, http));
     }
 
     @PutMapping("/{id}/confirm")
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_CONFIRM + "')")
     @Operation(summary = "Confirmer un paiement")
     public ResponseEntity<PaymentDto> confirm(@PathVariable Long id, HttpServletRequest http) {
-        return ResponseEntity.ok(paymentService.confirm(id, http));
+        return ResponseEntity.ok(recordingService.confirm(id, http));
     }
 
     @PutMapping("/{id}/allocate")
@@ -91,38 +102,38 @@ public class PaymentController {
     public ResponseEntity<PaymentDto> allocate(@PathVariable Long id,
                                                @RequestBody List<AllocationRequest> allocations,
                                                HttpServletRequest http) {
-        return ResponseEntity.ok(paymentService.allocatePayment(id, allocations, http));
+        return ResponseEntity.ok(allocationService.allocate(id, allocations, http));
     }
 
     @PutMapping("/{id}/cancel")
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_CANCEL + "')")
     @Operation(summary = "Annuler un paiement")
     public ResponseEntity<PaymentDto> cancel(@PathVariable Long id,
-                                             @Valid @RequestBody CancelPaymentRequest request,
-                                             HttpServletRequest http) {
-        return ResponseEntity.ok(paymentService.cancel(id, request, http));
+                                              @Valid @RequestBody CancelPaymentRequest request,
+                                              HttpServletRequest http) {
+        return ResponseEntity.ok(cancellationService.cancel(id, request, http));
     }
 
     @PutMapping("/{id}/reject")
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_CANCEL + "')")
     @Operation(summary = "Rejeter un paiement")
     public ResponseEntity<PaymentDto> reject(@PathVariable Long id,
-                                             @RequestBody Map<String, String> body,
-                                             HttpServletRequest http) {
-        return ResponseEntity.ok(paymentService.reject(id, body.get("reason"), http));
+                                              @RequestBody Map<String, String> body,
+                                              HttpServletRequest http) {
+        return ResponseEntity.ok(cancellationService.reject(id, body.get("reason"), http));
     }
 
     @GetMapping("/stats")
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_READ + "')")
     @Operation(summary = "Statistiques des paiements")
     public ResponseEntity<PaymentStatsDto> stats() {
-        return ResponseEntity.ok(paymentService.stats());
+        return ResponseEntity.ok(queryService.stats());
     }
 
     @GetMapping("/{id}/reconcile")
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_RECONCILE + "')")
     @Operation(summary = "Réconcilier un paiement")
     public ResponseEntity<ReconcileResult> reconcile(@PathVariable Long id) {
-        return ResponseEntity.ok(paymentService.reconcile(id));
+        return ResponseEntity.ok(queryService.reconcile(id));
     }
 }

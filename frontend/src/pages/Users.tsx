@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useDropdownList } from '../lib/useDropdown'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -31,6 +32,7 @@ import {
   UserX,
 } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiDelete, apiPatch, apiPost, apiPut } from '../lib/api'
+import { downloadCsv } from '../lib/csv'
 import { fmtDateTime } from '../lib/format'
 import type { Page, Role, User as UserType } from '../types'
 import { Button, Card, EmptyState } from '../components/ui'
@@ -98,6 +100,7 @@ function getStatusInfo(u: UserType): { label: string; color: string; bg: string;
 export default function Users() {
   const { can } = useAuth()
   const toast = useToast()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [search, setSearch] = useState('')
@@ -110,6 +113,7 @@ export default function Users() {
   const [editUser, setEditUser] = useState<UserType | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<UserType | null>(null)
   const [permissionsUser, setPermissionsUser] = useState<UserType | null>(null)
+  const [resetUser, setResetUser] = useState<UserType | null>(null)
 
   /* -- Queries -- */
   const { data, isLoading } = useQuery({
@@ -171,6 +175,22 @@ export default function Users() {
 
   const pagedUsers = useMemo(() => filteredUsers.slice(0, pageSize), [filteredUsers, pageSize])
 
+  const handleExport = () => {
+    if (filteredUsers.length === 0) {
+      toast.info('Aucun utilisateur a exporter')
+      return
+    }
+    downloadCsv(
+      `utilisateurs_${new Date().toISOString().slice(0, 10)}.csv`,
+      ['Identifiant', 'Nom', 'Prenom', 'Email', 'Telephone', 'Roles', 'Statut', 'Derniere connexion'],
+      filteredUsers.map((u) => [
+        u.username, u.lastName, u.firstName, u.email, u.phone,
+        u.roles.join(' / '), u.enabled ? 'Actif' : 'Desactive', u.lastLoginAt ?? '',
+      ]),
+    )
+    toast.success('Export termine')
+  }
+
   /* -- Mutations -- */
   const toggleEnabled = useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
@@ -215,11 +235,11 @@ export default function Users() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button variant="secondary" size="md" onClick={() => toast.info('Export en cours...')}>
+          <Button variant="secondary" size="md" onClick={handleExport}>
             <Download className="h-4 w-4" />
             Exporter
           </Button>
-          <Button variant="secondary" size="md" onClick={() => toast.info('Journal d\'activite')}>
+          <Button variant="secondary" size="md" onClick={() => navigate('/audit')}>
             <Activity className="h-4 w-4" />
             Journal d'activite
           </Button>
@@ -239,15 +259,15 @@ export default function Users() {
       {/* === 2. KPI STATS === */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={<UsersIcon className="h-5 w-5" />} iconBg="bg-violet-50" iconColor="text-violet-600"
-          label="UTILISATEURS TOTAUX" value={stats.total} sub="Comptes enregistres" />
+          label="UTILISATEURS TOTAUX" value={stats.total} sub="Comptes enregistres" style={{ animationDelay: '0s' }} />
         <StatCard icon={<CheckCircle2 className="h-5 w-5" />} iconBg="bg-emerald-50" iconColor="text-emerald-600"
           label="UTILISATEURS ACTIFS" value={stats.active} sub="Comptes actifs"
-          delta={`${stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% du total`} deltaTone="up" />
+          delta={`${stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% du total`} deltaTone="up" style={{ animationDelay: '0.08s' }} />
         <StatCard icon={<Clock className="h-5 w-5" />} iconBg="bg-blue-50" iconColor="text-blue-600"
-          label="EN ATTENTE" value={stats.waiting} sub="Comptes a valider" />
+          label="EN ATTENTE" value={stats.waiting} sub="Comptes a valider" style={{ animationDelay: '0.16s' }} />
         <StatCard icon={<Lock className="h-5 w-5" />} iconBg="bg-amber-50" iconColor="text-amber-600"
           label="DESACTIVES" value={stats.disabled} sub="Comptes inactifs"
-          delta={stats.disabled > 0 ? 'Attention' : 'Aucun'} deltaTone={stats.disabled > 0 ? 'down' : 'neutral'} />
+          delta={stats.disabled > 0 ? 'Attention' : 'Aucun'} deltaTone={stats.disabled > 0 ? 'down' : 'neutral'} style={{ animationDelay: '0.24s' }} />
       </div>
 
       {/* === 3. ROLE DISTRIBUTION === */}
@@ -419,7 +439,7 @@ export default function Users() {
                               <MenuItem icon={<Shield className="h-4 w-4" />} label="Gerer les roles"
                                 onClick={() => { setPermissionsUser(user); closeMenu() }} />
                               <MenuItem icon={<Key className="h-4 w-4" />} label="Reinitialiser le mot de passe"
-                                onClick={() => { toast.info('Reinitialisation envoyee'); closeMenu() }} />
+                                onClick={() => { setResetUser(user); closeMenu() }} />
                               <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                               <MenuItem
                                 icon={user.enabled ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
@@ -453,10 +473,13 @@ export default function Users() {
       </Card>
 
       {/* === MODALS === */}
-      {selectedUser && <UserProfilePanel user={selectedUser} onClose={() => setSelectedUser(null)} onEdit={(u) => { setSelectedUser(null); setEditUser(u) }} />}
+      {selectedUser && <UserProfilePanel user={selectedUser} onClose={() => setSelectedUser(null)} onEdit={(u) => { setSelectedUser(null); setEditUser(u) }} onManageAccess={(u) => { setSelectedUser(null); setPermissionsUser(u) }} />}
       {permissionsUser && <PermissionsPanel user={permissionsUser} roles={roles ?? []} onClose={() => setPermissionsUser(null)} />}
       {createOpen && <CreateUserModal roles={roles ?? []} onClose={() => { setCreateOpen(false); queryClient.invalidateQueries({ queryKey: ['users'] }) }} />}
       {editUser && <EditUserModal user={editUser} roles={roles ?? []} onClose={() => { setEditUser(null); queryClient.invalidateQueries({ queryKey: ['users'] }) }} />}
+
+      {/* RESET PASSWORD */}
+      {resetUser && <ResetPasswordModal user={resetUser} onClose={() => setResetUser(null)} />}
 
       {/* DELETE CONFIRM */}
       {deleteConfirm && (
@@ -484,18 +507,75 @@ export default function Users() {
 
 /* ═══════════════════════════ Sous-composants ═══════════════════════════ */
 
-function StatCard({ icon, iconBg, iconColor, label, value, sub, delta, deltaTone = 'neutral' }: {
+function ResetPasswordModal({ user, onClose }: { user: UserType; onClose: () => void }) {
+  const toast = useToast()
+  const [tempPassword, setTempPassword] = useState<string | null>(null)
+
+  const reset = useMutation({
+    mutationFn: () => apiPost<{ temporaryPassword: string }>(`/users/${user.id}/reset-password`),
+    onSuccess: (data) => setTempPassword(data.temporaryPassword),
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
+        <div className="p-6">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+            <Key className="h-6 w-6" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Reinitialiser le mot de passe</h3>
+          {tempPassword === null ? (
+            <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+              Un mot de passe temporaire sera genere pour <strong>{user.username}</strong>. L'utilisateur devra le changer a sa prochaine connexion.
+            </p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Mot de passe temporaire genere (a communiquer par un canal securise) :</p>
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/40">
+                <code className="flex-1 break-all font-mono text-sm text-slate-800 dark:text-slate-200">{tempPassword}</code>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(tempPassword); toast.success('Copie') }}
+                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  title="Copier"
+                >
+                  <FileText className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-700">
+          {tempPassword === null ? (
+            <>
+              <Button variant="secondary" onClick={onClose}>Annuler</Button>
+              <Button variant="primary" onClick={() => reset.mutate()} loading={reset.isPending}>Reinitialiser</Button>
+            </>
+          ) : (
+            <Button variant="primary" onClick={onClose}>Fermer</Button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ icon, iconBg, iconColor, label, value, sub, delta, deltaTone = 'neutral', style }: {
   icon: React.ReactNode; iconBg: string; iconColor: string; label: string
-  value: React.ReactNode; sub: string; delta?: string; deltaTone?: 'up' | 'down' | 'neutral'
+  value: React.ReactNode; sub: string; delta?: string; deltaTone?: 'up' | 'down' | 'neutral'; style?: React.CSSProperties
 }) {
   return (
-    <Card hover className="group relative overflow-hidden p-5">
+    <Card hover style={style} className="group relative overflow-hidden p-5 animate-fade-in">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-500/10 blur-2xl transition-opacity duration-300 group-hover:opacity-100 dark:bg-violet-400/10"
+      />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
-          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
+          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 transition-transform duration-300 group-hover:-translate-y-0.5 dark:text-slate-100">{value}</p>
         </div>
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-200 group-hover:scale-110`}>{icon}</span>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg`}>{icon}</span>
       </div>
       <div className="mt-3 flex items-center gap-2 text-xs">
         {delta && (
@@ -530,8 +610,12 @@ function MenuItem({ icon, label, onClick, danger = false }: { icon: React.ReactN
 }
 
 /* -- User Profile Panel -- */
-function UserProfilePanel({ user, onClose, onEdit }: { user: UserType; onClose: () => void; onEdit: (u: UserType) => void }) {
-  const toast = useToast()
+function UserProfilePanel({ user, onClose, onEdit, onManageAccess }: {
+  user: UserType
+  onClose: () => void
+  onEdit: (u: UserType) => void
+  onManageAccess: (u: UserType) => void
+}) {
   const status = getStatusInfo(user)
   const roleInfo = ROLE_COLORS[user.roles[0]] ?? ROLE_COLORS.ADMIN
   return (
@@ -583,7 +667,7 @@ function UserProfilePanel({ user, onClose, onEdit }: { user: UserType; onClose: 
             <Button variant="primary" size="sm" onClick={() => { onEdit(user) }}>
               <Edit3 className="h-3.5 w-3.5" /> Modifier
             </Button>
-            <Button variant="secondary" size="sm" onClick={() => { toast.info('Acces gere'); onClose() }}>
+            <Button variant="secondary" size="sm" onClick={() => onManageAccess(user)}>
               <Shield className="h-3.5 w-3.5" /> Gerer les acces
             </Button>
           </div>

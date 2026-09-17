@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Mail, MessageSquare, Search, Smartphone } from 'lucide-react'
+import { Loader2, Mail, MessageSquare, Search, Smartphone, X } from 'lucide-react'
 import { apiErrorMessageI18n, apiGet, apiPost } from '../../lib/api'
 import { useI18n } from '../../lib/i18n'
 import type {
@@ -10,7 +10,6 @@ import type {
   CommComposeResult,
   CommPriority,
   CommTemplate,
-  TaxpayerSummary,
 } from '../../types'
 import { Button, Field, Input, Modal, Select, Textarea } from '../ui'
 import { useToast } from '../Toast'
@@ -29,6 +28,17 @@ interface TargetInfo {
   nif: string
   email: string | null
   phone: string | null
+}
+
+interface TaxpayerContact {
+  id: number
+  nif: string
+  name: string
+  email: string | null
+  phone: string | null
+  phoneNormalized: string | null
+  language: string | null
+  preferredChannels: string | null
 }
 
 export default function ComposeDialog({
@@ -65,11 +75,12 @@ export default function ComposeDialog({
   }, [open, preselected])
 
   // Recherche de contribuables (NIF, nom, raison sociale, téléphone, email)
+  // via l'endpoint dédié du composeur (MESSAGE_WRITE).
   const { data: searchResults, isFetching: searching } = useQuery({
-    queryKey: ['taxpayers', 'comm-search', search],
+    queryKey: ['taxpayers', 'comm-contacts', search],
     queryFn: () =>
-      apiGet<{ content: TaxpayerSummary[] }>(
-        `/taxpayers?page=0&size=8&search=${encodeURIComponent(search)}`,
+      apiGet<{ content: TaxpayerContact[] }>(
+        `/taxpayers/contacts?q=${encodeURIComponent(search)}&page=0&size=8`,
       ),
     enabled: open && searchOpen && search.trim().length >= 2,
   })
@@ -225,8 +236,8 @@ export default function ComposeDialog({
                             taxpayerId: tp.id,
                             name: tp.name,
                             nif: tp.nif,
-                            email: tp.email || null,
-                            phone: tp.phone || null,
+                            email: tp.email,
+                            phone: tp.phoneNormalized ?? tp.phone,
                           })
                           setSearchOpen(false)
                         }}

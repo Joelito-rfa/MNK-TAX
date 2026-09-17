@@ -38,13 +38,20 @@ Le backend est organisé en modules verticaux par domaine (`com.mnktax.*`) :
 | `debt` | Créances issues des impositions, pénalités/intérêts, ajustements, annulations |
 | `payment` | Encaissements, allocation sur les créances, rejets |
 | `receipt` | Quittances (numéro, QR code), vérification publique, export PDF |
-| `collection` | Actions de recouvrement et mises en demeure, historique par créance |
+| `collection` | Actions de recouvrement, mises en demeure, litiges, documents (relance, état des restes) |
+| `paymentplan` | Échéanciers de paiement et suivi des échéances |
+| `complaint` | Réclamations des contribuables et réponses |
+| `control` | Contrôles fiscaux, documents demandés, redressements |
+| `refund` | Demandes de remboursement (crédit TVA, trop-perçu) |
 | `document` | Documents joints aux contribuables, stockage fichiers |
 | `notification` | Notifications internes (échéances, paiements, recouvrement) |
+| `message` | Messagerie interne (fils, priorités, pièces jointes) |
+| `communication` | Centre de communication multicanal (IN_APP, EMAIL, SMS), modèles, campagnes, file d'envoi |
+| `ai` | Assistant conversationnel (FR/MG/EN) |
 | `audit` | Journalisation des opérations sensibles |
-| `reporting` | Synthèses dashboard et rapports de recouvrement/paiements |
+| `reporting` | Synthèses dashboard et rapports (recouvrement, paiements, déclarations, contribuables, activité) |
 | `administration` | Paramètres système (clés/valeurs, catégorisées) |
-| `common` | Infra transverse : exceptions, sécurité, CORS, rate-limit |
+| `common` | Infra transverse : exceptions, sécurité, CORS, rate-limit, scheduler |
 
 ## Flux métier principal
 
@@ -61,6 +68,17 @@ Le backend est organisé en modules verticaux par domaine (`com.mnktax.*`) :
    puis éventuellement `IN_COLLECTION` avec actions et mises en demeure.
 8. Chaque étape sensible est **journalisée** (audit) et génère des **notifications**.
 
+### Flux annexes
+
+- **Réclamation** : créée par/ pour un contribuable → examen → acceptée/rejetée → clôturée
+  (suppression possible tant qu'elle est `OPEN`).
+- **Contrôle fiscal** : ouverture → en cours → anomalies → redressement → clôture ; le
+  redressement peut générer une **créance** rattachée.
+- **Remboursement** : demande → examen (approuvé/rejeté) → paiement (mode + référence).
+- **Échéancier** : plan sur une créance en recouvrement, avec échéances suivies.
+- **Communication** : un message est composé (audience, canaux), mis en file, envoyé par le
+  fournisseur (SMTP/Twilio) et suivi (livraisons, relances, échecs).
+
 ## Frontend
 
 - `src/lib/api.ts` — client axios (intercepteur JWT, helpers `apiGet/apiPost/apiPatch/apiPut/apiDelete`).
@@ -68,6 +86,9 @@ Le backend est organisé en modules verticaux par domaine (`com.mnktax.*`) :
 - `src/components/ProtectedRoute.tsx` — garde de route par permission (RBAC côté client).
 - `src/components/Layout.tsx` — sidebar (bleu foncé), navigation mobile, cloche notifications.
 - `src/pages/*` — une page par module (voir `App.tsx` pour le routage et les permissions).
+- Un module à plusieurs vues vit dans son propre dossier `src/pages/<module>/` : `Layout.tsx` porte
+  l'en-tête et la navigation entre sous-modules (onglets), chaque sous-module étant une route
+  distincte avec sa permission (ex. `/payments`, `/payments/pending`, `/payments/new`).
 - La page publique `/verify/receipt/:reference` vérifie une quittance sans authentification.
 
 ## Moteur de règles

@@ -104,6 +104,19 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasAuthority('" + Permissions.USER_RESET_PASSWORD + "')")
+    @Operation(summary = "Réinitialiser le mot de passe d'un utilisateur",
+            description = "Génère un mot de passe temporaire et impose son changement à la prochaine connexion.")
+    public ResponseEntity<ResetPasswordResponse> resetPassword(@PathVariable Long id,
+                                                               HttpServletRequest httpRequest) {
+        String temporaryPassword = userService.resetPassword(id, httpRequest);
+        return ResponseEntity.ok(new ResetPasswordResponse(temporaryPassword));
+    }
+
+    public record ResetPasswordResponse(String temporaryPassword) {
+    }
+
     @PostMapping("/change-password")
     @Operation(summary = "Changer son propre mot de passe")
     public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request,

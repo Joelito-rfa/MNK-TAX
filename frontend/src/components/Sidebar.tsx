@@ -42,7 +42,7 @@ export interface NavSection {
 
 export const navSections: NavSection[] = [
   {
-    items: [{ to: '/', labelKey: 'sidebar.dashboard', icon: <LayoutDashboard className="h-4.5 w-4.5" />, permission: 'REPORT_READ', end: true }],
+    items: [{ to: '/dashboard', labelKey: 'sidebar.dashboard', icon: <LayoutDashboard className="h-4.5 w-4.5" />, permission: 'REPORT_READ', end: true }],
   },
   {
     labelKey: 'sidebar.section.gestion',
@@ -60,9 +60,10 @@ export const navSections: NavSection[] = [
       ]},
       { to: '/payments', labelKey: 'sidebar.payments', icon: <Wallet className="h-4.5 w-4.5" />, permission: 'PAYMENT_READ', children: [
         { to: '/payments', labelKey: 'sidebar.payments.list', icon: <Wallet className="h-4 w-4" />, permission: 'PAYMENT_READ', end: true },
-        { to: '/payments?create=1', labelKey: 'sidebar.payments.new', icon: <Receipt className="h-4 w-4" />, permission: 'PAYMENT_WRITE' },
+        { to: '/payments/new', labelKey: 'sidebar.payments.new', icon: <Receipt className="h-4 w-4" />, permission: 'PAYMENT_WRITE' },
         { to: '/receipts', labelKey: 'sidebar.payments.receipts', icon: <Receipt className="h-4 w-4" />, permission: 'RECEIPT_READ' },
-        { to: '/payments?status=PENDING', labelKey: 'sidebar.payments.pending', icon: <CalendarDays className="h-4 w-4" />, permission: 'PAYMENT_READ' },
+        { to: '/payments/pending', labelKey: 'sidebar.payments.pending', icon: <CalendarDays className="h-4 w-4" />, permission: 'PAYMENT_READ' },
+        { to: '/payments/stats', labelKey: 'sidebar.payments.stats', icon: <BarChart3 className="h-4 w-4" />, permission: 'PAYMENT_READ' },
       ]},
       { to: '/controls', labelKey: 'sidebar.controls', icon: <FileSearch className="h-4.5 w-4.5" />, permission: 'CONTROL_READ' },
       { to: '/complaints', labelKey: 'sidebar.complaints', icon: <FileQuestion className="h-4.5 w-4.5" />, permission: 'COMPLAINT_READ' },
@@ -123,11 +124,12 @@ function Brand() {
 }
 
 function NifCard() {
+  const { t } = useI18n()
   return (
     <div className="group relative mx-3 mb-3 animate-fade-in overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-lg shadow-slate-900/5 transition-all duration-300 hover:border-brand-400/40 hover:shadow-brand-900/20 dark:border-white/10 dark:bg-transparent dark:shadow-brand-900/30 dark:hover:shadow-brand-900/50">
       <img
         src="/menu.png"
-        alt="DGI Manakara"
+        alt="DRI Manakara"
         loading="lazy"
         className="h-52 w-full object-cover object-top transition-transform duration-500 ease-out group-hover:scale-105"
       />
@@ -185,13 +187,13 @@ function NifCard() {
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-white via-white/90 to-transparent px-4 pb-4 pt-12 dark:from-sidebar dark:via-sidebar/85 dark:to-transparent">
         <div className="mb-1.5 flex items-center gap-1.5">
           <Landmark className="h-3.5 w-3.5 text-brand-600 transition-transform duration-300 group-hover:rotate-12 dark:text-brand-300" />
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-brand-700 dark:text-brand-200">DGI MANAKARA</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-brand-700 dark:text-brand-200">{t('sidebar.nifCard.title')}</p>
         </div>
         <p className="text-[11px] font-semibold leading-snug text-slate-900 dark:text-white">
-          Service des impôts de Manakara
+          {t('sidebar.nifCard.subtitle')}
         </p>
         <p className="animate-slide-up mt-1 text-[11px] leading-snug text-slate-600 transition-colors duration-300 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-white">
-          Suivi des contribuables, déclarations et recouvrement des impôts.
+          {t('sidebar.nifCard.text')}
         </p>
       </div>
     </div>

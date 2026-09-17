@@ -189,6 +189,42 @@ class CollectionModuleIntegrationTest {
     }
 
     @Test
+    @DisplayName("Relance amiable : aucun changement de phase, journal dédié, refusée sans solde à recouvrer")
+    void reminderFollowsFiscalLadder() {
+        TaxDebt debt = manualDebt(new BigDecimal("300000"), LocalDate.now().minusDays(20), DebtStatus.OVERDUE);
+
+        // Une relance amiable n'entraîne jamais le passage en recouvrement : le
+        // dossier reste en retard tant qu'aucun acte formel n'a été émis.
+        collectionService.createAction(new CreateActionRequest(debt.getId(),
+                CollectionActionType.REMINDER, "Relance amiable — régularisation demandée",
+                LocalDate.now(), "En attente de paiement", "Relance amiable n°2",
+                LocalDate.now().plusDays(10)), null);
+        TaxDebt afterReminder = debtRepository.findByIdForUpdate(debt.getId()).orElseThrow();
+        assertEquals(DebtStatus.OVERDUE, afterReminder.getStatus(),
+                "Une relance amiable ne modifie pas la phase fiscale du dossier");
+
+        // Le journal distingue la relance d'une action ordinaire.
+        collectionService.createAction(new CreateActionRequest(debt.getId(),
+                CollectionActionType.NOTE, "Note interne sur le dossier",
+                LocalDate.now(), null, null, null), null);
+        List<String> types = collectionService.searchEvents(debt.getId(), null, null,
+                PageRequest.of(0, 50)).getContent().stream().map(CollectionEventDto::eventType).toList();
+        assertTrue(types.contains("REMINDER_CREATED"), "La relance est journalisée comme telle");
+        assertTrue(types.contains("ACTION_CREATED"), "Une note ne doit pas être journalisée comme une relance");
+
+        // Aucun solde à recouvrer : la relance est refusée.
+        TaxDebt settled = manualDebt(new BigDecimal("50000"), LocalDate.now().minusDays(5), DebtStatus.ISSUED);
+        settled.setBalance(BigDecimal.ZERO);
+        debtRepository.save(settled);
+        com.mnktax.common.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.mnktax.common.exception.BusinessException.class,
+                () -> collectionService.createAction(new CreateActionRequest(settled.getId(),
+                        CollectionActionType.REMINDER, "Relance sans solde",
+                        LocalDate.now(), null, null, null), null));
+        assertEquals("DEBT_NOTHING_TO_REMIND", ex.getCode());
+    }
+
+    @Test
     @DisplayName("Litige : déclaration → contentieux, décision rejetée → créance recouvrable (traces append-only)")
     void disputeLifecycleRejected() {
         TaxDebt debt = manualDebt(new BigDecimal("400000"), LocalDate.now().minusDays(20), DebtStatus.OVERDUE);

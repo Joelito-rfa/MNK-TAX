@@ -18,6 +18,7 @@ import com.mnktax.tax.repository.TaxRegimeRepository;
 import com.mnktax.tax.repository.TaxRuleRepository;
 import com.mnktax.tax.repository.TaxRuleVersionRepository;
 import com.mnktax.tax.repository.TaxTypeRepository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -158,9 +159,21 @@ public class TaxRuleService {
     @Transactional(readOnly = true)
     public List<TaxRuleVersionDto> versions(Long ruleId) {
         return versionRepository.findByRuleIdOrderByVersionNumberDesc(ruleId).stream()
-                .map(v -> new TaxRuleVersionDto(v.getId(), v.getRule().getId(), v.getVersionNumber(),
-                        v.getSnapshot(), v.getReason(), v.getChangedBy(), v.getRule().getEffectiveFrom()))
+                .map(this::toVersionDto)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TaxRuleVersionDto> recentVersions(int limit) {
+        int capped = Math.min(Math.max(limit, 1), 200);
+        return versionRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, capped)).stream()
+                .map(this::toVersionDto)
+                .toList();
+    }
+
+    private TaxRuleVersionDto toVersionDto(TaxRuleVersion v) {
+        return new TaxRuleVersionDto(v.getId(), v.getRule().getId(), v.getVersionNumber(),
+                v.getSnapshot(), v.getReason(), v.getChangedBy(), v.getRule().getEffectiveFrom());
     }
 
     private TaxRule findRule(Long id) {

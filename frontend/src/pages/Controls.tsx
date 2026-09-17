@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileSearch, Gavel, Grid3X3, LayoutList, PlusCircle, MoreHorizontal, Pencil, Trash2, Eye, CalendarClock } from 'lucide-react'
-import { apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
+import { apiDelete, apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
 import { fmtDate, fmtDateTime, fmtMGA } from '../lib/format'
 import type { Page, TaxControl, TaxControlDetail, TaxpayerSummary, User } from '../types'
 import { useAuth } from '../lib/auth'
@@ -61,6 +61,15 @@ export default function Controls() {
   const [actionMenu, setActionMenu] = useState<number | null>(null)
   const toast = useToast()
   const queryClient = useQueryClient()
+
+  const remove = useMutation({
+    mutationFn: (id: number) => apiDelete(`/tax-controls/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['controls'] })
+      toast.success('Contrôle fiscal supprimé')
+    },
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
+  })
 
   const params = new URLSearchParams({ page: String(page), size: String(size) })
   if (status) params.set('status', status)
@@ -201,7 +210,7 @@ export default function Controls() {
                                  <button
                                    onClick={(e) => {
                                      e.stopPropagation()
-                                     toast.info('Modifier le contrôle')
+                                     setDetailId(c.id)
                                      setActionMenu(null)
                                    }}
                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
@@ -211,7 +220,7 @@ export default function Controls() {
                                  <button
                                    onClick={(e) => {
                                      e.stopPropagation()
-                                     toast.info('Changer le statut')
+                                     setDetailId(c.id)
                                      setActionMenu(null)
                                    }}
                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
@@ -222,7 +231,7 @@ export default function Controls() {
                                  <button
                                    onClick={(e) => {
                                      e.stopPropagation()
-                                     if (confirm('Supprimer ce contrôle ?')) toast.info('Suppression à implémenter')
+                                     if (confirm('Supprimer ce contrôle ?')) remove.mutate(c.id)
                                      setActionMenu(null)
                                    }}
                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
@@ -293,8 +302,8 @@ export default function Controls() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    toast.info('Modifier le contrôle')
-                                    setActionMenu(null)
+                                   setDetailId(c.id)
+                                   setActionMenu(null)
                                   }}
                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                 >
@@ -303,8 +312,8 @@ export default function Controls() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    toast.info('Changer le statut')
-                                    setActionMenu(null)
+                                   setDetailId(c.id)
+                                   setActionMenu(null)
                                   }}
                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                 >
@@ -314,7 +323,7 @@ export default function Controls() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    if (confirm('Supprimer ce contrôle ?')) toast.info('Suppression à implémenter')
+                                    if (confirm('Supprimer ce contrôle ?')) remove.mutate(c.id)
                                     setActionMenu(null)
                                   }}
                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"

@@ -24,6 +24,13 @@ public final class RefundDtos {
     ) {
     }
 
+    public record UpdateRefundRequest(
+            RefundReason reason,
+            String description,
+            @Positive(message = "Le montant doit être positif.") BigDecimal amount
+    ) {
+    }
+
     public record ReviewRefundRequest(
             @NotNull(message = "La décision est requise.") Boolean approve,
             BigDecimal approvedAmount,

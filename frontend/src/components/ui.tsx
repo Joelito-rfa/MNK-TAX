@@ -1,6 +1,7 @@
 import {
   useEffect,
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
@@ -16,12 +17,14 @@ import {
   Search,
   X,
 } from 'lucide-react'
+import { useI18n } from '../lib/i18n'
 
-export function Spinner({ label = 'Chargement…' }: { label?: string }) {
+export function Spinner({ label }: { label?: string }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-400 dark:text-slate-500">
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-      <span className="text-sm">{label}</span>
+      <span className="text-sm">{label ?? t('common.loading')}</span>
     </div>
   )
 }
@@ -103,10 +106,11 @@ function SpinnerSmall() {
   )
 }
 
-export function Card({ children, className = '', hover = false, onClick }: { children: ReactNode; className?: string; hover?: boolean; onClick?: () => void }) {
+export function Card({ children, className = '', hover = false, onClick, style }: { children: ReactNode; className?: string; hover?: boolean; onClick?: () => void; style?: CSSProperties }) {
   return (
     <div
       onClick={onClick}
+      style={style}
       className={`card fx-spot animate-fade-in transition-all duration-200 ${hover ? 'hover:-translate-y-0.5 hover:shadow-card-hover' : ''} ${className}`}
     >
       {children}
@@ -246,6 +250,9 @@ export const statusTone = (value: string): BadgeTone => {
 }
 
 export function StatusBadge({ value }: { value: string }) {
+  const { t } = useI18n()
+  const key = `status.${value}`
+  const translated = t(key)
   const labels: Record<string, string> = {
     ACTIVE: 'Actif',
     INACTIVE: 'Inactif',
@@ -277,7 +284,7 @@ export function StatusBadge({ value }: { value: string }) {
     REFUNDED: 'Remboursée',
     VOID: 'Annulée',
   }
-  return <Badge tone={statusTone(value)}>{labels[value] ?? value}</Badge>
+  return <Badge tone={statusTone(value)}>{translated !== key ? translated : (labels[value] ?? value)}</Badge>
 }
 
 const iconTiles: Record<string, string> = {
@@ -373,6 +380,7 @@ export function Modal({
   wide?: boolean
   onBackdrop?: boolean
 }) {
+  const { t } = useI18n()
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => {
@@ -399,7 +407,7 @@ export function Modal({
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-            aria-label="Fermer"
+            aria-label={t('a11y.close')}
           >
             <X className="h-5 w-5" />
           </button>
@@ -414,8 +422,8 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirmer',
-  cancelLabel = 'Annuler',
+  confirmLabel,
+  cancelLabel,
   tone = 'danger',
   loading = false,
   onConfirm,
@@ -431,6 +439,9 @@ export function ConfirmDialog({
   onConfirm: () => void
   onClose: () => void
 }) {
+  const { t } = useI18n()
+  const okLabel = confirmLabel ?? t('common.confirm')
+  const koLabel = cancelLabel ?? t('common.cancel')
   return (
     <Modal open={open} onClose={onClose} title={title}>
       <div className="flex items-start gap-3">
@@ -445,10 +456,10 @@ export function ConfirmDialog({
       </div>
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose} disabled={loading}>
-          {cancelLabel}
+          {koLabel}
         </Button>
         <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} loading={loading}>
-          {confirmLabel}
+          {okLabel}
         </Button>
       </div>
     </Modal>
@@ -504,6 +515,7 @@ export function Pagination({
   onPageSizeChange?: (n: number) => void
   totalElements?: number
 }) {
+  const { t } = useI18n()
   if (totalPages <= 1 && !pageSize) return null
 
   const pages: number[] = []
@@ -519,7 +531,7 @@ export function Pagination({
       <div className="flex items-center gap-3">
         {pageSize && onPageSizeChange && (
           <label className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-            <span className="hidden sm:inline">Lignes / page</span>
+            <span className="hidden sm:inline">{t('pagination.rowsPerPage')}</span>
             <select
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
@@ -533,12 +545,12 @@ export function Pagination({
         )}
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {totalElements != null
-            ? (<>{firstItem}–{lastItem} sur <span className="font-medium text-slate-700 dark:text-slate-300">{totalElements}</span></>)
-            : <>Page <span className="font-medium text-slate-700 dark:text-slate-300">{page + 1}</span> sur {totalPages}</>}
+            ? (<>{firstItem}–{lastItem} {t('pagination.of')} <span className="font-medium text-slate-700 dark:text-slate-300">{totalElements}</span></>)
+            : <>{t('pagination.page')} <span className="font-medium text-slate-700 dark:text-slate-300">{page + 1}</span> {t('pagination.of')} {totalPages}</>}
         </p>
       </div>
       <div className="flex items-center gap-1">
-        <PageBtn disabled={page === 0} onClick={() => onChange(page - 1)} aria-label="Page précédente">
+        <PageBtn disabled={page === 0} onClick={() => onChange(page - 1)} aria-label={t('pagination.prev')}>
           <ChevronLeft className="h-4 w-4" />
         </PageBtn>
         {pages[0] > 0 && (
@@ -558,7 +570,7 @@ export function Pagination({
             <PageBtn onClick={() => onChange(totalPages - 1)}>{totalPages}</PageBtn>
           </>
         )}
-        <PageBtn disabled={page >= totalPages - 1} onClick={() => onChange(page + 1)} aria-label="Page suivante">
+        <PageBtn disabled={page >= totalPages - 1} onClick={() => onChange(page + 1)} aria-label={t('pagination.next')}>
           <ChevronRight className="h-4 w-4" />
         </PageBtn>
       </div>

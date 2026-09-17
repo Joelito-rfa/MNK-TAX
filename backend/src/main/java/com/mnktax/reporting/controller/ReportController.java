@@ -1,5 +1,7 @@
 package com.mnktax.reporting.controller;
 
+import com.mnktax.audit.entity.AuditLog;
+import com.mnktax.audit.repository.AuditLogRepository;
 import com.mnktax.auth.security.Permissions;
 import com.mnktax.declaration.dto.DeclarationDtos.DeclarationDto;
 import com.mnktax.declaration.repository.DeclarationRepository;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.time.LocalDate;
 
 @RestController
@@ -39,15 +42,17 @@ public class ReportController {
     private final ReportService reportService;
     private final DeclarationRepository declarationRepository;
     private final TaxpayerRepository taxpayerRepository;
+    private final AuditLogRepository auditLogRepository;
 
     public ReportController(DebtService debtService, PaymentService paymentService,
                             ReportService reportService, DeclarationRepository declarationRepository,
-                            TaxpayerRepository taxpayerRepository) {
+                            TaxpayerRepository taxpayerRepository, AuditLogRepository auditLogRepository) {
         this.debtService = debtService;
         this.paymentService = paymentService;
         this.reportService = reportService;
         this.declarationRepository = declarationRepository;
         this.taxpayerRepository = taxpayerRepository;
+        this.auditLogRepository = auditLogRepository;
     }
 
     /* ── Statistiques globales ── */
@@ -125,5 +130,22 @@ public class ReportController {
         return ResponseEntity.ok(
                 taxpayerRepository.search(null, null, s, null, null, null, null, pageable)
                         .map(TaxpayerSummaryDto::from));
+    }
+
+    @GetMapping("/activity")
+    @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
+    @Operation(summary = "Rapport d'activité (journal d'audit)")
+    public ResponseEntity<Page<AuditLog>> activity(
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @PageableDefault(size = 50) Pageable pageable) {
+        return ResponseEntity.ok(auditLogRepository.search(
+                blankToNull(username), blankToNull(action), null, null, from, to, pageable));
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }

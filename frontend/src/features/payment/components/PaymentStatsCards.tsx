@@ -1,5 +1,6 @@
 import { AlertTriangle, Clock, CreditCard, Wallet } from 'lucide-react'
 import { fmtMGA } from '../../../lib/format'
+import { useI18n } from '../../../lib/i18n'
 import type { PaymentStats } from '../../../types'
 
 function MiniCard({ iconBg, iconColor, icon, label, value, sub }: {
@@ -27,31 +28,32 @@ function MiniCard({ iconBg, iconColor, icon, label, value, sub }: {
 }
 
 export function PaymentStatsCards({ stats }: { stats: PaymentStats }) {
+  const { t } = useI18n()
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <MiniCard
         iconBg="bg-emerald-50" iconColor="text-emerald-600"
         icon={<Wallet className="h-5 w-5" />}
-        label="Paiements du mois" value={stats.monthCount}
-        sub={`${fmtMGA(stats.monthAmount)} encaissés`}
+        label={t('payments.stats.month')} value={stats.monthCount}
+        sub={`${fmtMGA(stats.monthAmount)} ${t('payments.stats.collected')}`}
       />
       <MiniCard
         iconBg="bg-blue-50" iconColor="text-blue-600"
         icon={<CreditCard className="h-5 w-5" />}
-        label="Paiements du jour" value={stats.todayCount}
-        sub="Encaissés aujourd'hui"
+        label={t('payments.stats.today')} value={stats.todayCount}
+        sub={t('payments.stats.todaySub')}
       />
       <MiniCard
         iconBg="bg-amber-50" iconColor="text-amber-600"
         icon={<Clock className="h-5 w-5" />}
-        label="En attente" value={stats.pendingCount}
-        sub={stats.unallocatedAmount > 0 ? `${fmtMGA(stats.unallocatedAmount)} non alloués` : 'À traiter'}
+        label={t('payments.stats.pending')} value={stats.pendingCount}
+        sub={stats.unallocatedAmount > 0 ? `${fmtMGA(stats.unallocatedAmount)} ${t('payments.stats.unallocated')}` : t('payments.stats.toProcess')}
       />
       <MiniCard
         iconBg="bg-rose-50" iconColor="text-rose-600"
         icon={<AlertTriangle className="h-5 w-5" />}
-        label="Rejetés / Annulés" value={stats.rejectedCount + stats.cancelledCount}
-        sub={`${stats.allocatedCount} alloués`}
+        label={t('payments.stats.rejected')} value={stats.rejectedCount + stats.cancelledCount}
+        sub={`${stats.allocatedCount} ${t('payments.stats.allocated')}`}
       />
     </div>
   )

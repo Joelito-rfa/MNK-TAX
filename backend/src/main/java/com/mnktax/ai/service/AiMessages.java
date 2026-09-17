@@ -418,6 +418,25 @@ public final class AiMessages {
     private static final List<String> FR_RECEIPT = List.of("reçu", "recu", "reçus", "recus", "quittance");
     private static final List<String> FR_AFFIRMATIVE = List.of("oui", "ok", "d'accord", "daccord", "merci", "autre", "suivant", "autre chose");
 
+    /* ── Accesseurs statiques pour le scoring d'intentions (AiService) ── */
+
+    public List<String> greetingKeywords() { return greetingKw; }
+    public List<String> helpKeywords()     { return helpKw; }
+    public List<String> taxpayerKeywords()  { return taxpayerKw; }
+    public List<String> declarationKeywords() { return declarationKw; }
+    public List<String> debtKeywords()      { return debtKw; }
+    public List<String> paymentKeywords()   { return paymentKw; }
+    public List<String> collectionKeywords() { return collectionKw; }
+    public List<String> assessmentKeywords() { return assessmentKw; }
+    public List<String> overdueKeywords()   { return overdueKw; }
+    public List<String> summaryKeywords()   { return summaryKw; }
+    public List<String> recentKeywords()    { return recentKw; }
+    public List<String> nextKeywords()      { return nextKw; }
+    public List<String> topKeywords()       { return topKw; }
+    public List<String> trendKeywords()     { return trendKw; }
+    public List<String> alertKeywords()     { return alertKw; }
+    public List<String> receiptKeywords()   { return receiptKw; }
+
     /* ════════════════════════════════════════════════════════════ */
     /*  ENGLISH                                                     */
     /* ════════════════════════════════════════════════════════════ */

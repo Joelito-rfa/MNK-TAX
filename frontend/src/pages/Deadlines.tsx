@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useDropdownList } from '../lib/useDropdown'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -21,7 +22,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { apiErrorMessage, apiGet, apiPost } from '../lib/api'
+import { apiDelete, apiErrorMessage, apiGet, apiPost, apiPut } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
 import { useI18n } from '../lib/i18n'
 import { useLocaleFormatters } from '../lib/format'
@@ -139,6 +140,8 @@ export default function Deadlines() {
   const { t } = useI18n()
   const { fmtDate } = useLocaleFormatters()
   const toast = useToast()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [viewMode, setViewMode] = useState<ViewMode>('calendar')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
@@ -152,7 +155,17 @@ export default function Deadlines() {
   })
   const [createOpen, setCreateOpen] = useState(false)
   const [detailDeadline, setDetailDeadline] = useState<Deadline | null>(null)
+  const [editDeadline, setEditDeadline] = useState<Deadline | null>(null)
   const { openId: showMenuId, close: closeMenu, getTriggerProps, getDropdownProps } = useDropdownList()
+
+  const remove = useMutation({
+    mutationFn: (id: number) => apiDelete(`/deadlines/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deadlines'] })
+      toast.success('Échéance supprimée')
+    },
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
+  })
 
   const today = todayStr()
 
@@ -333,7 +346,7 @@ export default function Deadlines() {
   if (isLoading) return <DeadlinesSkeleton />
 
   return (
-    <div className="fx-simple space-y-6 animate-page-in">
+    <div className="fx-page space-y-6 animate-fade-in">
       {/* ═══════════════ HEADER ═══════════════ */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -418,6 +431,7 @@ export default function Deadlines() {
           value={kpis.upcoming}
           sub="Echeances futures"
           onClick={() => setFilterMode('upcoming')}
+          style={{ animationDelay: '0s' }}
         />
         <KpiCard
           icon={<Clock className="h-5 w-5" />}
@@ -427,6 +441,7 @@ export default function Deadlines() {
           value={kpis.thisWeek}
           sub="Echeances proches"
           onClick={() => setFilterMode('week')}
+          style={{ animationDelay: '0.08s' }}
         />
         <KpiCard
           icon={<AlertTriangle className="h-5 w-5" />}
@@ -437,6 +452,7 @@ export default function Deadlines() {
           sub="Echeances depassees"
           accent="red"
           onClick={() => setFilterMode('overdue')}
+          style={{ animationDelay: '0.16s' }}
         />
         <KpiCard
           icon={<CheckCircle2 className="h-5 w-5" />}
@@ -446,6 +462,7 @@ export default function Deadlines() {
           value={deadlines.length}
           sub="Echeances definies"
           accent="green"
+          style={{ animationDelay: '0.24s' }}
         />
       </div>
 
@@ -507,7 +524,7 @@ export default function Deadlines() {
 
       {/* ═══════════════ SECTION 3: CALENDAR VIEW ═══════════════ */}
       {viewMode === 'calendar' && (
-        <Card className="overflow-hidden animate-fade-in">
+        <Card className="overflow-hidden animate-fade-in" style={{ animationDelay: '0.32s' }}>
           <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               {MONTH_NAMES[currentMonth.month]} {currentMonth.year}
@@ -537,17 +554,18 @@ export default function Deadlines() {
               return (
                 <div
                   key={i}
-                  className={`min-h-[88px] border-b border-r border-slate-100 p-1.5 transition hover:bg-slate-50/50 dark:border-slate-700/50 dark:hover:bg-slate-700/20 ${
+                  style={{ animationDelay: `${Math.min(i * 0.012, 0.4)}s` }}
+                  className={`min-h-[88px] animate-fade-in border-b border-r border-slate-100 p-1.5 transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:z-10 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-lg hover:shadow-violet-500/10 hover:bg-slate-50 dark:border-slate-700/50 dark:hover:bg-slate-700/30 dark:hover:shadow-black/30 ${
                     !cell.isCurrentMonth ? 'bg-slate-50/30 dark:bg-slate-800/30' : ''
-                  }`}
+                  } ${isToday ? 'bg-violet-50/60 dark:bg-violet-900/10' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <span
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition-transform duration-200 hover:scale-110 ${
                         isToday
                           ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30'
                           : cell.isCurrentMonth
-                            ? 'text-slate-700 dark:text-slate-300'
+                            ? 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                             : 'text-slate-300 dark:text-slate-600'
                       }`}
                     >
@@ -591,7 +609,7 @@ export default function Deadlines() {
 
       {/* ═══════════════ SECTION 4: LIST VIEW ═══════════════ */}
       {viewMode === 'list' && (
-        <Card className="overflow-visible animate-fade-in">
+        <Card className="overflow-visible animate-fade-in" style={{ animationDelay: '0.32s' }}>
           <div className="border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               Liste des echeances
@@ -677,7 +695,7 @@ export default function Deadlines() {
                       <tr
                         key={d.id}
                         onClick={() => setDetailDeadline(d)}
-                        className="cursor-pointer transition hover:bg-slate-50/60 dark:hover:bg-slate-700/30"
+                        className="cursor-pointer transition-all duration-200 hover:bg-slate-50/60 dark:hover:bg-slate-700/30"
                       >
                         <td className="whitespace-nowrap px-5 py-3.5">
                           <div className="flex items-center gap-2.5">
@@ -716,20 +734,20 @@ export default function Deadlines() {
                                   <button onClick={() => { setDetailDeadline(d); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                                     <Target className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les details
                                   </button>
-                                  <button onClick={() => { toast.info('Modifier l echeance'); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                                  <button onClick={() => { setEditDeadline(d); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                                     <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
                                   </button>
                                   <button onClick={() => { toast.success('Echeance marquee comme terminee'); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                                     <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" /> Marquer terminee
                                   </button>
-                                  <button onClick={() => { toast.info('Creer la declaration'); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                                  <button onClick={() => { closeMenu(); navigate(`/declarations?taxType=${encodeURIComponent(d.taxTypeCode)}&period=${encodeURIComponent(d.period)}`) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                                     <FileText className="h-4 w-4 shrink-0 text-blue-500" /> Creer la declaration
                                   </button>
-                                  <button onClick={() => { toast.info('Enregistrer le paiement'); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                                  <button onClick={() => { closeMenu(); navigate('/payments/new') }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                                     <CalendarClock className="h-4 w-4 shrink-0 text-violet-500" /> Enregistrer paiement
                                   </button>
                                   <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                                  <button onClick={() => { toast.error('Echeance supprimee'); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+                                  <button onClick={() => { if (confirm('Supprimer cette échéance ?')) remove.mutate(d.id); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
                                     <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
                                   </button>
                                 </div>
@@ -756,7 +774,7 @@ export default function Deadlines() {
 
       {/* ═══════════════ SECTION 5: MONTHLY VIEW ═══════════════ */}
       {viewMode === 'monthly' && (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in" style={{ animationDelay: '0.32s' }}>
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               Vue mensuelle - {MONTH_NAMES[currentMonth.month]} {currentMonth.year}
@@ -784,7 +802,7 @@ export default function Deadlines() {
                 const days = daysUntil(d.declarationDeadline)
                 const tc = getTaxColor(d.taxTypeCode)
                 return (
-                  <Card key={d.id} hover className="cursor-pointer overflow-hidden" onClick={() => setDetailDeadline(d)}>
+                  <Card key={d.id} hover className="cursor-pointer overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5" onClick={() => setDetailDeadline(d)}>
                     <div className={`border-l-4 ${
                       status === 'overdue' ? 'border-l-red-500' :
                       status === 'soon' ? 'border-l-amber-500' : 'border-l-violet-500'
@@ -834,7 +852,7 @@ export default function Deadlines() {
 
       {/* ═══════════════ SECTION: PROCHAINES ÉCHÉANCES (Timeline) ═══════════════ */}
       {upcomingTimeline.length > 0 && (
-        <Card className="overflow-hidden animate-fade-in">
+        <Card className="overflow-hidden animate-fade-in" style={{ animationDelay: '0.4s' }}>
           <div className="border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               Prochaines echeances
@@ -871,7 +889,7 @@ export default function Deadlines() {
                       <div className="ml-4 pl-6 pb-1">
                         <button
                           onClick={() => setDetailDeadline(d)}
-                          className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 text-left transition hover:border-slate-200 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
+                          className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 text-left transition-all duration-200 hover:border-slate-200 hover:shadow-md hover:-translate-y-0.5 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5">
@@ -904,7 +922,14 @@ export default function Deadlines() {
 
       {/* ═══════════════ DETAIL PANEL ═══════════════ */}
       {detailDeadline && (
-        <DetailPanel deadline={detailDeadline} onClose={() => setDetailDeadline(null)} />
+        <DetailPanel
+          deadline={detailDeadline}
+          onClose={() => setDetailDeadline(null)}
+          onEdit={() => { setEditDeadline(detailDeadline); setDetailDeadline(null) }}
+        />
+      )}
+      {editDeadline && (
+        <EditDeadlineModal deadline={editDeadline} onClose={() => setEditDeadline(null)} />
       )}
 
       {/* ═══════════════ CREATE MODAL ═══════════════ */}
@@ -916,20 +941,28 @@ export default function Deadlines() {
 /* ═══════════════════════════ Sous-composants ═══════════════════════════ */
 
 function KpiCard({
-  icon, iconBg, iconColor, label, value, sub, accent, onClick,
+  icon, iconBg, iconColor, label, value, sub, accent, onClick, style,
 }: {
   icon: React.ReactNode; iconBg: string; iconColor: string; label: string
   value: React.ReactNode; sub: string; accent?: string; onClick?: () => void
+  style?: React.CSSProperties
 }) {
   return (
-    <button
+    <Card
+      hover
       onClick={onClick}
-      className={`group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md text-left ${onClick ? 'cursor-pointer' : ''}`}
+      style={style}
+      className={`group relative overflow-hidden p-5 animate-fade-in ${onClick ? 'cursor-pointer' : ''}`}
     >
+      {/* Halo de profondeur comme Règles fiscales */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-500/10 blur-2xl transition-opacity duration-300 group-hover:opacity-100 dark:bg-violet-400/10"
+      />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
-          <p className={`mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight ${
+          <p className={`mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight transition-transform duration-300 group-hover:-translate-y-0.5 ${
             accent === 'red' ? 'text-red-600 dark:text-red-400' :
             accent === 'green' ? 'text-emerald-600 dark:text-emerald-400' :
             'text-slate-900 dark:text-slate-100'
@@ -937,18 +970,22 @@ function KpiCard({
             {value}
           </p>
         </div>
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-200 group-hover:scale-110`}>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg`}>
           {icon}
         </span>
       </div>
-      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">{sub}</p>
-    </button>
+      <div className="mt-3 flex items-center gap-2 text-xs">
+        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-500 transition-colors duration-300 group-hover:bg-violet-50 group-hover:text-violet-700 dark:bg-slate-700 dark:text-slate-400 dark:group-hover:bg-violet-900/30 dark:group-hover:text-violet-300">
+          {sub}
+        </span>
+      </div>
+    </Card>
   )
 }
 
 /* ── Detail Panel (slide-in from right) ── */
-function DetailPanel({ deadline, onClose }: { deadline: Deadline; onClose: () => void }) {
-  const toast = useToast()
+function DetailPanel({ deadline, onClose, onEdit }: { deadline: Deadline; onClose: () => void; onEdit: () => void }) {
+  const { fmtDate } = useLocaleFormatters()
   const days = daysUntil(deadline.declarationDeadline)
   const status = getDeadlineStatus(deadline)
   const tc = getTaxColor(deadline.taxTypeCode)
@@ -1052,7 +1089,7 @@ function DetailPanel({ deadline, onClose }: { deadline: Deadline; onClose: () =>
             <Button variant="secondary" onClick={onClose} className="flex-1">
               Fermer
             </Button>
-            <Button onClick={() => { toast.info('Modifier'); onClose() }} className="flex-1">
+            <Button onClick={() => onEdit()} className="flex-1">
               <Pencil className="h-4 w-4" /> Modifier
             </Button>
           </div>
@@ -1091,6 +1128,7 @@ function DeadlinesSkeleton() {
 function CreateDeadlineModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { t } = useI18n()
   const [taxTypeCode, setTaxTypeCode] = useState('')
   const [period, setPeriod] = useState('')
   const [declarationDeadline, setDeclarationDeadline] = useState('')
@@ -1146,6 +1184,73 @@ function CreateDeadlineModal({ onClose }: { onClose: () => void }) {
           <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
           <Button type="submit" disabled={create.isPending || !taxTypeCode || !period || !declarationDeadline || !paymentDeadline}>
             {create.isPending ? 'Creation...' : 'Creer'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+/* ── Edit modal ── */
+function EditDeadlineModal({ deadline, onClose }: { deadline: Deadline; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const toast = useToast()
+  const { t } = useI18n()
+  const [taxTypeCode, setTaxTypeCode] = useState(deadline.taxTypeCode)
+  const [period, setPeriod] = useState(deadline.period)
+  const [declarationDeadline, setDeclarationDeadline] = useState(deadline.declarationDeadline)
+  const [paymentDeadline, setPaymentDeadline] = useState(deadline.paymentDeadline)
+
+  const { data: taxTypes } = useQuery({
+    queryKey: ['tax-types'],
+    queryFn: () => apiGet<TaxType[]>('/tax-types'),
+  })
+
+  const update = useMutation({
+    mutationFn: () =>
+      apiPut(`/deadlines/${deadline.id}`, { taxTypeCode, period, declarationDeadline, paymentDeadline }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deadlines'] })
+      onClose()
+      toast.success(t('toast.saveSuccess'))
+    },
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
+  })
+
+  return (
+    <Modal open onClose={onClose} title="Modifier l'echeance" subtitle="Date configurable, jamais codee en dur.">
+      <form
+        onSubmit={(e) => { e.preventDefault(); update.mutate() }}
+        className="space-y-4"
+      >
+        {update.isError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {apiErrorMessage(update.error)}
+          </div>
+        )}
+        <Field label="Impot">
+          <Select value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)}>
+            <option value="">Selectionner</option>
+            {(taxTypes ?? []).map((t) => (
+              <option key={t.code} value={t.code}>{t.code} - {t.name}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Periode (ex : 2026-08)">
+          <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="2026-08" />
+        </Field>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Limite de declaration">
+            <Input type="date" value={declarationDeadline} onChange={(e) => setDeclarationDeadline(e.target.value)} />
+          </Field>
+          <Field label="Limite de paiement">
+            <Input type="date" value={paymentDeadline} onChange={(e) => setPaymentDeadline(e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+          <Button type="submit" disabled={update.isPending || !taxTypeCode || !period || !declarationDeadline || !paymentDeadline}>
+            {update.isPending ? 'Enregistrement...' : 'Enregistrer'}
           </Button>
         </div>
       </form>

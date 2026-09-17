@@ -146,7 +146,13 @@ public class CollectionController {
 
     @PostMapping("/actions")
     @PreAuthorize("hasAuthority('" + Permissions.COLLECTION_WRITE + "')")
-    @Operation(summary = "Créer une action de recouvrement")
+    @Operation(summary = "Créer une action de recouvrement",
+            description = """
+                    Une relance amiable (type REMINDER) exige une créance avec un solde \
+                    à recouvrer : elle trace un événement REMINDER_CREATED dans le journal \
+                    et ne change jamais la phase du dossier. Seule la mise en demeure, \
+                    acte formel explicite, fait passer la créance en recouvrement.
+                    """)
     public ResponseEntity<CollectionActionDto> createAction(@Valid @RequestBody CreateActionRequest request,
                                                             HttpServletRequest http) {
         return ResponseEntity.ok(collectionService.createAction(request, http));

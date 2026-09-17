@@ -5,19 +5,21 @@ import { AlertCircle, Inbox, Mail, Plus, RefreshCw, X } from 'lucide-react'
 import { useI18n } from '../../lib/i18n'
 import { useLocaleFormatters } from '../../lib/format'
 import { apiErrorMessage, apiGet, apiPost } from '../../lib/api'
-import type { CollectionDebtRow, CollectionStats, DebtStatus, Page, TaxType } from '../../types'
+import type { CollectionDebtRow, CollectionStats, Page, TaxType } from '../../types'
 import { Button, Card, EmptyState, Pagination, Select, Spinner, Table, Td, Th } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { CollectionSkeleton } from '../../components/collection/CollectionSkeleton'
 import { KpiCard } from '../../components/collection/KpiCard'
 import { StatusBadge } from '../../components/collection/StatusBadge'
 import { PriorityBadge } from '../../components/collection/PriorityBadge'
-import { PaymentProgress } from '../../components/collection/PaymentProgress'
 import { RowActions } from '../../components/collection/RowActions'
 import { DetailDrawer } from '../../components/collection/DetailDrawer'
 import { CollectionFilters, EMPTY_ADV, type AdvancedFilters } from '../../components/collection/CollectionFilters'
-import { TERMINAL_STATUSES, ACTION_LABELS, ACTION_ICONS } from '../../components/collection/constants'
+import { TERMINAL_STATUSES, ACTION_KEYS, ACTION_ICONS } from '../../components/collection/constants'
+import { useCreateReminder } from '../../features/collection/api/mutations'
+import { ReminderModal, emptyReminderForm, type ReminderForm } from '../../features/collection/components/modals/ReminderModal'
 
+// Étape fiscale 4 : Mises en demeure — actes formels (inCollection=true), NOTICE/COMMANDMENT avant contentieux
 export default function CollectionNotices() {
   const navigate = useNavigate()
   const [page, setPage] = useState(0)
@@ -35,11 +37,14 @@ export default function CollectionNotices() {
   const [noticeOpen, setNoticeOpen] = useState(false)
   const [noticeDebtId, setNoticeDebtId] = useState('')
   const [noticeContent, setNoticeContent] = useState('')
+  const [reminderOpen, setReminderOpen] = useState(false)
+  const [reminderDebt, setReminderDebt] = useState<CollectionDebtRow | null>(null)
+  const [reminderForm, setReminderForm] = useState<ReminderForm>(emptyReminderForm())
 
   const queryClient = useQueryClient()
   const toast = useToast()
   const { t } = useI18n()
-  const { fmtMGA, fmtDate, fmtDateTime } = useLocaleFormatters()
+  const { fmtMGA, fmtDate } = useLocaleFormatters()
 
   const buildParams = () => {
     const p = new URLSearchParams({ page: String(page), size: String(size), inCollection: 'true' })
@@ -60,7 +65,7 @@ export default function CollectionNotices() {
   const { data: actionDebts } = useQuery({
     queryKey: ['collection-action-debts'],
     queryFn: () => apiGet<Page<CollectionDebtRow>>(`/collection/debts?size=9999`),
-    enabled: noticeOpen,
+    enabled: noticeOpen || reminderOpen,
   })
 
   const createNotice = useMutation({
@@ -68,6 +73,7 @@ export default function CollectionNotices() {
     onSuccess: () => { invalidateQueries(); setNoticeOpen(false); setNoticeDebtId(''); setNoticeContent(''); toast.success(t('collection.noticeIssued')) },
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
+  const createReminder = useCreateReminder()
   const [payForm, setPayForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), method: 'CASH' })
   const registerPayment = useMutation({
     mutationFn: () => apiPost('/collection/payment', { debtId: selectedDebt!.id, amount: Number(payForm.amount), paymentDate: payForm.paymentDate, method: payForm.method }),
@@ -77,13 +83,24 @@ export default function CollectionNotices() {
 
   function invalidateQueries() { queryClient.invalidateQueries({ queryKey: ['collection-debts'] }); queryClient.invalidateQueries({ queryKey: ['collection-stats'] }); queryClient.invalidateQueries({ queryKey: ['debt-stats'] }) }
   function openNotice(debtId?: string) { setNoticeDebtId(debtId ?? ''); setNoticeContent(''); setNoticeOpen(true) }
+  function openReminder(debtId?: string, debt?: CollectionDebtRow | null) { setReminderDebt(debt ?? null); setReminderForm(emptyReminderForm(debtId ?? '')); setReminderOpen(true) }
+  function submitReminder() {
+    createReminder.mutate({
+      debtId: Number(reminderForm.debtId),
+      description: reminderForm.description.trim(),
+      actionDate: reminderForm.actionDate,
+      outcome: reminderForm.outcome || undefined,
+      nextAction: reminderForm.nextAction || undefined,
+      nextActionDate: reminderForm.nextActionDate || undefined,
+    }, { onSuccess: () => { setReminderOpen(false); setReminderDebt(null); setReminderForm(emptyReminderForm()) } })
+  }
 
   const totalResults = data?.totalElements ?? 0
   const hasFilters = !!(searchQ || taxTypeFilter || periodFilter || Object.values(advApplied).some(Boolean))
   const activeFilterCount = [searchQ, taxTypeFilter, periodFilter, advApplied.priority].filter(Boolean).length
   function resetFilters() { setSearchQ(''); setTaxTypeFilter(''); setPeriodFilter(''); setAdvApplied(EMPTY_ADV); setAdvDraft(EMPTY_ADV); setPage(0) }
   function applyAdvanced() { setAdvApplied(advDraft); setPage(0) }
-  function removeChip(kind: keyof AdvancedFilters | 'q' | 'taxType' | 'period') { if (kind === 'q') setSearchQ(''); else if (kind === 'taxType') setTaxTypeFilter(''); else if (kind === 'period') setPeriodFilter(''); else setAdvApplied((a) => ({ ...a, [kind]: '' })); setPage(0) }
+  function removeChip(kind: keyof AdvancedFilters | 'q' | 'taxType' | 'period' | 'tab') { if (kind === 'q') setSearchQ(''); else if (kind === 'taxType') setTaxTypeFilter(''); else if (kind === 'period') setPeriodFilter(''); else if (kind !== 'tab') setAdvApplied((a) => ({ ...a, [kind]: '' })); setPage(0) }
 
   if (isLoading && !data) return <CollectionSkeleton />
 
@@ -101,17 +118,17 @@ export default function CollectionNotices() {
         <div className="flex flex-wrap shrink-0 items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
           <button onClick={() => openNotice()} className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:bg-orange-500 active:scale-[0.98]">
-            <Plus className="h-4 w-4" /> Nouvelle mise en demeure
+            <Plus className="h-4 w-4" /> {t('collection.modal.notice.new')}
           </button>
         </div>
       </div>
 
       {stats && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Mises en demeure" value={stats.noticeCount} icon={<Mail className="h-5 w-5 text-orange-500" />} wrap="bg-orange-500/10" bar="bg-orange-500" />
-          <KpiCard label="Dossiers en litige" value={stats.disputedDebts} icon={<AlertCircle className="h-5 w-5 text-red-500" />} wrap="bg-red-500/10" bar="bg-red-500" />
-          <KpiCard label="Suspendus" value={stats.suspendedDebts} icon={<AlertCircle className="h-5 w-5 text-amber-500" />} wrap="bg-amber-500/10" bar="bg-amber-500" />
-          <KpiCard label="Reste à recouvrer" value={fmtMGA(stats.totalOutstanding)} icon={<AlertCircle className="h-5 w-5 text-orange-500" />} wrap="bg-orange-500/10" bar="bg-orange-500" />
+          <KpiCard label={t('collection.kpi.notices')} value={stats.noticeCount} icon={<Mail className="h-5 w-5 text-orange-500" />} wrap="bg-orange-500/10" bar="bg-orange-500" />
+          <KpiCard label={t('collection.kpi.disputes')} value={stats.disputedDebts} icon={<AlertCircle className="h-5 w-5 text-red-500" />} wrap="bg-red-500/10" bar="bg-red-500" />
+          <KpiCard label={t('collection.kpi.suspended')} value={stats.suspendedDebts} icon={<AlertCircle className="h-5 w-5 text-amber-500" />} wrap="bg-amber-500/10" bar="bg-amber-500" />
+          <KpiCard label={t('collection.kpi.outstanding')} value={fmtMGA(stats.totalOutstanding)} icon={<AlertCircle className="h-5 w-5 text-orange-500" />} wrap="bg-orange-500/10" bar="bg-orange-500" />
         </div>
       )}
 
@@ -130,7 +147,7 @@ export default function CollectionNotices() {
 
         <div className="flex items-center justify-between gap-3 px-5 py-2.5">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {!isLoading && data ? (<><span className="font-medium text-slate-700 dark:text-slate-300">{totalResults}</span> mise{totalResults > 1 ? 's' : ''} en demeure</>) : 'Chargement…'}
+            {!isLoading && data ? (<span className="font-medium text-slate-700 dark:text-slate-300">{t('collection.count.notices', { count: totalResults, plural: totalResults > 1 ? 's' : '' })}</span>) : t('collection.loading')}
           </p>
         </div>
 
@@ -138,15 +155,15 @@ export default function CollectionNotices() {
           <div className="px-5 py-10">
             <div className="mx-auto max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-800 dark:bg-red-900/20">
               <AlertCircle className="mx-auto h-8 w-8 text-red-500" />
-              <p className="mt-2 font-medium text-red-700 dark:text-red-400">Erreur de chargement.</p>
+              <p className="mt-2 font-medium text-red-700 dark:text-red-400">{t('collection.loadErrorShort')}</p>
               <p className="mt-1 text-xs text-red-500/80">{apiErrorMessage(error)}</p>
-              <Button className="mt-4" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-3.5 w-3.5" /> Réessayer</Button>
+              <Button className="mt-4" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-3.5 w-3.5" /> {t('collection.retry')}</Button>
             </div>
           </div>
         ) : !data || data.content.length === 0 ? (
           <div className="py-14">
             <EmptyState icon={<Inbox className="h-10 w-10" />} title={t("collection.noResult")} subtitle={t("common.noResult")} />
-            {hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={resetFilters}><X className="h-4 w-4" /> Réinitialiser</Button></div>}
+            {hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={resetFilters}><X className="h-4 w-4" /> {t('collection.reset')}</Button></div>}
           </div>
         ) : (
           <div className="animate-page-in">
@@ -155,7 +172,7 @@ export default function CollectionNotices() {
                 <div className="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
                   <Table>
                     <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
-                      <tr><Th>{t('common.reference')}</Th><Th>NIF</Th><Th>Contribuable</Th><Th>Impôt</Th><Th>Reste</Th><Th>Statut</Th><Th>Priorité</Th><Th>Dernière action</Th><Th className="w-12"></Th></tr>
+                      <tr><Th>{t('common.reference')}</Th><Th>NIF</Th><Th>{t('collection.table.taxpayer')}</Th><Th>{t('collection.table.tax')}</Th><Th>{t('collection.table.remaining')}</Th><Th>{t('collection.table.status')}</Th><Th>{t('collection.table.priority')}</Th><Th>{t('collection.table.lastAction')}</Th><Th className="w-12"></Th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
                       {data.content.map((d) => (
@@ -167,8 +184,8 @@ export default function CollectionNotices() {
                           <Td><span className="font-semibold text-orange-600 dark:text-orange-400">{fmtMGA(d.balance)}</span></Td>
                           <Td><StatusBadge status={d.debtStatus} /></Td>
                           <Td><PriorityBadge priority={d.collectionPriority} /></Td>
-                          <Td><div className="max-w-[170px]">{d.lastAction ? <><p className="truncate text-xs text-slate-600 dark:text-slate-400">{ACTION_ICONS[d.lastActionType ?? ''] ?? ''} {t(ACTION_KEYS[d.lastActionType ?? ''] ?? 'common.unknown') ?? d.lastAction}</p>{d.lastActionDate && <p className="text-[10px] text-slate-400 dark:text-slate-500">le {fmtDate(d.lastActionDate)}</p>}</> : <span className="text-xs text-slate-400">—</span>}</div></Td>
-                          <Td><RowActions debt={d} onView={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }} onPayment={() => { setSelectedDebt(d); setPaymentOpen(true) }} onCall={() => {}} onReminder={() => {}} onNotice={() => openNotice(String(d.id))} onCommandment={() => {}} onAtd={() => {}} onPaymentPlan={() => navigate(`/collection/plans?debt=${d.id}`)} onHistory={() => {}} /></Td>
+                          <Td><div className="max-w-[170px]">{d.lastAction ? <><p className="truncate text-xs text-slate-600 dark:text-slate-400">{ACTION_ICONS[d.lastActionType ?? ''] ?? ''} {t(ACTION_KEYS[d.lastActionType ?? ''] ?? 'common.unknown') ?? d.lastAction}</p>{d.lastActionDate && <p className="text-[10px] text-slate-400 dark:text-slate-500">{t('collection.table.on')} {fmtDate(d.lastActionDate)}</p>}</> : <span className="text-xs text-slate-400">—</span>}</div></Td>
+                          <Td><RowActions debt={d} onView={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }} onPayment={() => { setSelectedDebt(d); setPaymentOpen(true) }} onCall={() => {}} onReminder={() => openReminder(String(d.id), d)} onNotice={() => openNotice(String(d.id))} onCommandment={() => {}} onAtd={() => {}} onPaymentPlan={() => navigate(`/collection/plans?debt=${d.id}`)} onHistory={() => {}} /></Td>
                         </tr>
                       ))}
                     </tbody>
@@ -185,26 +202,26 @@ export default function CollectionNotices() {
       {noticeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setNoticeOpen(false)}>
           <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Émettre une mise en demeure</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Acte formel effectué par un agent habilité.</p>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t('collection.modal.notice.title')}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{t('collection.modal.notice.subtitle')}</p>
             {createNotice.isError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400">{apiErrorMessage(createNotice.error)}</div>}
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Créance concernée</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.notice.debt')}</label>
                 <Select value={noticeDebtId} onChange={(e) => setNoticeDebtId(e.target.value)}>
-                  <option value="">— Sélectionner une créance —</option>
+                  <option value="">{t('collection.modal.notice.selectDebt')}</option>
                   {(actionDebts?.content ?? data?.content ?? []).filter((d) => d.balance > 0 && !TERMINAL_STATUSES.includes(d.debtStatus)).map((d) => (
-                    <option key={d.id} value={d.id}>{d.reference} — {d.taxpayerName} — reste {fmtMGA(d.balance)}</option>
+                    <option key={d.id} value={d.id}>{d.reference} — {d.taxpayerName} — {t('collection.modal.action.remaining', { amount: fmtMGA(d.balance) })}</option>
                   ))}
                 </Select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Contenu (facultatif)</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.notice.contentOpt')}</label>
                 <textarea rows={4} value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder={t('common.description')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="secondary" onClick={() => setNoticeOpen(false)}>Annuler</Button>
-                <Button onClick={() => createNotice.mutate()} disabled={createNotice.isPending || !noticeDebtId}>{createNotice.isPending ? 'Émission…' : 'Émettre la mise en demeure'}</Button>
+                <Button variant="secondary" onClick={() => setNoticeOpen(false)}>{t('collection.modal.notice.cancel')}</Button>
+                <Button onClick={() => createNotice.mutate()} disabled={createNotice.isPending || !noticeDebtId}>{createNotice.isPending ? t('collection.modal.notice.issuing') : t('collection.modal.notice.issue')}</Button>
               </div>
             </div>
           </div>
@@ -215,23 +232,25 @@ export default function CollectionNotices() {
       {paymentOpen && selectedDebt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setPaymentOpen(false)}>
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Enregistrer un paiement</h3>
-            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800 mb-4">Créance : <strong className="font-mono">{selectedDebt.reference}</strong> — Solde : <strong className="text-amber-600">{fmtMGA(selectedDebt.balance)}</strong></div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">{t('collection.modal.payment.title')}</h3>
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800 mb-4">{t('collection.modal.payment.debtBalanceShort', { ref: selectedDebt.reference, amount: fmtMGA(selectedDebt.balance) })}</div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Montant (MGA)</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.payment.amount')}</label>
                 <input type="number" min="1" max={selectedDebt.balance} value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="secondary" onClick={() => setPaymentOpen(false)}>Annuler</Button>
-                <Button onClick={() => registerPayment.mutate()} disabled={registerPayment.isPending || !payForm.amount}>{registerPayment.isPending ? 'Enregistrement…' : 'Enregistrer'}</Button>
+                <Button variant="secondary" onClick={() => setPaymentOpen(false)}>{t('collection.modal.payment.cancel')}</Button>
+                <Button onClick={() => registerPayment.mutate()} disabled={registerPayment.isPending || !payForm.amount}>{registerPayment.isPending ? t('collection.modal.payment.saving') : t('collection.modal.payment.save')}</Button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      <DetailDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setDrawerDebtId(null) }} debtId={drawerDebtId} onPayment={(debt) => { setSelectedDebt(debt); setPaymentOpen(true) }} onReminder={() => {}} onNotice={(debt) => openNotice(String(debt.id))} onPlan={(debt) => navigate(`/collection/plans?debt=${debt.id}`)} onAction={() => {}} />
+      <ReminderModal open={reminderOpen} onClose={() => { setReminderOpen(false); setReminderDebt(null) }} form={reminderForm} setForm={setReminderForm} debts={actionDebts?.content ?? data?.content ?? []} debt={reminderDebt} onSubmit={submitReminder} pending={createReminder.isPending} error={createReminder.isError ? createReminder.error : null} fmtMGA={fmtMGA} />
+
+      <DetailDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setDrawerDebtId(null) }} debtId={drawerDebtId} onPayment={(debt) => { setSelectedDebt(debt); setPaymentOpen(true) }} onReminder={(debt) => openReminder(String(debt.id), debt)} onNotice={(debt) => openNotice(String(debt.id))} onPlan={(debt) => navigate(`/collection/plans?debt=${debt.id}`)} onAction={() => {}} />
     </div>
   )
 }

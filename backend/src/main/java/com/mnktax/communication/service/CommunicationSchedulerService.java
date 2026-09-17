@@ -1,6 +1,7 @@
 package com.mnktax.communication.service;
 
 import com.mnktax.communication.entity.CommunicationEventType;
+import com.mnktax.communication.repository.CommunicationEventRuleRepository;
 import com.mnktax.debt.entity.TaxDebt;
 import com.mnktax.debt.repository.TaxDebtRepository;
 import com.mnktax.tax.entity.TaxObligation;
@@ -28,9 +29,10 @@ import java.util.Set;
  * - FORMAL_NOTICE : créances en retard depuis ≈ J+15 (fenêtre J+15..J+21)
  *   → mise en demeure.
  *
- * Anti-doublon : le composeur marque déjà les messages à l'offset J+0 ; on ne
- * relance un contribuable que s'il n'a reçu aucune communication automatique
- * récente (3 jours) pour le même type d'événement.
+ * Anti-doublon : un contribuable n'est relancé que s'il n'a reçu aucune
+ * communication automatique récente (3 jours) pour le même type d'événement.
+ * Les délais (J-3, J+7, J+15…) viennent des règles activées — configuration
+ * métier modifiable dans Paramètres → Communications.
  */
 @Service
 public class CommunicationSchedulerService {
@@ -39,15 +41,18 @@ public class CommunicationSchedulerService {
 
     private final TaxObligationRepository obligationRepository;
     private final TaxDebtRepository debtRepository;
+    private final CommunicationEventRuleRepository ruleRepository;
     private final CommunicationService communicationService;
     private final CommunicationEventEngine eventEngine;
 
     public CommunicationSchedulerService(TaxObligationRepository obligationRepository,
                                          TaxDebtRepository debtRepository,
+                                         CommunicationEventRuleRepository ruleRepository,
                                          @org.springframework.context.annotation.Lazy CommunicationService communicationService,
                                          CommunicationEventEngine eventEngine) {
         this.obligationRepository = obligationRepository;
         this.debtRepository = debtRepository;
+        this.ruleRepository = ruleRepository;
         this.communicationService = communicationService;
         this.eventEngine = eventEngine;
     }
@@ -70,12 +75,28 @@ public class CommunicationSchedulerService {
     }
 
     private void notifyDeclarationsDueSoon(LocalDate today) {
-        // Fenêtre large J-15..J-1 ; la règle (dayOffset) filtre dans le composeur.
+        // Jours ciblés par les règles activées (ex : règle J-3 → rappel à J-3).
+        // Les délais restent dans la configuration métier, jamais en dur.
+        Set<Integer> targetOffsets = ruleRepository.findByEventTypeAndEnabledTrue(
+                        CommunicationEventType.DECLARATION_DUE_SOON).stream()
+                .map(r -> r.getDayOffset())
+                .filter(java.util.Objects::nonNull)
+                .filter(off -> off <= 0)                      // J-0, J-1, J-3… (négatif = avant échéance)
+                .map(off -> -off)
+                .collect(java.util.stream.Collectors.toSet());
+        if (targetOffsets.isEmpty()) {
+            return;
+        }
         List<TaxObligation> upcoming =
-                obligationRepository.findDueBetween(today.minusDays(0), today.plusDays(15));
+                obligationRepository.findDueBetween(today, today.plusDays(15));
         Map<Long, TaxObligation> earliestByTaxpayer = new HashMap<>();
         for (TaxObligation obligation : upcoming) {
             if (obligation.getTaxpayer() == null || obligation.getTaxpayer().getUserId() == null) {
+                continue;
+            }
+            int daysUntilDue = (int) java.time.temporal.ChronoUnit.DAYS
+                    .between(today, obligation.getDeclarationDeadline());
+            if (!targetOffsets.contains(daysUntilDue)) {
                 continue;
             }
             TaxObligation existing = earliestByTaxpayer.get(obligation.getTaxpayer().getId());
@@ -94,10 +115,6 @@ public class CommunicationSchedulerService {
             variables.put("due_date", obligation.getDeclarationDeadline().toString());
             variables.put("amount", obligation.getExpectedAmount() == null ? "0"
                     : obligation.getExpectedAmount().toPlainString());
-            // targetDayOffset décale la date passée aux variables ; la règle
-            // J-3 filtre par dayOffset dans le composeur (voir compose()).
-            variables.put("target_day_offset", String.valueOf(
-                    java.time.temporal.ChronoUnit.DAYS.between(today, obligation.getDeclarationDeadline())));
             eventEngine.onEvent(CommunicationEventType.DECLARATION_DUE_SOON, obligation.getTaxpayer(), variables);
             sent++;
         }
@@ -123,12 +140,21 @@ public class CommunicationSchedulerService {
             variables.put("debt_reference", debt.getReference());
             variables.put("amount", debt.getBalance() == null ? "0" : debt.getBalance().toPlainString());
             variables.put("due_date", debt.getDueDate().toString());
-            variables.put("target_day_offset", String.valueOf(daysOverdue));
 
+            // 1 relance (J+7..J+13) puis 1 mise en demeure (J+15..J+21) par créance,
+            // grâce au garde-fou anti-doublon findRecentAutomatic.
             if (daysOverdue <= 13) {
+                if (recentlyNotified(debt.getTaxpayer().getId(),
+                        CommunicationEventType.DEBT_OVERDUE_RELANCE.name())) {
+                    continue;
+                }
                 eventEngine.onEvent(CommunicationEventType.DEBT_OVERDUE_RELANCE, debt.getTaxpayer(), variables);
                 relances++;
             } else {
+                if (recentlyNotified(debt.getTaxpayer().getId(),
+                        CommunicationEventType.FORMAL_NOTICE.name())) {
+                    continue;
+                }
                 eventEngine.onEvent(CommunicationEventType.FORMAL_NOTICE, debt.getTaxpayer(), variables);
                 formalNotices++;
             }

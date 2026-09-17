@@ -16,6 +16,7 @@ import com.mnktax.collection.dto.CollectionDtos.CreateNoticeRequest;
 import com.mnktax.collection.dto.CollectionDtos.DisputeDto;
 import com.mnktax.collection.dto.CollectionDtos.ResolveDisputeRequest;
 import com.mnktax.collection.dto.CollectionDtos.OverdueSummaryDto;
+import com.mnktax.collection.dto.CollectionDtos.ReminderTracking;
 import com.mnktax.collection.dto.CollectionDtos.RegisterPaymentRequest;
 import com.mnktax.collection.entity.CollectionAction;
 import com.mnktax.collection.entity.CollectionActionType;
@@ -73,6 +74,18 @@ public class CollectionService {
     private static final Set<String> FORMAL_NOTICE_TYPES = Set.of(
             "MISE_EN_DEMEURE", "NOTICE", "COMMANDEMENT", "COMMANDEMENT_DE_PAYER");
 
+    /**
+     * Types d'action qui constituent une relance amiable (échelle fiscale :
+     * contact amiable avant tout acte formel). Seuls ceux-ci alimentent le
+     * journal des relances ({@code REMINDER_CREATED}) et l'onglet « Relances ».
+     */
+    private static final Set<CollectionActionType> REMINDER_ACTION_TYPES = Set.of(
+            CollectionActionType.REMINDER,
+            CollectionActionType.FOLLOW_UP,
+            CollectionActionType.SMS,
+            CollectionActionType.NOTIFICATION,
+            CollectionActionType.PHONE_CONTACT);
+
     private final CollectionActionRepository actionRepository;
     private final CollectionNoticeRepository noticeRepository;
     private final TaxDebtRepository debtRepository;
@@ -109,6 +122,13 @@ public class CollectionService {
     public CollectionActionDto createAction(CreateActionRequest request, HttpServletRequest http) {
         TaxDebt debt = findDebt(request.debtId());
         checkOpenForAction(debt);
+        // Logique fiscale : la relance amiable ne porte que sur une créance
+        // disposant encore d'un solde à recouvrer et ne modifie jamais la phase
+        // du dossier — seule la mise en demeure, acte formel explicite de
+        // l'agent, fait passer la créance en recouvrement.
+        if (request.type() == CollectionActionType.REMINDER) {
+            checkRemindable(debt);
+        }
         CollectionAction action = CollectionAction.builder()
                 .debt(debt)
                 .type(request.type())
@@ -123,9 +143,11 @@ public class CollectionService {
                 .build();
         CollectionAction saved = actionRepository.save(action);
 
+        // Le journal distingue une vraie relance amiable des autres actes :
+        // seuls les types de relance produisent un événement REMINDER_CREATED.
         historyRepository.save(DebtHistory.builder()
                 .debt(debt)
-                .eventType("REMINDER_CREATED")
+                .eventType(isReminderEvent(saved.getType()) ? "REMINDER_CREATED" : "ACTION_CREATED")
                 .description(actionLabel(saved.getType()) + " : " + saved.getDescription())
                 .oldValue(null)
                 .newValue(saved.getType().name())
@@ -404,13 +426,21 @@ public class CollectionService {
                                                          BigDecimal balanceMin, BigDecimal balanceMax,
                                                          LocalDate dueFrom, LocalDate dueTo,
                                                          String q, Pageable pageable) {
+        LocalDate today = LocalDate.now();
         Page<TaxDebt> page = debtRepository.searchCollection(status, blankToNull(taxTypeCode), blankToNull(period),
                 origin, priority, overdue, inCollection, hasReminder,
-                balanceMin, balanceMax, dueFrom, dueTo, blankToNull(q), LocalDate.now(), pageable);
+                balanceMin, balanceMax, dueFrom, dueTo, blankToNull(q), today, pageable);
 
         List<TaxDebt> debts = page.getContent();
+        List<Long> debtIds = debts.stream().map(TaxDebt::getId).toList();
         Map<Long, CollectionAction> lastActions = debts.isEmpty() ? Map.of()
-                : actionRepository.findLatestByDebtIds(debts.stream().map(TaxDebt::getId).toList()).stream()
+                : actionRepository.findLatestByDebtIds(debtIds).stream()
+                        .collect(Collectors.toMap(a -> a.getDebt().getId(), Function.identity(), (a, b) -> a));
+
+        // Suivi fiscal : on isole la dernière relance amiable réelle de la créance
+        // (la dernière action peut être d'un autre type, ex. un appel ou une note).
+        Map<Long, CollectionAction> lastReminders = debts.isEmpty() ? Map.of()
+                : actionRepository.findLatestRemindersByDebtIds(debtIds).stream()
                         .collect(Collectors.toMap(a -> a.getDebt().getId(), Function.identity(), (a, b) -> a));
 
         Set<Long> responsibleIds = lastActions.values().stream()
@@ -437,8 +467,29 @@ public class CollectionService {
                 nextAct = lastAction.getNextAction();
                 nextActDate = lastAction.getNextActionDate();
             }
-            return CollectionDebtRowDto.from(debt, lastType, lastDesc, lastDate, responsible, nextAct, nextActDate);
+            return CollectionDebtRowDto.from(debt, lastType, lastDesc, lastDate, responsible, nextAct, nextActDate,
+                    reminderTracking(lastReminders.get(debt.getId()), debt, today));
         });
+    }
+
+    /**
+     * Délai écoulé depuis la dernière relance amiable et état de la prochaine
+     * relance prévue. Une prochaine relance n'est « en retard » que si un solde
+     * reste à recouvrer : une créance soldée n'a plus rien à relancer.
+     */
+    private static ReminderTracking reminderTracking(CollectionAction reminder, TaxDebt debt, LocalDate today) {
+        if (reminder == null || reminder.getActionDate() == null) {
+            return ReminderTracking.none();
+        }
+        long daysSince = Math.max(0, ChronoUnit.DAYS.between(reminder.getActionDate(), today));
+        LocalDate next = reminder.getNextActionDate();
+        boolean recoverable = debt.getBalance() != null && debt.getBalance().signum() > 0
+                && debt.getStatus() != DebtStatus.PAID
+                && debt.getStatus() != DebtStatus.CANCELLED
+                && debt.getStatus() != DebtStatus.CLOSED;
+        boolean overdue = next != null && next.isBefore(today) && recoverable;
+        long daysLate = overdue ? ChronoUnit.DAYS.between(next, today) : 0;
+        return new ReminderTracking(reminder.getActionDate(), daysSince, next, daysLate, overdue);
     }
 
     // ── Périodes disponibles ─────────────────────────────────
@@ -507,7 +558,8 @@ public class CollectionService {
                 debtRepository.countByStatus(DebtStatus.SUSPENDED),
                 actionRepository.countByType(CollectionActionType.REMINDER),
                 noticeRepository.count(),
-                actionRepository.countAll()
+                actionRepository.countAll(),
+                actionRepository.countOverdueReminders(today)
         );
     }
 
@@ -549,6 +601,22 @@ public class CollectionService {
             throw new BusinessException("DEBT_CLOSED",
                     "Cette créance est " + debt.getStatus() + " : aucune action de recouvrement possible.");
         }
+    }
+
+    /**
+     * Une relance amiable n'a de sens que si un solde reste à recouvrer. La
+     * phase du dossier (en retard, mise en demeure, contentieux) ne bloque pas
+     * l'agent : seule une créance soldée ou clôturée ne peut plus être relancée.
+     */
+    private void checkRemindable(TaxDebt debt) {
+        if (debt.getBalance() == null || debt.getBalance().signum() <= 0) {
+            throw new BusinessException("DEBT_NOTHING_TO_REMIND",
+                    "Cette créance n'a plus de solde à recouvrer : aucune relance ne peut être enregistrée.");
+        }
+    }
+
+    private static boolean isReminderEvent(CollectionActionType type) {
+        return type != null && REMINDER_ACTION_TYPES.contains(type);
     }
 
     private static boolean isFormalNotice(String noticeType) {

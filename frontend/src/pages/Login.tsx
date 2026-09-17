@@ -143,8 +143,10 @@ export default function Login() {
       </div>
 
       {/* Panneau gauche — branding */}
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden border-r border-slate-200 bg-white p-12 dark:border-transparent dark:bg-sidebar dark:bg-sidebar lg:flex">
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden border-r border-slate-200 p-12 dark:border-white/10 lg:flex">
+        <div className="absolute inset-0 bg-white dark:bg-sidebar" aria-hidden="true" />
         <FiscalAnimation />
+        <div className="absolute inset-0 bg-white/78 dark:bg-sidebar/65" aria-hidden="true" />
         {/* Bouton retour à l'accueil — desktop, haut droit du panneau gauche */}
         <a
           href="/#hero"
@@ -158,7 +160,6 @@ export default function Login() {
         <div className="absolute -bottom-40 -left-24 h-96 w-96 animate-float rounded-full bg-brand-300/10 blur-3xl" />
 
         <div className="relative z-10 flex animate-fade-in items-center gap-3">
-          <span className="brand-scrim hidden dark:block" aria-hidden="true" />
           <img src="/logo.webp" alt="MNK-TAX" className="h-11 w-11 rounded-xl object-contain shadow-lg shadow-brand-800/30" />
           <div>
             <p className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">{t('sidebar.brand')}</p>
@@ -167,7 +168,6 @@ export default function Login() {
         </div>
 
         <div className="relative z-10">
-          <span className="brand-scrim hidden dark:block" aria-hidden="true" />
           <h1 className="animate-slide-up text-4xl font-bold leading-tight tracking-tight text-slate-900 dark:text-white">
             {t('login.hero.title')} <span className="text-brand-600 dark:text-brand-200">{t('login.hero.highlight')}</span>
           </h1>
@@ -191,7 +191,6 @@ export default function Login() {
         </div>
 
         <p className="relative z-10 text-xs text-slate-500 dark:text-brand-200/60">
-          <span className="brand-scrim hidden dark:block" aria-hidden="true" />
           {t('login.prototype')}
         </p>
       </div>

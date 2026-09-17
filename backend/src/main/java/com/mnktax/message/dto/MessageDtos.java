@@ -17,7 +17,8 @@ public final class MessageDtos {
     }
 
     public record SendMessageRequest(
-            @NotBlank(message = "Le destinataire est requis.") String recipientUsername,
+            String recipientUsername,
+            Long recipientId,
             String subject,
             @NotBlank(message = "Le contenu du message est requis.") String content,
             Long replyToId,

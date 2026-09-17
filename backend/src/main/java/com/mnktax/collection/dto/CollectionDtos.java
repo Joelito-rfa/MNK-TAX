@@ -152,6 +152,25 @@ public final class CollectionDtos {
         }
     }
 
+    // ── Suivi fiscal de la relance amiable ───────────────────
+
+    /**
+     * Suivi de la relance amiable d'une créance : délai écoulé depuis la
+     * dernière relance enregistrée et état de la prochaine relance prévue.
+     * Les délais sont calculés côté backend (source de vérité unique).
+     */
+    public record ReminderTracking(
+            LocalDate lastReminderDate,
+            long daysSinceLastReminder,
+            LocalDate nextReminderDate,
+            long daysLateNextReminder,
+            boolean nextReminderOverdue
+    ) {
+        public static ReminderTracking none() {
+            return new ReminderTracking(null, 0, null, 0, false);
+        }
+    }
+
     // ── Collection debt row for the main table ───────────────
 
     public record CollectionDebtRowDto(
@@ -175,7 +194,12 @@ public final class CollectionDtos {
             LocalDate lastActionDate,
             String lastResponsible,
             String nextAction,
-            LocalDate nextActionDate
+            LocalDate nextActionDate,
+            LocalDate lastReminderDate,
+            long daysSinceLastReminder,
+            LocalDate nextReminderDate,
+            long daysLateNextReminder,
+            boolean nextReminderOverdue
     ) {
         public static CollectionDebtRowDto from(TaxDebt debt,
                                                  String lastActionType,
@@ -183,7 +207,9 @@ public final class CollectionDtos {
                                                  LocalDate lastActionDt,
                                                  String lastResponsible,
                                                  String nextAct,
-                                                 LocalDate nextActDt) {
+                                                 LocalDate nextActDt,
+                                                 ReminderTracking reminder) {
+            ReminderTracking tracking = reminder != null ? reminder : ReminderTracking.none();
             return new CollectionDebtRowDto(
                     debt.getId(),
                     debt.getReference(),
@@ -205,7 +231,12 @@ public final class CollectionDtos {
                     lastActionDt,
                     lastResponsible,
                     nextAct,
-                    nextActDt
+                    nextActDt,
+                    tracking.lastReminderDate(),
+                    tracking.daysSinceLastReminder(),
+                    tracking.nextReminderDate(),
+                    tracking.daysLateNextReminder(),
+                    tracking.nextReminderOverdue()
             );
         }
     }
@@ -355,11 +386,12 @@ public final class CollectionDtos {
             long suspendedDebts,
             long reminderActions,
             long noticeCount,
-            long actionCount
+            long actionCount,
+            long remindersOverdue
     ) {
         public static CollectionStatsDto empty() {
             return new CollectionStatsDto(0.0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                    0, 0, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                    0, 0, BigDecimal.ZERO, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
     }
 

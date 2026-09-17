@@ -6,8 +6,7 @@ import { useAuth } from '../lib/auth'
 import { fmtDateTime } from '../lib/format'
 import type { Notification, Page } from '../types'
 import { Avatar } from '../components/Avatar'
-import { Badge, Button, Card, EmptyState, PageHeader, Pagination, Spinner, Table, Td, Th } from '../components/ui'
-import { useToast } from '../components/Toast'
+import { Badge, Card, EmptyState, PageHeader, Pagination, Spinner, Table, Td, Th } from '../components/ui'
 
 const typeLabels: Record<string, string> = {
   DEADLINE: 'Échéance',
@@ -23,19 +22,10 @@ export default function Notifications() {
   const [page, setPage] = useState(0)
   const [actionMenu, setActionMenu] = useState<number | null>(null)
   const queryClient = useQueryClient()
-  const toast = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications', page],
     queryFn: () => apiGet<Page<Notification>>(`/notifications?page=${page}&size=20`),
-  })
-
-  const markAll = useMutation({
-    mutationFn: () => apiPost('/notifications/read-all'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
-      toast.success('Notifications marquées comme lues')
-    },
   })
 
   const markRead = useMutation({
@@ -48,11 +38,6 @@ export default function Notifications() {
       <PageHeader
         title="Notifications"
         subtitle="Alertes, échéances et événements du système"
-        actions={
-          <Button variant="secondary" onClick={() => markAll.mutate()} disabled={markAll.isPending}>
-            <CheckCheck className="h-4 w-4" /> Tout marquer comme lu
-          </Button>
-        }
       />
 
       <Card>

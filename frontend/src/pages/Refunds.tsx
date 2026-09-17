@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Banknote, CheckCircle2, HandCoins, XCircle, MoreHorizontal, Pencil, Trash2, Eye, CalendarClock } from 'lucide-react'
-import { apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Banknote, CheckCircle2, HandCoins, XCircle, MoreHorizontal, Pencil, Trash2, Eye, CalendarClock, Filter, RotateCcw } from 'lucide-react'
+import { apiDelete, apiErrorMessage, apiPatch, apiPost } from '../lib/api'
 import { fmtDateTime, fmtDate, fmtMGA } from '../lib/format'
-import type { Page, Refund, TaxpayerSummary } from '../types'
 import { useAuth } from '../lib/auth'
+import { refundKeys } from '../features/refund/api/keys'
+import { useRefundDetail, useRefunds, useTaxpayersRef } from '../features/refund/api/queries'
+import { useRefundFilters } from '../features/refund/hooks/useRefundFilters'
 import {
   Badge,
   Button,
@@ -50,23 +52,31 @@ const paymentMethodLabels: Record<string, string> = {
 
 export default function Refunds() {
   const { can } = useAuth()
-  const [page, setPage] = useState(0)
-  const [size, setSize] = useState(20)
-  const [status, setStatus] = useState('')
-  const [q, setQ] = useState('')
+  const {
+    setPage, size, setSize, q, setQ, status, setStatus,
+    reason, setReason, taxpayerId, setTaxpayerId,
+    dateFrom, setDateFrom, dateTo, setDateTo,
+    minAmount, setMinAmount, maxAmount, setMaxAmount,
+    showFilters, setShowFilters,
+    buildParams, hasFilters, advancedFilterCount, resetFilters,
+  } = useRefundFilters()
   const [createOpen, setCreateOpen] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
+  const [editId, setEditId] = useState<number | null>(null)
   const [actionMenu, setActionMenu] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
 
-  const params = new URLSearchParams({ page: String(page), size: String(size) })
-  if (status) params.set('status', status)
-  if (q) params.set('q', q)
+  const { data, isLoading } = useRefunds(buildParams)
+  const { data: taxpayers } = useTaxpayersRef(showFilters)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['refunds', page, size, status, q],
-    queryFn: () => apiGet<Page<Refund>>(`/refunds?${params.toString()}`),
+  const remove = useMutation({
+    mutationFn: (id: number) => apiDelete(`/refunds/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: refundKeys.all })
+      toast.success('Remboursement supprimé')
+    },
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
   return (
@@ -99,12 +109,95 @@ export default function Refunds() {
               ))}
             </Select>
           </div>
+          <Button
+            variant={showFilters ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            <Filter className="h-4 w-4" /> Filtres
+            {advancedFilterCount > 0 && (
+              <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">
+                {advancedFilterCount}
+              </span>
+            )}
+          </Button>
+          {hasFilters && (
+            <Button variant="ghost" size="sm" onClick={resetFilters}>
+              <RotateCcw className="h-4 w-4" /> Réinitialiser
+            </Button>
+          )}
         </div>
+
+        {showFilters && (
+          <div className="flex flex-wrap items-end gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4 dark:border-slate-700/50 dark:bg-slate-800/30">
+            <div className="w-48">
+              <Field label="Motif">
+                <Select value={reason} onChange={(e) => { setReason(e.target.value); setPage(0) }}>
+                  <option value="">Tous les motifs</option>
+                  {Object.entries(refundReasonLabels).map(([v, label]) => (
+                    <option key={v} value={v}>{label}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="w-64">
+              <Field label="Contribuable">
+                <Select value={taxpayerId} onChange={(e) => { setTaxpayerId(e.target.value); setPage(0) }}>
+                  <option value="">Tous les contribuables</option>
+                  {taxpayers?.content.map((t) => (
+                    <option key={t.id} value={t.id}>{t.nif} — {t.name}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className="w-40">
+              <Field label="Demandé du">
+                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(0) }} />
+              </Field>
+            </div>
+            <div className="w-40">
+              <Field label="Au">
+                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(0) }} />
+              </Field>
+            </div>
+            <div className="w-36">
+              <Field label="Montant min">
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={minAmount}
+                  onChange={(e) => { setMinAmount(e.target.value); setPage(0) }}
+                  placeholder="0"
+                />
+              </Field>
+            </div>
+            <div className="w-36">
+              <Field label="Montant max">
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={maxAmount}
+                  onChange={(e) => { setMaxAmount(e.target.value); setPage(0) }}
+                  placeholder="—"
+                />
+              </Field>
+            </div>
+          </div>
+        )}
 
         {isLoading ? (
           <Spinner />
         ) : !data || data.content.length === 0 ? (
-          <EmptyState title="Aucun remboursement" subtitle="Modifiez vos critères de recherche." />
+          <EmptyState
+            title="Aucun remboursement"
+            subtitle={
+              hasFilters
+                ? 'Aucun résultat pour ces critères. Élargissez la recherche ou réinitialisez les filtres.'
+                : 'Aucune demande enregistrée pour le moment.'
+            }
+          />
         ) : (
           <>
             <Table>
@@ -169,7 +262,7 @@ export default function Refunds() {
                                      <button
                                        onClick={(e) => {
                                          e.stopPropagation()
-                                         toast.info('Modifier le remboursement')
+                                         setEditId(r.id)
                                          setActionMenu(null)
                                        }}
                                        className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
@@ -179,24 +272,28 @@ export default function Refunds() {
                                      <button
                                        onClick={(e) => {
                                          e.stopPropagation()
-                                         toast.info('Changer le statut')
+                                         setDetailId(r.id)
                                          setActionMenu(null)
                                        }}
                                        className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                      >
                                        <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
                                      </button>
-                                     <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                                     <button
-                                       onClick={(e) => {
-                                         e.stopPropagation()
-                                         if (confirm('Supprimer ce remboursement ?')) toast.info('Suppression à implémenter')
-                                         setActionMenu(null)
-                                       }}
-                                       className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                                     >
-                                       <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
-                                     </button>
+                                     {r.status === 'PENDING' && (
+                                       <>
+                                         <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                                         <button
+                                           onClick={(e) => {
+                                             e.stopPropagation()
+                                             if (confirm('Supprimer ce remboursement ?')) remove.mutate(r.id)
+                                             setActionMenu(null)
+                                           }}
+                                           className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                         >
+                                           <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
+                                         </button>
+                                       </>
+                                     )}
                                    </>
                                  )}
                                </div>
@@ -225,7 +322,7 @@ export default function Refunds() {
         <CreateRefundModal
           onClose={() => {
             setCreateOpen(false)
-            queryClient.invalidateQueries({ queryKey: ['refunds'] })
+            queryClient.invalidateQueries({ queryKey: refundKeys.all })
           }}
         />
       )}
@@ -234,7 +331,16 @@ export default function Refunds() {
           id={detailId}
           onClose={() => {
             setDetailId(null)
-            queryClient.invalidateQueries({ queryKey: ['refunds'] })
+            queryClient.invalidateQueries({ queryKey: refundKeys.all })
+          }}
+        />
+      )}
+      {editId != null && (
+        <EditRefundModal
+          id={editId}
+          onClose={() => {
+            setEditId(null)
+            queryClient.invalidateQueries({ queryKey: refundKeys.all })
           }}
         />
       )}
@@ -251,10 +357,7 @@ export function CreateRefundModal({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = useState('')
   const toast = useToast()
 
-  const { data: taxpayers, isLoading: loadingTaxpayers } = useQuery({
-    queryKey: ['taxpayers-lite'],
-    queryFn: () => apiGet<Page<TaxpayerSummary>>('/taxpayers?size=1000'),
-  })
+  const { data: taxpayers, isLoading: loadingTaxpayers } = useTaxpayersRef()
 
   const create = useMutation({
     mutationFn: () =>
@@ -321,6 +424,87 @@ export function CreateRefundModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+/* ──────────────────────── Modification ──────────────────────── */
+
+export function EditRefundModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const toast = useToast()
+  const { data, isLoading } = useRefundDetail(id)
+
+  const [reason, setReason] = useState('')
+  const [amount, setAmount] = useState('')
+  const [description, setDescription] = useState('')
+
+  useEffect(() => {
+    if (!data) return
+    setReason(data.reason)
+    setAmount(String(data.amount))
+    setDescription(data.description ?? '')
+  }, [data])
+
+  const update = useMutation({
+    mutationFn: () =>
+      apiPatch(`/refunds/${id}`, {
+        reason,
+        amount: Number(amount),
+        description: description || null,
+      }),
+    onSuccess: () => {
+      toast.success('Remboursement mis à jour')
+      onClose()
+    },
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
+  })
+
+  return (
+    <Modal open onClose={onClose} title="Modifier le remboursement" wide>
+      {isLoading || !data ? (
+        <Spinner />
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            update.mutate()
+          }}
+          className="space-y-4"
+        >
+          {update.isError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {apiErrorMessage(update.error)}
+            </div>
+          )}
+          <div className="rounded-xl border border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/30 p-3 text-sm">
+            <span className="font-mono font-medium text-brand-700">{data.reference}</span>
+            <span className="ml-2 text-slate-500 dark:text-slate-400">
+              {data.taxpayerName} ({data.nif})
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Motif">
+              <Select value={reason} onChange={(e) => setReason(e.target.value)}>
+                {Object.entries(refundReasonLabels).map(([v, label]) => (
+                  <option key={v} value={v}>{label}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Montant (MGA)">
+              <Input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            </Field>
+          </div>
+          <Field label="Description">
+            <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Justification de la demande" />
+          </Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            <Button type="submit" disabled={update.isPending || !amount || Number(amount) <= 0}>
+              {update.isPending ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Modal>
+  )
+}
+
 /* ──────────────────────── Détail + actions ──────────────────────── */
 
 export function RefundDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
@@ -334,14 +518,11 @@ export function RefundDetailModal({ id, onClose }: { id: number; onClose: () => 
   const [paymentMethod, setPaymentMethod] = useState('BANK_TRANSFER')
   const [paymentReference, setPaymentReference] = useState('')
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['refund', id],
-    queryFn: () => apiGet<Refund>(`/refunds/${id}`),
-  })
+  const { data, isLoading } = useRefundDetail(id)
 
   const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['refund', id] })
-    queryClient.invalidateQueries({ queryKey: ['refunds'] })
+    queryClient.invalidateQueries({ queryKey: refundKeys.detail(id) })
+    queryClient.invalidateQueries({ queryKey: refundKeys.all })
   }
 
   const review = useMutation({

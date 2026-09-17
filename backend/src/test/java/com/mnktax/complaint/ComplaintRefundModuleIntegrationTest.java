@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -185,6 +186,44 @@ class ComplaintRefundModuleIntegrationTest {
                 new ReviewRefundRequest(false, null, "Pièces justificatives manquantes"), null);
         assertEquals(RefundStatus.REJECTED, rejected.status());
         assertEquals("Pièces justificatives manquantes", rejected.rejectionReason());
+    }
+
+    @Test
+    @DisplayName("Recherche avancée : motif, plage de montants, plage de dates et texte libre")
+    void searchRefundsWithAdvancedFilters() {
+        refundService.create(new CreateRefundRequest(taxpayerId, RefundReason.VAT_CREDIT,
+                "Crédit TVA filtre", null, null, new BigDecimal("300000")), null);
+        refundService.create(new CreateRefundRequest(taxpayerId, RefundReason.OVERPAYMENT,
+                "Trop-perçu filtre", null, null, new BigDecimal("900000")), null);
+
+        var byReason = refundService.search(null, RefundReason.OVERPAYMENT, taxpayerId, null,
+                null, null, null, null, PageRequest.of(0, 20));
+        assertTrue(byReason.getTotalElements() >= 1);
+        assertTrue(byReason.getContent().stream()
+                .allMatch(r -> r.reason() == RefundReason.OVERPAYMENT));
+
+        var byAmount = refundService.search(null, null, taxpayerId, null,
+                null, null, new BigDecimal("800000"), null, PageRequest.of(0, 20));
+        assertTrue(byAmount.getTotalElements() >= 1);
+        assertTrue(byAmount.getContent().stream()
+                .allMatch(r -> r.amount().compareTo(new BigDecimal("800000")) >= 0));
+
+        LocalDate today = LocalDate.now();
+        var todayOnly = refundService.search(null, null, taxpayerId, null,
+                today.atStartOfDay(ZoneOffset.UTC).toInstant(),
+                today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+                null, null, PageRequest.of(0, 20));
+        assertTrue(todayOnly.getTotalElements() >= 2);
+
+        var ancient = refundService.search(null, null, taxpayerId, null,
+                LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+                LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toInstant(),
+                null, null, PageRequest.of(0, 20));
+        assertEquals(0, ancient.getTotalElements());
+
+        var byTaxpayerName = refundService.search(null, null, null, "Réclamations",
+                null, null, null, null, PageRequest.of(0, 20));
+        assertTrue(byTaxpayerName.getTotalElements() >= 2);
     }
 
     @Test

@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -78,6 +79,14 @@ public class ComplaintController {
                                                @RequestBody ComplaintDtos.UpdateComplaintRequest req,
                                                HttpServletRequest http) {
         return ResponseEntity.ok(complaintService.update(id, req, http));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.COMPLAINT_WRITE + "')")
+    @Operation(summary = "Supprimer une réclamation ouverte")
+    public ResponseEntity<Void> delete(@PathVariable Long id, HttpServletRequest http) {
+        complaintService.delete(id, http);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/responses")

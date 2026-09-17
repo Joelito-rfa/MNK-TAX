@@ -61,6 +61,42 @@ public class DeadlineService {
         return DeadlineDto.from(saved);
     }
 
+    @Transactional
+    public DeadlineDto update(Long id, DeadlineRequest request, HttpServletRequest http) {
+        Deadline deadline = deadlineRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Échéance non trouvée : " + id));
+        TaxType taxType = taxTypeRepository.findByCode(request.taxTypeCode())
+                .orElseThrow(() -> new ResourceNotFoundException("Type d'impôt", request.taxTypeCode()));
+        deadlineRepository.findByTaxTypeIdAndPeriod(taxType.getId(), request.period())
+                .filter(existing -> !existing.getId().equals(id))
+                .ifPresent(existing -> {
+                    throw new BusinessException("DUPLICATE",
+                            "Une échéance existe déjà pour cet impôt et cette période.");
+                });
+        if (request.paymentDeadline().isBefore(request.declarationDeadline())) {
+            throw new BusinessException("VALIDATION_ERROR",
+                    "La date limite de paiement doit être postérieure à la date limite de déclaration.");
+        }
+
+        DeadlineDto old = DeadlineDto.from(deadline);
+        deadline.setTaxType(taxType);
+        deadline.setPeriod(request.period());
+        deadline.setDeclarationDeadline(request.declarationDeadline());
+        deadline.setPaymentDeadline(request.paymentDeadline());
+        Deadline saved = deadlineRepository.save(deadline);
+        auditService.record("UPDATE", "DEADLINE", String.valueOf(id), old, DeadlineDto.from(saved), http);
+        return DeadlineDto.from(saved);
+    }
+
+    @Transactional
+    public void delete(Long id, HttpServletRequest http) {
+        Deadline deadline = deadlineRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Échéance non trouvée : " + id));
+        DeadlineDto old = DeadlineDto.from(deadline);
+        deadlineRepository.delete(deadline);
+        auditService.record("DELETE", "DEADLINE", String.valueOf(id), old, null, http);
+    }
+
     @Transactional(readOnly = true)
     public List<DeadlineDto> upcoming(LocalDate from, int limit) {
         return deadlineRepository.findUpcoming(from)

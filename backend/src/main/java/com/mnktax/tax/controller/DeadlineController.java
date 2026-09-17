@@ -11,8 +11,11 @@ import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,6 +47,23 @@ public class DeadlineController {
     @Operation(summary = "Créer une échéance (date configurable, jamais codée en dur)")
     public ResponseEntity<DeadlineDto> create(@Valid @RequestBody DeadlineRequest request, HttpServletRequest http) {
         return ResponseEntity.ok(deadlineService.create(request, http));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.TAXONOMY_WRITE + "')")
+    @Operation(summary = "Modifier une échéance")
+    public ResponseEntity<DeadlineDto> update(@PathVariable Long id,
+                                              @Valid @RequestBody DeadlineRequest request,
+                                              HttpServletRequest http) {
+        return ResponseEntity.ok(deadlineService.update(id, request, http));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.TAXONOMY_WRITE + "')")
+    @Operation(summary = "Supprimer une échéance")
+    public ResponseEntity<Void> delete(@PathVariable Long id, HttpServletRequest http) {
+        deadlineService.delete(id, http);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/upcoming")

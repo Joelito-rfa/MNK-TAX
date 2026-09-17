@@ -154,39 +154,39 @@ export default function Roles() {
 
       {/* Statistiques */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="flex items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+        <Card hover style={{ animationDelay: '0s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg dark:bg-blue-900/30 dark:text-blue-400">
             <Shield className="h-4.5 w-4.5" />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.system}</p>
+            <p className="text-lg font-bold text-slate-900 transition-transform duration-300 group-hover:-translate-y-px dark:text-white">{stats.system}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Rôles système</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+        <Card hover style={{ animationDelay: '0.08s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-600 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg dark:bg-violet-900/30 dark:text-violet-400">
             <Shield className="h-4.5 w-4.5" />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.custom}</p>
+            <p className="text-lg font-bold text-slate-900 transition-transform duration-300 group-hover:-translate-y-px dark:text-white">{stats.custom}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Rôles personnalisés</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+        <Card hover style={{ animationDelay: '0.16s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg dark:bg-emerald-900/30 dark:text-emerald-400">
             <Users className="h-4.5 w-4.5" />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900 dark:text-white">{usersPage?.totalElements ?? '—'}</p>
+            <p className="text-lg font-bold text-slate-900 transition-transform duration-300 group-hover:-translate-y-px dark:text-white">{usersPage?.totalElements ?? '—'}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Utilisateurs</p>
           </div>
         </Card>
-        <Card className="flex items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+        <Card hover style={{ animationDelay: '0.24s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg dark:bg-amber-900/30 dark:text-amber-400">
             <Key className="h-4.5 w-4.5" />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.totalPerms}</p>
+            <p className="text-lg font-bold text-slate-900 transition-transform duration-300 group-hover:-translate-y-px dark:text-white">{stats.totalPerms}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Permissions</p>
           </div>
         </Card>

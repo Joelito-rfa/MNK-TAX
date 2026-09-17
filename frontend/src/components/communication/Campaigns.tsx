@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Megaphone, Plus, X } from 'lucide-react'
+import { Megaphone, Plus } from 'lucide-react'
 import { apiErrorMessageI18n, apiGet, apiPost } from '../../lib/api'
 import { useI18n } from '../../lib/i18n'
 import { fmtDateTime } from '../../lib/format'

@@ -268,6 +268,23 @@ public class UserService {
         auditService.record("PASSWORD_CHANGE", "USER", String.valueOf(userId), null, null, httpRequest);
     }
 
+    @Transactional
+    public String resetPassword(Long id, HttpServletRequest httpRequest) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+        String temporaryPassword = generateTemporaryPassword();
+        user.setPassword(passwordEncoder.encode(temporaryPassword));
+        user.setMustChangePassword(true);
+        user.setUpdatedAt(Instant.now());
+        userRepository.save(user);
+        auditService.record("PASSWORD_RESET", "USER", String.valueOf(id), null, null, httpRequest);
+        return temporaryPassword;
+    }
+
+    private static String generateTemporaryPassword() {
+        return "Mnk-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10) + "!";
+    }
+
     /* ── Sessions ─────────────────────────────────────── */
 
     @Transactional(readOnly = true)

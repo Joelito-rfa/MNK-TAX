@@ -727,7 +727,7 @@ export default function Taxpayers() {
                         {menuOpen === t.id && (
                           <>
                             <div className="fixed inset-0 z-30 bg-black/80" onClick={() => setMenuOpen(null)} />
-                            <div className="absolute right-0 top-full z-40 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/50 dark:border-slate-700 dark:shadow-slate-900/50">
+                            <div className="absolute right-0 top-full z-40 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/50 dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/50">
                               <div className="space-y-0.5">
                                 <button
                                   onClick={(e) => {

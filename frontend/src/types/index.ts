@@ -494,6 +494,12 @@ export interface CollectionDebtRow {
   lastResponsible: string | null
   nextAction: string | null
   nextActionDate: string | null
+  /** Dernière relance amiable enregistrée (type REMINDER). */
+  lastReminderDate: string | null
+  daysSinceLastReminder: number
+  nextReminderDate: string | null
+  daysLateNextReminder: number
+  nextReminderOverdue: boolean
 }
 
 export interface CollectionStats {
@@ -513,6 +519,8 @@ export interface CollectionStats {
   reminderActions: number
   noticeCount: number
   actionCount: number
+  /** Créances dont la prochaine relance prévue est dépassée. */
+  remindersOverdue: number
 }
 
 export interface OverdueSummary {

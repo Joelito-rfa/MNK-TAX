@@ -6,10 +6,10 @@ import { useTheme } from '../../lib/theme'
 import { useI18n, type Locale } from '../../lib/i18n'
 
 const navLinks = [
-  { labelKey: 'nav.home', to: '#hero' },
-  { labelKey: 'nav.features', to: '#features' },
-  { labelKey: 'nav.security', to: '#security' },
-  { labelKey: 'nav.about', to: '#about' },
+  { labelKey: 'nav.home', href: '#hero', key: 'home' },
+  { labelKey: 'nav.features', href: '#features', key: 'features' },
+  { labelKey: 'nav.security', href: '#security', key: 'security' },
+  { labelKey: 'nav.about', href: '#about', key: 'about' },
 ]
 
 const languages: { code: Locale; labelKey: string; initial: string; color: string; flag: string }[] = [
@@ -33,23 +33,11 @@ export default function Navbar({ onLogin, onRequestAccess }: { onLogin: () => vo
   }, [])
 
   useEffect(() => {
-    const sections = navLinks
-      .map((l) => document.getElementById(l.to.slice(1)))
-      .filter((el): el is HTMLElement => el !== null)
-    if (sections.length === 0) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setActive(`#${entry.target.id}`)
-          }
-        }
-      },
-      { rootMargin: '-45% 0px -50% 0px', threshold: 0 },
-    )
-    sections.forEach((s) => observer.observe(s))
-    return () => observer.disconnect()
+    const handleHashChange = () => {
+      setActive(window.location.hash || '#hero')
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
   const currentLang = languages.find((l) => l.code === locale)
@@ -113,13 +101,14 @@ export default function Navbar({ onLogin, onRequestAccess }: { onLogin: () => vo
         {/* Desktop nav */}
         <div className="hidden items-center gap-1 md:flex">
           {navLinks.map((link) => (
-            <Link key={link.to} to={link.to}
-              aria-current={active === link.to ? 'true' : undefined}
+            <a key={link.key}
+              href={link.href}
+              aria-current={active === link.href ? 'true' : undefined}
               className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-                active === link.to ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'
+                active === link.href ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'
               }`}>
               {t(link.labelKey)}
-            </Link>
+            </a>
           ))}
         </div>
 
@@ -168,15 +157,16 @@ export default function Navbar({ onLogin, onRequestAccess }: { onLogin: () => vo
       {mobileOpen && (
         <div className="border-t border-slate-200 bg-white/95 backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-[#0f1117]/95">
           <div className="space-y-1 px-6 py-4">
-            {navLinks.map((link) => (
-              <Link key={link.to} to={link.to}
+{navLinks.map((link) => (
+              <a key={link.key}
+                href={link.href}
                 onClick={() => setMobileOpen(false)}
-                aria-current={active === link.to ? 'true' : undefined}
+                aria-current={active === link.href ? 'true' : undefined}
                 className={`block rounded-lg px-4 py-3 text-sm font-medium transition-colors ${
-                  active === link.to ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'
+                  active === link.href ? 'text-slate-900 dark:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white'
                 }`}>
                 {t(link.labelKey)}
-              </Link>
+              </a>
             ))}
             <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 dark:border-white/10">
               <button onClick={() => { onRequestAccess(); setMobileOpen(false) }}

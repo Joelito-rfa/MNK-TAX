@@ -130,14 +130,18 @@ function StatsCards({ stats }: { stats: Stats | undefined }) {
   ]
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-      {cards.map((c) => (
-        <div key={c.label} className="card fx-spot group relative overflow-hidden p-5">
+      {cards.map((c, i) => (
+        <div key={c.label} style={{ animationDelay: `${i * 0.08}s` }} className="card fx-spot group relative animate-fade-in overflow-hidden p-5">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-500/10 blur-2xl transition-opacity duration-300 group-hover:opacity-100 dark:bg-violet-400/10"
+          />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{c.label}</p>
-              <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{c.value}</p>
+              <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 transition-transform duration-300 group-hover:-translate-y-0.5 dark:text-slate-100">{c.value}</p>
             </div>
-            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg} ${c.iconColor} transition-transform duration-200 group-hover:scale-110`}>{c.icon}</span>
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg} ${c.iconColor} transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg`}>{c.icon}</span>
           </div>
         </div>
       ))}

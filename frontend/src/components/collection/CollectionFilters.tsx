@@ -80,11 +80,15 @@ export function CollectionFilters({
             aria-label={t('collection.filters.tax')}
           >
             <option value="">{t('collection.filters.allTaxes')}</option>
-            {taxTypes?.map((tt) => (
-              <option key={tt.code} value={tt.code}>
-                {tt.code} — {tt.name}
-              </option>
-            ))}
+            {taxTypes?.map((tt) => {
+              const k = `taxtype.${tt.code}`
+              const v = t(k)
+              return (
+                <option key={tt.code} value={tt.code}>
+                  {tt.code} — {v !== k ? v : tt.name}
+                </option>
+              )
+            })}
           </Select>
         </div>
         <div className="w-40">
@@ -133,7 +137,7 @@ export function CollectionFilters({
                 </Select>
               </Field>
             )}
-            <Field label={t('common.status') === 'Statut' ? 'Priorité' : t('priority.LOW') ? t('common.status') : 'Priorité'}>
+            <Field label={t('collection.filters.priority')}>
               <Select
                 value={advDraft.priority}
                 onChange={(e) => onAdvDraftChange({ ...advDraft, priority: e.target.value })}
@@ -144,7 +148,7 @@ export function CollectionFilters({
                 ))}
               </Select>
             </Field>
-            <Field label={t('collection.filters.search')}>
+            <Field label={t('collection.filters.balanceMin')}>
               <Input
                 type="number"
                 min="0"
@@ -153,7 +157,7 @@ export function CollectionFilters({
                 onChange={(e) => onAdvDraftChange({ ...advDraft, balanceMin: e.target.value })}
               />
             </Field>
-            <Field label={t('collection.filters.search')}>
+            <Field label={t('collection.filters.balanceMax')}>
               <Input
                 type="number"
                 min="0"

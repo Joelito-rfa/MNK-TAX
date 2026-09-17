@@ -34,7 +34,7 @@ import { apiErrorMessage, apiGet } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
 import type {
   Page, Payment, TaxDebt, Declaration, TaxpayerSummary,
-  ReportStats,
+  ReportStats, AuditLog,
 } from '../types'
 import { Button, Card, EmptyState, Modal, StatusBadge } from '../components/ui'
 import { useI18n } from '../lib/i18n'
@@ -244,6 +244,11 @@ export default function Reports() {
   const { data: reportStats, isLoading: loadingStats } = useQuery({
     queryKey: ['report-stats'],
     queryFn: () => apiGet<ReportStats>('/reports/stats'),
+  })
+
+  const { data: activity } = useQuery({
+    queryKey: ['report-activity'],
+    queryFn: () => apiGet<Page<AuditLog>>('/reports/activity?size=50'),
   })
 
   const { data: debts, isLoading: loadingDebts } = useQuery({
@@ -472,6 +477,21 @@ export default function Reports() {
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
+  const exportActivity = useMutation({
+    mutationFn: async () => {
+      const rows = await apiGet<Page<AuditLog>>('/reports/activity?size=9999')
+      downloadCsv(
+        `rapport_activite_${new Date().toISOString().slice(0, 10)}.csv`,
+        ['Date', 'Utilisateur', 'Action', 'Type', 'Identifiant', 'Adresse IP'],
+        rows.content.map((a) => [
+          a.createdAt, a.username, a.action, a.entityType, a.entityId ?? '', a.ipAddress ?? '',
+        ]),
+      )
+    },
+    onSuccess: () => toast.success(t('toast.exportDone')),
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
+  })
+
   const exportReceipts = useMutation({
     mutationFn: async () => {
       const rows = await apiGet<Page<import('../types').Receipt>>('/receipts?size=9999')
@@ -497,9 +517,10 @@ export default function Reports() {
       case 'declarations': exportDeclarations.mutate(); break
       case 'contribuables': exportTaxpayers.mutate(); break
       case 'creances': exportDebts.mutate(); break
-      default: toast.info('Export en cours...')
+      case 'activite': exportActivity.mutate(); break
+      default: toast.error('Export indisponible pour ce rapport')
     }
-  }, [exportDebts, exportPayments, exportReceipts, exportDeclarations, exportTaxpayers, toast])
+  }, [exportDebts, exportPayments, exportReceipts, exportDeclarations, exportTaxpayers, exportActivity, toast])
 
   const handleGenerate = useCallback((reportId: string) => {
     toast.success(`Generation du rapport en cours...`)
@@ -565,10 +586,19 @@ export default function Reports() {
         })
         break
       }
+      case 'activite': {
+        const data = activity?.content ?? []
+        setPreviewData({
+          title: "Rapport d'activite",
+          headers: ['Date', 'Utilisateur', 'Action', 'Type', 'Identifiant'],
+          rows: data.slice(0, 50).map((a) => [a.createdAt, a.username, a.action, a.entityType, a.entityId ?? '']),
+        })
+        break
+      }
       default:
         toast.info('Apercu non disponible pour ce type')
     }
-  }, [debts, payments, declarations, taxpayers, receipts, toast])
+  }, [debts, payments, declarations, taxpayers, receipts, activity, toast])
 
   const handleRegenerate = useCallback((reportId: string) => {
     queryClient.invalidateQueries({ queryKey: ['report-collection'] })
@@ -592,7 +622,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="fx-simple space-y-6">
+    <div className="fx-page space-y-6">
       {/* === 1. HEADER === */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowDown,
@@ -129,6 +129,9 @@ export default function Declarations() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [presetTaxTypeCode, setPresetTaxTypeCode] = useState('')
+  const [presetPeriod, setPresetPeriod] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
   const [actionMenu, setActionMenu] = useState<number | null>(null)
   const [confirmModal, setConfirmModal] = useState<{ type: string; id: number } | null>(null)
   const [rejectMotif, setRejectMotif] = useState('')
@@ -136,6 +139,15 @@ export default function Declarations() {
   const [validateComment, setValidateComment] = useState('')
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
+
+  /* ── Ouverture pré-remplie depuis le calendrier (?new=1&taxType&period) ── */
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return
+    setPresetTaxTypeCode(searchParams.get('taxType') ?? '')
+    setPresetPeriod(searchParams.get('period') ?? '')
+    setCreateOpen(true)
+    setSearchParams({}, { replace: true })
+  }, [searchParams, setSearchParams])
 
   /* ── Query params ── */
   const params = new URLSearchParams()
@@ -741,7 +753,14 @@ export default function Declarations() {
       </Card>
 
       {/* ── Create Modal ── */}
-      {createOpen && <CreateDeclarationModal onClose={() => setCreateOpen(false)} taxTypes={taxTypes ?? []} />}
+      {createOpen && (
+        <CreateDeclarationModal
+          onClose={() => setCreateOpen(false)}
+          taxTypes={taxTypes ?? []}
+          presetTaxTypeCode={presetTaxTypeCode}
+          presetPeriod={presetPeriod}
+        />
+      )}
 
       {/* ── Confirm modals ── */}
       {confirmModal && (
@@ -1086,13 +1105,18 @@ function EditDeclarationModal({ declaration, onClose }: { declaration: Declarati
 /* ───────────────────── Create Modal ───────────────────────── */
 /* ════════════════════════════════════════════════════════════ */
 
-function CreateDeclarationModal({ onClose, taxTypes }: { onClose: () => void; taxTypes: TaxType[] }) {
+function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', presetPeriod = '' }: {
+  onClose: () => void
+  taxTypes: TaxType[]
+  presetTaxTypeCode?: string
+  presetPeriod?: string
+}) {
   const toast = useToast()
   const queryClient = useQueryClient()
   const [step, setStep] = useState(1)
   const [taxpayerId, setTaxpayerId] = useState('')
-  const [taxTypeCode, setTaxTypeCode] = useState('')
-  const [period, setPeriod] = useState('')
+  const [taxTypeCode, setTaxTypeCode] = useState(presetTaxTypeCode)
+  const [period, setPeriod] = useState(presetPeriod)
   const [exercice, setExercice] = useState(new Date().getFullYear().toString())
   const [regime, setRegime] = useState('')
   const [taxBase, setTaxBase] = useState('')

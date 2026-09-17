@@ -116,7 +116,9 @@ export default function Register() {
       </div>
 
       {/* Panneau gauche — branding register */}
-      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden bg-sidebar p-12 lg:flex">
+      <div className="relative hidden w-1/2 flex-col justify-between overflow-hidden border-r border-slate-200 bg-white p-12 dark:border-white/10 dark:bg-sidebar lg:flex">
+        <div className="absolute inset-0 bg-sidebar" aria-hidden="true" />
+        <div className="absolute inset-0 bg-[#0b0f1a]/0 dark:bg-[#0b0f1a]/45" aria-hidden="true" />
         {/* Orbes lumineuses */}
         <div className="absolute -right-32 -top-32 h-96 w-96 animate-float-slow rounded-full bg-indigo-400/20 blur-3xl" />
         <div className="absolute -bottom-40 -left-24 h-96 w-96 animate-float rounded-full bg-brand-400/10 blur-3xl" />
@@ -131,7 +133,6 @@ export default function Register() {
         <div className="absolute right-1/4 bottom-24 h-20 w-20 animate-float rounded-3xl border border-indigo-300/10 bg-indigo-500/5" style={{ animationDelay: '2.5s', animationDuration: '10s' }} />
 
         <div className="relative z-10 flex animate-fade-in items-center gap-3">
-          <span className="brand-scrim" aria-hidden="true" />
           <img src="/logo.webp" alt="MNK-TAX" className="h-11 w-11 rounded-xl object-contain shadow-lg shadow-brand-800/30" />
           <div>
             <p className="text-xl font-bold tracking-tight text-white">{t('sidebar.brand')}</p>
@@ -140,7 +141,6 @@ export default function Register() {
         </div>
 
         <div className="relative z-10">
-          <span className="brand-scrim" aria-hidden="true" />
           <h1 className="animate-slide-up text-4xl font-bold leading-tight tracking-tight text-white">
             {t('login.register.hero.title')} <span className="text-indigo-300">{t('login.register.hero.highlight')}</span>
           </h1>
@@ -169,7 +169,6 @@ export default function Register() {
         </div>
 
         <p className="relative z-10 text-xs text-indigo-200/60">
-          <span className="brand-scrim" aria-hidden="true" />
           {t('login.prototype')}
         </p>
       </div>

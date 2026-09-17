@@ -18,9 +18,11 @@ import {
 } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiPut } from '../lib/api'
 import { fmtDateTime } from '../lib/format'
+import { useAuth } from '../lib/auth'
 import type { SystemParameter } from '../types'
 import { Button, Card, EmptyState, Field, Input, Modal } from '../components/ui'
 import { useToast } from '../components/Toast'
+import AdminPanel from '../components/communication/AdminPanel'
 
 /* ── Category definitions ── */
 interface CategoryDef {
@@ -64,6 +66,7 @@ function friendlyValue(p: SystemParameter): string {
 }
 
 export default function Parameters() {
+  const { user } = useAuth()
   const [selected, setSelected] = useState<SystemParameter | null>(null)
   const [editValue, setEditValue] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -188,6 +191,7 @@ export default function Parameters() {
           label="PARAMÈTRES DÉFINIS"
           value={allParams.length}
           sub="Clés de configuration"
+          style={{ animationDelay: '0s' }}
         />
         <InfoCard
           icon={<Settings className="h-5 w-5" />}
@@ -196,6 +200,7 @@ export default function Parameters() {
           label="CATÉGORIES"
           value={categories.length}
           sub="Catégories configurées"
+          style={{ animationDelay: '0.08s' }}
         />
         <InfoCard
           icon={<Shield className="h-5 w-5" />}
@@ -204,6 +209,7 @@ export default function Parameters() {
           label="DERNIÈRE MISE À JOUR"
           value={lastUpdated ? formatDate(lastUpdated.updatedAt) : '—'}
           sub={lastUpdated ? 'Par Admin Fiscal' : 'Aucune donnée'}
+          style={{ animationDelay: '0.16s' }}
         />
         <InfoCard
           icon={<Clock className="h-5 w-5" />}
@@ -212,6 +218,7 @@ export default function Parameters() {
           label="PROCHAINE RÉVISION"
           value={nextReview}
           sub="Exercice fiscal suivant"
+          style={{ animationDelay: '0.24s' }}
         />
       </div>
 
@@ -484,6 +491,21 @@ export default function Parameters() {
         )}
       </Card>
 
+      {/* ── Communications : fournisseurs, envoi test, modèles, règles ── */}
+      {user?.permissions.includes('MESSAGE_MANAGE') && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Communications
+            </h2>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+              Fournisseurs email/SMS, envoi test, modèles multilingues et règles de relance automatique.
+            </p>
+          </div>
+          <AdminPanel canManage />
+        </section>
+      )}
+
       {/* ── Edit modal ── */}
       <Modal
         open={!!selected}
@@ -570,6 +592,7 @@ function InfoCard({
   label,
   value,
   sub,
+  style,
 }: {
   icon: React.ReactNode
   iconBg: string
@@ -577,18 +600,23 @@ function InfoCard({
   label: string
   value: React.ReactNode
   sub: string
+  style?: React.CSSProperties
 }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
+    <div style={style} className="card fx-spot group relative animate-fade-in overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700/80 bg-white p-5 shadow-sm transition-shadow duration-200 hover:shadow-md">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-500/10 blur-2xl transition-opacity duration-300 group-hover:opacity-100 dark:bg-violet-400/10"
+      />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
-          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">
+          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 transition-transform duration-300 group-hover:-translate-y-0.5 dark:text-slate-100">
             {value}
           </p>
         </div>
         <span
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-200 group-hover:scale-110`}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg`}
         >
           {icon}
         </span>

@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -18,6 +18,9 @@ import {
   UserPlus,
   Users,
   Wallet,
+  Download,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react'
 import {
   Area,
@@ -26,6 +29,7 @@ import {
   Cell,
   Pie,
   PieChart,
+  ReferenceDot,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -39,6 +43,8 @@ import { Card, EmptyState, type IconTone } from '../components/ui'
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../lib/theme'
 import WelcomeHero, { PERIOD_PRESETS } from '../components/WelcomeHero'
+import { useDropdown } from '../lib/useDropdown'
+import PortalDropdown from '../components/PortalDropdown'
 
 /* ═══════════════════════════ Palette ═══════════════════════════ */
 const C = {
@@ -47,6 +53,30 @@ const C = {
   red: '#EF4444', rose: '#F43F5E', slate: '#94A3B8', teal: '#14B8A6', pink: '#EC4899',
 }
 const CHART_COLORS = [C.violet, C.blue, C.green, C.orange, C.yellow, C.red, C.indigo, C.sky, C.rose, C.teal, C.pink, C.slate]
+
+/* ═══════════════════════════ Points animés du graphique ═══════════════════════════ */
+/* Pastille au survol : halo + noyau, suit le curseur avec un effet lumineux. */
+function ChartActiveDot({ cx, cy }: { cx?: number; cy?: number }) {
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={12} className="chart-dot-halo" />
+      <circle cx={cx} cy={cy} r={5.5} className="chart-dot-core" />
+    </g>
+  )
+}
+
+/* Pic mensuel : marqueur pulsant sur le max de la série. */
+function ChartPeakMarker({ cx, cy, value }: { cx?: number; cy?: number; value?: number }) {
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={7} className="chart-peak-ring" />
+      <circle cx={cx} cy={cy} r={3.5} className="chart-peak-core" />
+      <text x={cx} y={(cy ?? 0) - 14} textAnchor="middle" className="chart-peak-label">
+        {value !== undefined && value >= 1_000_000 ? `${Math.round(value / 1_000_000)}M` : value !== undefined && value >= 1000 ? `${Math.round(value / 1000)}k` : ''}
+      </text>
+    </g>
+  )
+}
 
 function useChartColors() {
   const { resolved } = useTheme()
@@ -65,6 +95,31 @@ function useChartColors() {
     tooltipItem: { color: dark ? '#94a3b8' : '#475569' },
     tooltipLabel: { color: dark ? '#64748b' : '#94a3b8' },
   }), [dark])
+}
+
+/* ═══════════════════════════ Animation compteurs ═══════════════════════════ */
+/** Compteur animé (ease-out cubique) : lisse et fluide sur changement de montant. */
+function useCountUp(target: number, duration = 900) {
+  const [value, setValue] = useState(target)
+  const fromRef = useRef(target)
+  const rafRef = useRef(0)
+
+  useEffect(() => {
+    const from = fromRef.current
+    if (from === target) return
+    const start = performance.now()
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / duration)
+      const eased = 1 - Math.pow(1 - p, 3)
+      fromRef.current = Math.round(from + (target - from) * eased)
+      setValue(fromRef.current)
+      if (p < 1) rafRef.current = requestAnimationFrame(step)
+    }
+    rafRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [target, duration])
+
+  return value
 }
 
 /* ═══════════════════════════ Période ═══════════════════════════ */
@@ -111,6 +166,34 @@ function activityLabel(type: string, fallbackLabel: string, t: (key: string) => 
   return v !== key ? v : fallbackLabel
 }
 
+/** Noms FR connus (base de données) → code impôt, pour traduire les données backend */
+const TAX_TYPE_NAME_TO_CODE: Record<string, string> = {
+  'impôt sur les revenus': 'IR',
+  'impôt sur les sociétés': 'IS',
+  'impôt sur les revenus salariaux et assimilés': 'IRSA',
+  'taxe sur la valeur ajoutée': 'TVA',
+  'impôt sur les plus-values immobilières': 'IPVI',
+  "droit d'enregistrement": 'DE',
+  "droit d'accises": 'DA',
+  'impôt foncier sur les terrains': 'IFT',
+  'impôt foncier sur les propriétés bâties': 'IFPB',
+}
+
+/** Traduit un code ou nom d'impôt venant du backend (donut = code, échéances = nom FR) */
+function taxTypeLabel(codeOrName: string, t: (key: string) => string): string {
+  const raw = (codeOrName ?? '').trim()
+  if (!raw) return raw
+  const upper = raw.toUpperCase()
+  const direct = t(`taxtype.${upper}`)
+  if (direct !== `taxtype.${upper}`) return direct
+  const code = TAX_TYPE_NAME_TO_CODE[raw.toLowerCase()]
+  if (code) {
+    const v = t(`taxtype.${code}`)
+    if (v !== `taxtype.${code}`) return v
+  }
+  return raw
+}
+
 /** Convertit une date ISO en chaîne YYYY-MM-DD */
 function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -138,7 +221,7 @@ function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string, t
   lines.push('')
   lines.push(`${t('dashboard.csv.byTaxType')};${t('dashboard.csv.amountMGA')}`)
   for (const r of (data.paymentsByTaxType ?? [])) {
-    lines.push(`${r.taxType};${r.amount}`)
+    lines.push(`${taxTypeLabel(r.taxType, t)};${r.amount}`)
   }
   lines.push('')
   lines.push(`${t('dashboard.csv.byMonth')};${t('dashboard.csv.amountMGA')}`)
@@ -167,8 +250,13 @@ export default function Dashboard() {
   const { fmtMGA, fmtNumber, fmtDate, shortMonthLabel, timeAgo } = useLocaleFormatters()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const chart = useChartColors()
   const [periodPreset, setPeriodPreset] = useState('year')
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  }
 
   // Période sélectionnée pour le bandeau
   const selectedPreset = PERIOD_PRESETS.find((p) => p.id === periodPreset) ?? PERIOD_PRESETS[0]
@@ -208,6 +296,24 @@ export default function Dashboard() {
   const totalDue = data?.totalDebts ?? 0
   const collectionRate = data?.collectionRate ?? 0
 
+  /* ── Séries (calculées avec données éventuellement absentes pour garder
+     les hooks stables au-dessus des retours anticipés) ── */
+  const revenueSeries = (data?.paymentsByMonth ?? []).map((r) => ({
+    label: shortMonthLabel(r.month ?? ''),
+    montant: r.amount ?? 0,
+  }))
+  const rangeN = months === 0 ? revenueSeries.length : Math.min(Number(chartRange) || 12, revenueSeries.length)
+  const rangeData = revenueSeries.slice(-rangeN).map((r, i, arr) => ({
+    ...r,
+    delta: i > 0 ? r.montant - arr[i - 1].montant : 0,
+  }))
+  const rangeTotal = rangeData.reduce((s, x) => s + x.montant, 0)
+  const animatedTotal = useCountUp(rangeTotal)
+  const peakData = rangeData.reduce<{ label: string; montant: number } | null>(
+    (acc, d) => (acc && acc.montant >= d.montant ? acc : d),
+    null,
+  )
+
   if (isLoading) return <DashboardSkeleton />
   if (!data) {
     return (
@@ -219,11 +325,6 @@ export default function Dashboard() {
     )
   }
 
-  /* ── Séries ── */
-  const revenueSeries = (data.paymentsByMonth ?? []).map((r) => ({
-    label: shortMonthLabel(r.month ?? ''),
-    montant: r.amount ?? 0,
-  }))
   const taxpayerSpark = (data.taxpayersByMonth ?? []).map((r) => r.count)
   const declarationSpark = (data.declarationsByMonth ?? []).map((r) => r.count)
   const receiptSpark = (data.receiptsByMonth ?? []).map((r) => r.count)
@@ -231,12 +332,6 @@ export default function Dashboard() {
   const prev = revenueSeries[revenueSeries.length - 2]?.montant ?? 0
   const revenueTrend = last - prev
 
-  const rangeN = months === 0 ? revenueSeries.length : Math.min(Number(chartRange) || 12, revenueSeries.length)
-  const rangeData = revenueSeries.slice(-rangeN).map((r, i, arr) => ({
-    ...r,
-    delta: i > 0 ? r.montant - arr[i - 1].montant : 0,
-  }))
-  const rangeTotal = rangeData.reduce((s, x) => s + x.montant, 0)
   const prevPeriodTotal = revenueSeries.slice(-rangeN * 2, -rangeN).reduce((s, x) => s + x.montant, 0)
   const periodEvo = rangeTotal - prevPeriodTotal
   const periodEvoPct = prevPeriodTotal > 0 ? (periodEvo / prevPeriodTotal) * 100 : null
@@ -255,7 +350,7 @@ export default function Dashboard() {
   }
 
   /* ── Répartition impôts ── */
-  const byTaxType = (data.paymentsByTaxType ?? []).map((r) => ({ name: r.taxType, value: r.amount ?? 0 }))
+  const byTaxType = (data.paymentsByTaxType ?? []).map((r) => ({ name: taxTypeLabel(r.taxType, t), code: r.taxType, value: r.amount ?? 0 }))
   const byTaxTypeTotal = byTaxType.reduce((s, x) => s + x.value, 0)
   const topSlice = byTaxType.slice(0, 8)
 
@@ -286,6 +381,11 @@ export default function Dashboard() {
           sub={t('dashboard.sub.vsPrevPeriod')}
           sparkData={taxpayerSpark.slice(-6)}
           to="/taxpayers"
+          menuItems={[
+            { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/taxpayers') },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
+          ]}
         />
         <KpiCard
           label={t('dashboard.kpi.revenuePeriod')}
@@ -297,6 +397,11 @@ export default function Dashboard() {
           sub={t('dashboard.sub.vsPrevMonth')}
           sparkData={rangeData.map((d) => d.montant)}
           to="/payments"
+          menuItems={[
+            { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/payments') },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
+          ]}
         />
         <KpiCard
           label={t('dashboard.kpi.declarations')}
@@ -308,6 +413,11 @@ export default function Dashboard() {
           sub={t('dashboard.sub.vsPrevPeriod')}
           sparkData={declarationSpark.slice(-6)}
           to="/declarations"
+          menuItems={[
+            { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/declarations') },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
+          ]}
         />
         <KpiCard
           label={t('dashboard.kpi.outstanding')}
@@ -318,6 +428,11 @@ export default function Dashboard() {
           deltaTone={data.overdueCount > 0 ? 'down' : 'neutral'}
           sub=""
           to="/debts"
+          menuItems={[
+            { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/debts') },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
+          ]}
         />
         <KpiCard
           label={t('dashboard.kpi.collectionRate')}
@@ -328,6 +443,11 @@ export default function Dashboard() {
           deltaTone={collectionRate >= 50 ? 'up' : 'down'}
           sub={t('dashboard.sub.ofTotalDue')}
           to="/reports"
+          menuItems={[
+            { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/reports') },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
+          ]}
         />
         <KpiCard
           label={t('dashboard.kpi.receipts')}
@@ -339,6 +459,11 @@ export default function Dashboard() {
           sub={t('dashboard.sub.totalIssued')}
           sparkData={receiptSpark.slice(-6)}
           to="/receipts"
+          menuItems={[
+            { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/receipts') },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
+          ]}
         />
       </div>
 
@@ -369,7 +494,7 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-5 pt-4 text-sm">
             <span className="text-slate-500 dark:text-slate-400">
-              {t('dashboard.chart.totalPeriod')} <span className="font-semibold text-slate-900 dark:text-slate-100">{fmtMGA(rangeTotal)}</span>
+              {t('dashboard.chart.totalPeriod')} <span className="font-semibold text-slate-900 dark:text-slate-100">{fmtMGA(animatedTotal)}</span>
             </span>
             {prevPeriodTotal > 0 && periodEvoPct !== null && (
               <span
@@ -412,8 +537,30 @@ export default function Dashboard() {
                     contentStyle={chart.tooltip}
                     itemStyle={chart.tooltipItem}
                     labelStyle={chart.tooltipLabel}
+                    cursor={{ stroke: chart.dark ? '#334155' : '#cbd5e1', strokeDasharray: '4 4', strokeWidth: 1.5 }}
                   />
-                  <Area type="monotone" dataKey="montant" stroke="#5B4BDB" strokeWidth={2.5} fill="url(#revenueFill)" isAnimationActive animationDuration={1100} animationBegin={150} animationEasing="cubic-bezier(0.22, 1, 0.36, 1)" />
+                  <Area
+                    type="monotone"
+                    dataKey="montant"
+                    stroke="#5B4BDB"
+                    strokeWidth={2.5}
+                    fill="url(#revenueFill)"
+                    isAnimationActive
+                    animationDuration={1100}
+                    animationBegin={150}
+                    animationEasing="cubic-bezier(0.22, 1, 0.36, 1)"
+                    dot={false}
+                    activeDot={(props) => <ChartActiveDot cx={(props as { cx?: number })?.cx} cy={(props as { cy?: number })?.cy} />}
+                  />
+                  {peakData && (
+                    <ReferenceDot
+                      x={peakData.label}
+                      y={peakData.montant}
+                      r={0}
+                      ifOverflow="hidden"
+                      shape={<ChartPeakMarker value={peakData.montant} />}
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -458,7 +605,7 @@ export default function Dashboard() {
                     const pct = byTaxTypeTotal ? ((entry.value / byTaxTypeTotal) * 100).toFixed(1) : '0'
                     return (
                       <li key={i}>
-                        <Link to={`/payments?taxTypeCode=${encodeURIComponent(entry.name)}`} className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 text-sm transition hover:bg-brand-50/60">
+                        <Link to={`/payments?taxTypeCode=${encodeURIComponent(entry.code ?? entry.name)}`} className="flex items-center gap-2.5 rounded-lg px-1.5 py-1 text-sm transition hover:bg-brand-50/60">
                           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
                           <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">{entry.name}</span>
                           <span className="font-medium text-slate-900 dark:text-slate-100">{fmtMGA(entry.value)}</span>
@@ -673,7 +820,7 @@ export default function Dashboard() {
             ) : (
               nextDeadlines.map((d) => (
                 <div key={d.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2.5">
-                  <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">{d.taxTypeName}</span>
+                  <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">{taxTypeLabel(d.taxTypeName, t)}</span>
                   <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{fmtDate(d.declarationDeadline)}</span>
                 </div>
               ))
@@ -756,11 +903,12 @@ function Sparkline({ data, color, width = 80, height = 32 }: { data: number[]; c
 
 /* ── Carte KPI ── */
 function KpiCard({
-  label, value, icon, color, delta, deltaTone = 'neutral', sub, sparkData, to,
+  label, value, icon, color, delta, deltaTone = 'neutral', sub, sparkData, to, menuItems,
 }: {
   label: string; value: string; icon: React.ReactNode; color: string
   delta?: string; deltaTone?: 'up' | 'down' | 'neutral'; sub?: string
   sparkData?: number[]; to?: string
+  menuItems?: { label: string; icon: React.ReactNode; onClick: () => void; variant?: 'default' | 'danger' }[]
 }) {
   const { resolved } = useTheme()
   const { t } = useI18n()
@@ -768,6 +916,8 @@ function KpiCard({
   const glowColor = `${color}15`
   const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
   const borderHover = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.12)'
+  const { isOpen, close, triggerProps, dropdownProps } = useDropdown()
+  const btnRef = useRef<HTMLButtonElement>(null)
 
   const body = (
     <div
@@ -808,13 +958,45 @@ function KpiCard({
           </span>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
         </div>
-        <button className="rounded-lg p-1 text-slate-600 transition hover:bg-black/5 dark:hover:bg-white/5 hover:text-slate-400 dark:text-slate-600 dark:hover:text-slate-400" aria-label={t("a11y.options")}>
-          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
-            <circle cx="8" cy="3" r="1.5" />
-            <circle cx="8" cy="8" r="1.5" />
-            <circle cx="8" cy="13" r="1.5" />
-          </svg>
-        </button>
+        {menuItems && menuItems.length > 0 && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <button
+              ref={btnRef}
+              {...triggerProps}
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                ;(triggerProps as unknown as { onClick: () => void }).onClick()
+              }}
+              className="rounded-lg p-1 text-slate-600 transition hover:bg-black/5 dark:hover:bg-white/5 hover:text-slate-400 dark:text-slate-600 dark:hover:text-slate-400"
+              aria-label={t('a11y.options')}
+            >
+              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
+                <circle cx="8" cy="3" r="1.5" />
+                <circle cx="8" cy="8" r="1.5" />
+                <circle cx="8" cy="13" r="1.5" />
+              </svg>
+            </button>
+            <PortalDropdown anchorRef={btnRef} open={isOpen} onClose={close} width={200} dropdownProps={dropdownProps as unknown as Record<string, unknown>}>
+              <div className="space-y-0.5" onClick={close}>
+                {menuItems.map((item, i) => (
+                  <button
+                    key={i}
+                    onClick={(e) => { e.stopPropagation(); item.onClick() }}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors ${
+                      item.variant === 'danger'
+                        ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20'
+                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    <span className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </PortalDropdown>
+          </div>
+        )}
       </div>
 
       {/* Valeur principale */}
@@ -851,7 +1033,7 @@ function KpiCard({
     </div>
   )
   return to ? (
-    <Link to={to} className="group block h-full" aria-label={`${label} — ${value}`}>
+    <Link to={to} className="group block h-full" aria-label={`${label} — ${value}`} onClick={(e) => { if (isOpen) e.preventDefault() }}>
       {body}
     </Link>
   ) : body

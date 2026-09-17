@@ -15,8 +15,8 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import { useI18n } from '../lib/i18n'
 import { useLocaleFormatters } from '../lib/format'
+import { useI18n } from '../lib/i18n'
 import { apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
 import type { CollectionDebtRow, InstallmentStatus, Page, PaymentPlan, PaymentPlanStatus } from '../types'
 import {
@@ -41,45 +41,62 @@ import { useToast } from '../components/Toast'
    LIBELLÉS — statuts des échéanciers et tranches
    ═══════════════════════════════════════════════════════════ */
 
-const PLAN_STATUS: Record<PaymentPlanStatus, { label: string; badge: string; dot: string }> = {
-  ACTIVE: { label: 'En cours', badge: 'border-sky-500/25 bg-sky-500/15 text-sky-400', dot: 'bg-sky-400' },
-  COMPLETED: { label: 'Soldé', badge: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-400', dot: 'bg-emerald-400' },
-  CANCELLED: { label: 'Annulé', badge: 'border-slate-500/20 bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' },
+const PLAN_STATUS_KEYS: Record<PaymentPlanStatus, string> = {
+  ACTIVE: 'collection.plans.status.ACTIVE',
+  COMPLETED: 'collection.plans.status.COMPLETED',
+  CANCELLED: 'collection.plans.status.CANCELLED',
 }
 
-const INSTALLMENT_STATUS: Record<InstallmentStatus, { label: string; badge: string; dot: string }> = {
-  PENDING: { label: 'À échoir', badge: 'border-blue-500/25 bg-blue-500/15 text-blue-400', dot: 'bg-blue-400' },
-  PARTIALLY_PAID: { label: 'Partiel', badge: 'border-indigo-500/25 bg-indigo-500/15 text-indigo-400', dot: 'bg-indigo-400' },
-  PAID: { label: 'Payée', badge: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-400', dot: 'bg-emerald-400' },
-  OVERDUE: { label: 'En retard', badge: 'border-rose-500/25 bg-rose-500/15 text-rose-400', dot: 'bg-rose-400' },
-  CANCELLED: { label: 'Annulée', badge: 'border-slate-500/20 bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' },
+const PLAN_STATUS_STYLE: Record<PaymentPlanStatus, { badge: string; dot: string }> = {
+  ACTIVE: { badge: 'border-sky-500/25 bg-sky-500/15 text-sky-400', dot: 'bg-sky-400' },
+  COMPLETED: { badge: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-400', dot: 'bg-emerald-400' },
+  CANCELLED: { badge: 'border-slate-500/20 bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' },
+}
+
+const INSTALLMENT_STATUS_KEYS: Record<InstallmentStatus, string> = {
+  PENDING: 'collection.plans.inst.PENDING',
+  PARTIALLY_PAID: 'collection.plans.inst.PARTIALLY_PAID',
+  PAID: 'collection.plans.inst.PAID',
+  OVERDUE: 'collection.plans.inst.OVERDUE',
+  CANCELLED: 'collection.plans.inst.CANCELLED',
+}
+
+const INSTALLMENT_STATUS_STYLE: Record<InstallmentStatus, { badge: string; dot: string }> = {
+  PENDING: { badge: 'border-blue-500/25 bg-blue-500/15 text-blue-400', dot: 'bg-blue-400' },
+  PARTIALLY_PAID: { badge: 'border-indigo-500/25 bg-indigo-500/15 text-indigo-400', dot: 'bg-indigo-400' },
+  PAID: { badge: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-400', dot: 'bg-emerald-400' },
+  OVERDUE: { badge: 'border-rose-500/25 bg-rose-500/15 text-rose-400', dot: 'bg-rose-400' },
+  CANCELLED: { badge: 'border-slate-500/20 bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' },
 }
 
 function PlanBadge({ status }: { status: PaymentPlanStatus }) {
-  const c = PLAN_STATUS[status]
+  const { t } = useI18n()
+  const c = PLAN_STATUS_STYLE[status]
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${c.badge}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} />
-      {c.label}
+      {t(PLAN_STATUS_KEYS[status])}
     </span>
   )
 }
 
 function InstallmentBadge({ status }: { status: InstallmentStatus }) {
-  const c = INSTALLMENT_STATUS[status]
+  const { t } = useI18n()
+  const c = INSTALLMENT_STATUS_STYLE[status]
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${c.badge}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} />
-      {c.label}
+      {t(INSTALLMENT_STATUS_KEYS[status])}
     </span>
   )
 }
 
 function Progress({ paid, total }: { paid: number; total: number }) {
+  const { t } = useI18n()
   if (total <= 0) return <span className="text-xs text-slate-500">—</span>
   const pct = Math.min(100, Math.round((paid / total) * 100))
   return (
-    <div className="flex items-center gap-2" aria-label={`Avancement : ${pct} %`}>
+    <div className="flex items-center gap-2" aria-label={t('collection.plans.progressAria', { pct })}>
       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
         <div
           className={`h-full rounded-full ${pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-sky-500' : 'bg-slate-600'}`}
@@ -117,6 +134,8 @@ function CreatePlanModal({
 }) {
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { t } = useI18n()
+  const { fmtMGA } = useLocaleFormatters()
   const today = new Date().toISOString().slice(0, 10)
 
   const [debtId, setDebtId] = useState(presetDebtId)
@@ -165,7 +184,7 @@ function CreatePlanModal({
     onSuccess: (plan) => {
       queryClient.invalidateQueries({ queryKey: ['collection-plans'] })
       queryClient.invalidateQueries({ queryKey: ['plan-stats'] })
-      toast.success(`Échéancier ${plan.reference} créé`)
+      toast.success(t('collection.plans.created', { ref: plan.reference }))
       onClose()
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
@@ -208,29 +227,29 @@ function CreatePlanModal({
     plannedTotal <= (selectedDebt?.balance ?? 0)
 
   return (
-    <Modal open={open} onClose={onClose} title="Nouvel échéancier" subtitle="Plan de paiement amiable sur une créance" wide>
+    <Modal open={open} onClose={onClose} title={t('collection.plans.create.title')} subtitle={t('collection.plans.create.subtitle')} wide>
       <div className="space-y-5">
-        <Field label="Créance à échelonner">
+        <Field label={t('collection.plans.create.debt')}>
           <Select value={debtId} onChange={(e) => setDebtId(e.target.value)}>
-            <option value="">Choisir une créance…</option>
+            <option value="">{t('collection.plans.create.chooseDebt')}</option>
             {debts?.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.reference} · {d.taxpayerName} ({d.nif}) — reste {fmtMGA(d.balance)}
+                {d.reference} · {d.taxpayerName} ({d.nif}) — {t('collection.plans.create.remaining', { amount: fmtMGA(d.balance) })}
               </option>
             ))}
           </Select>
-          {!debts && <p className="mt-1 text-xs text-slate-400">Chargement des créances éligibles…</p>}
+          {!debts && <p className="mt-1 text-xs text-slate-400">{t('collection.plans.create.loadingDebts')}</p>}
           {debts?.length === 0 && (
-            <p className="mt-1 text-xs text-amber-500">Aucune créance avec un solde restant n'est disponible.</p>
+            <p className="mt-1 text-xs text-amber-500">{t('collection.plans.create.noDebts')}</p>
           )}
         </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Intitulé de l'échéancier">
-            <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ex. : Régularisation en 4 fois" maxLength={120} />
+          <Field label={t('collection.plans.create.label')}>
+            <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('collection.plans.create.labelPh')} maxLength={120} />
           </Field>
-          <Field label="Notes (facultatif)">
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={1} placeholder="Accord amiable, contexte…" />
+          <Field label={t('collection.plans.create.notesOpt')}>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={1} placeholder={t('collection.plans.create.notesPh')} />
           </Field>
         </div>
 
@@ -238,10 +257,10 @@ function CreatePlanModal({
         <div>
           <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Tranches ({rows.length}) — total {fmtMGA(plannedTotal)}
+              {t('collection.plans.create.installments', { count: rows.length, total: fmtMGA(plannedTotal) })}
               {selectedDebt && (
                 <span className={`ml-2 ${diff >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {diff >= 0 ? `reste ${fmtMGA(diff)}` : `dépasse le solde de ${fmtMGA(-diff)}`}
+                  {diff >= 0 ? t('collection.plans.create.left', { amount: fmtMGA(diff) }) : t('collection.plans.create.over', { amount: fmtMGA(-diff) })}
                 </span>
               )}
             </p>
@@ -252,12 +271,12 @@ function CreatePlanModal({
                 max="60"
                 value={scheduleCount}
                 onChange={(e) => setScheduleCount(e.target.value)}
-                placeholder="N tranches"
+                placeholder={t('collection.plans.create.nInst')}
                 className="w-24"
-                aria-label="Nombre de tranches mensuelles"
+                aria-label={t('collection.plans.create.nInstAria')}
               />
               <Button type="button" size="sm" variant="secondary" onClick={splitEvenly} disabled={!scheduleCount || !selectedDebt}>
-                <CalendarDays className="h-3.5 w-3.5" /> Mensualiser
+                <CalendarDays className="h-3.5 w-3.5" /> {t('collection.plans.create.monthly')}
               </Button>
             </div>
           </div>
@@ -265,12 +284,12 @@ function CreatePlanModal({
             {rows.map((r, i) => (
               <div key={i} className="flex items-end gap-2">
                 <div className="w-40">
-                  <Field label={`Tranche ${i + 1} — date`}>
+                  <Field label={t('collection.plans.create.instDate', { n: i + 1 })}>
                     <Input type="date" min={today} value={r.dueDate} onChange={(e) => setRow(i, { dueDate: e.target.value })} />
                   </Field>
                 </div>
                 <div className="flex-1">
-                  <Field label="Montant (MGA)">
+                  <Field label={t('collection.plans.create.amount')}>
                     <Input
                       type="number"
                       min="0"
@@ -285,7 +304,7 @@ function CreatePlanModal({
                   onClick={() => removeRow(i)}
                   disabled={rows.length <= 1}
                   className="mb-1 rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 disabled:opacity-30 dark:hover:bg-rose-900/20"
-                  aria-label={`Supprimer la tranche ${i + 1}`}
+                  aria-label={t('collection.plans.create.removeInst', { n: i + 1 })}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -293,19 +312,18 @@ function CreatePlanModal({
             ))}
           </div>
           <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={addRow}>
-            <Plus className="h-4 w-4" /> Ajouter une tranche
+            <Plus className="h-4 w-4" /> {t('collection.plans.create.addInst')}
           </Button>
         </div>
 
         <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-          Les tranches sont soldées exclusivement par les paiements réels enregistrés sur la créance. Une tranche échue
-          non réglée déclenche une alerte (jamais une procédure automatique).
+          {t('collection.plans.create.hint')}
         </div>
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
-          <Button variant="secondary" onClick={onClose}>Annuler</Button>
+          <Button variant="secondary" onClick={onClose}>{t('collection.plans.create.cancel')}</Button>
           <Button onClick={() => createPlan.mutate()} loading={createPlan.isPending} disabled={!valid}>
-            Créer l'échéancier
+            {t('collection.plans.create.submit')}
           </Button>
         </div>
       </div>
@@ -317,6 +335,7 @@ function CreatePlanModal({
    PAGE
    ═══════════════════════════════════════════════════════════ */
 
+// Étape fiscale 5 : Échéanciers — étalement amiable (PAYMENT_PLAN), tranches soldées par paiements réels
 export default function CollectionPlans() {
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
@@ -561,6 +580,7 @@ function PlanRow({
   onToggle: () => void
   onCancel: () => void
 }) {
+  const { fmtMGA, fmtDate } = useLocaleFormatters()
   return (
     <>
       <tr className="transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-700/20">

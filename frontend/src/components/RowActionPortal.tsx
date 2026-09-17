@@ -12,7 +12,7 @@ export default function RowActionPortal({
   width?: number
   ariaLabel?: string
 }) {
-  const { isOpen, toggle, close, triggerProps, dropdownProps } = useDropdown()
+  const { isOpen, close, triggerProps, dropdownProps } = useDropdown()
   const btnRef = useRef<HTMLButtonElement>(null)
 
   return (

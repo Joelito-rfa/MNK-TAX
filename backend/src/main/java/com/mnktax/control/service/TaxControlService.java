@@ -158,6 +158,22 @@ public class TaxControlService {
         return TaxControlDto.from(tc, agentName(tc.getAgentId()));
     }
 
+    @Transactional
+    public void delete(Long id, HttpServletRequest http) {
+        TaxControl tc = controlRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Contrôle non trouvé : " + id));
+
+        if (tc.getStatus() != ControlStatus.OPEN) {
+            throw new BusinessException("INVALID_STATUS",
+                    "Seul un contrôle ouvert peut être supprimé.");
+        }
+
+        TaxControlDto old = TaxControlDto.from(tc, null);
+        documentRepository.deleteAll(documentRepository.findByControlIdOrderByCreatedAt(id));
+        controlRepository.delete(tc);
+        auditService.record("DELETE", "TAX_CONTROL", id.toString(), old, null, http);
+    }
+
     private String agentName(Long userId) {
         if (userId == null) {
             return null;

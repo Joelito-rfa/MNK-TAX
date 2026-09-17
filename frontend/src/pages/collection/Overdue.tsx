@@ -1,78 +1,51 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, AlertCircle, Clock, Download, Inbox, Plus, RefreshCw, Send, X } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, AlertCircle, Inbox, Plus, RefreshCw, X } from 'lucide-react'
 import { useI18n } from '../../lib/i18n'
 import { useLocaleFormatters } from '../../lib/format'
-import { apiErrorMessage, apiGet, apiPost } from '../../lib/api'
-import type { CollectionDebtRow, CollectionStats, DebtStatus, OverdueSummary, Page, TaxType } from '../../types'
-import { Button, Card, EmptyState, Pagination, Select, Spinner, Table, Td, Th } from '../../components/ui'
+import { apiErrorMessage, apiPost } from '../../lib/api'
+import type { CollectionDebtRow } from '../../types'
+import { Button, Card, EmptyState, Pagination, Spinner } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { CollectionSkeleton } from '../../components/collection/CollectionSkeleton'
-import { KpiCard } from '../../components/collection/KpiCard'
-import { StatusBadge } from '../../components/collection/StatusBadge'
-import { PriorityBadge } from '../../components/collection/PriorityBadge'
-import { PaymentProgress } from '../../components/collection/PaymentProgress'
-import { RowActions } from '../../components/collection/RowActions'
 import { DetailDrawer } from '../../components/collection/DetailDrawer'
-import { CollectionFilters, EMPTY_ADV, type AdvancedFilters } from '../../components/collection/CollectionFilters'
-import { TERMINAL_STATUSES, ACTION_LABELS, ACTION_ICONS, daysUntil } from '../../components/collection/constants'
+import { CollectionFilters } from '../../components/collection/CollectionFilters'
+import { TERMINAL_STATUSES } from '../../components/collection/constants'
+import { useCollectionFilters } from '../../features/collection/hooks/useCollectionFilters'
+import { useCollectionDebts, useCollectionStats, useOverdueSummary, useTaxTypesRef, useCollectionPeriods, useActionDebts } from '../../features/collection/api/queries'
+import { KpiStrip } from '../../features/collection/components/KpiStrip'
+import { DebtTable } from '../../features/collection/components/DebtTable'
+import { ActionModal } from '../../features/collection/components/modals/ActionModal'
+import { PaymentModal } from '../../features/collection/components/modals/PaymentModal'
+import { ReminderModal, emptyReminderForm, type ReminderForm } from '../../features/collection/components/modals/ReminderModal'
+import { useCreateReminder } from '../../features/collection/api/mutations'
 
 export default function CollectionOverdue() {
+  // Étape fiscale 2 : En retard — dettes échues (overdue=true), relance amiable avant acte formel
   const navigate = useNavigate()
-  const [page, setPage] = useState(0)
-  const [size, setSize] = useState(20)
-  const [searchQ, setSearchQ] = useState('')
-  const [taxTypeFilter, setTaxTypeFilter] = useState('')
-  const [periodFilter, setPeriodFilter] = useState('')
-  const [advDraft, setAdvDraft] = useState<AdvancedFilters>(EMPTY_ADV)
-  const [advApplied, setAdvApplied] = useState<AdvancedFilters>(EMPTY_ADV)
-  const [showAdvanced, setShowAdvanced] = useState(false)
+  const f = useCollectionFilters('overdue')
   const [drawerDebtId, setDrawerDebtId] = useState<number | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [selectedDebt, setSelectedDebt] = useState<CollectionDebtRow | null>(null)
   const [actionOpen, setActionOpen] = useState(false)
   const [actionType, setActionType] = useState<'call' | 'reminder'>('call')
+  const [reminderOpen, setReminderOpen] = useState(false)
+  const [reminderDebt, setReminderDebt] = useState<CollectionDebtRow | null>(null)
+  const [reminderForm, setReminderForm] = useState<ReminderForm>(emptyReminderForm())
 
   const queryClient = useQueryClient()
   const toast = useToast()
   const { t } = useI18n()
-  const { fmtMGA, fmtDate, fmtDateTime } = useLocaleFormatters()
+  const { fmtMGA, fmtDate } = useLocaleFormatters()
 
-  const buildParams = () => {
-    const p = new URLSearchParams({ page: String(page), size: String(size), overdue: 'true' })
-    if (searchQ) p.set('q', searchQ)
-    if (taxTypeFilter) p.set('taxTypeCode', taxTypeFilter)
-    if (periodFilter) p.set('period', periodFilter)
-    if (advApplied.priority) p.set('priority', advApplied.priority)
-    if (advApplied.balanceMin) p.set('balanceMin', advApplied.balanceMin)
-    if (advApplied.balanceMax) p.set('balanceMax', advApplied.balanceMax)
-    if (advApplied.dueFrom) p.set('dueFrom', advApplied.dueFrom)
-    if (advApplied.dueTo) p.set('dueTo', advApplied.dueTo)
-    return p.toString()
-  }
-
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['collection-debts', 'overdue', page, size, searchQ, taxTypeFilter, periodFilter, advApplied],
-    queryFn: () => apiGet<Page<CollectionDebtRow>>(`/collection/debts?${buildParams()}`),
-  })
-  const { data: taxTypes } = useQuery({ queryKey: ['tax-types-ref'], queryFn: () => apiGet<TaxType[]>('/tax-types') })
-  const { data: periods } = useQuery({ queryKey: ['collection-periods'], queryFn: () => apiGet<string[]>('/collection/periods') })
-  const { data: stats } = useQuery({ queryKey: ['collection-stats'], queryFn: () => apiGet<CollectionStats>('/collection/stats') })
-  const { data: overdueSummary } = useQuery({
-    queryKey: ['collection-overdue-summary', taxTypeFilter, periodFilter, searchQ],
-    queryFn: () => {
-      const p = new URLSearchParams()
-      if (searchQ) p.set('q', searchQ); if (taxTypeFilter) p.set('taxTypeCode', taxTypeFilter); if (periodFilter) p.set('period', periodFilter)
-      return apiGet<OverdueSummary>(`/collection/overdue-summary?${p.toString()}`)
-    },
-  })
-  const { data: actionDebts } = useQuery({
-    queryKey: ['collection-action-debts'],
-    queryFn: () => apiGet<Page<CollectionDebtRow>>(`/collection/debts?size=9999`),
-    enabled: actionOpen,
-  })
+  const { data, isLoading, isError, error } = useCollectionDebts('overdue', f.buildParams)
+  const { data: taxTypes } = useTaxTypesRef()
+  const { data: periods } = useCollectionPeriods()
+  const { data: stats } = useCollectionStats()
+  const { data: overdueSummary } = useOverdueSummary(new URLSearchParams({ ...(f.searchQ?{q:f.searchQ}:{}), ...(f.taxTypeFilter?{taxTypeCode:f.taxTypeFilter}:{}), ...(f.periodFilter?{period:f.periodFilter}:{}) }).toString())
+  const { data: actionDebts } = useActionDebts(actionOpen)
 
   const [actionForm, setActionForm] = useState({ debtId: '', type: 'PHONE_CONTACT', description: '', actionDate: new Date().toISOString().slice(0, 10), outcome: '', nextAction: '', nextActionDate: '' })
   const createAction = useMutation({
@@ -80,6 +53,7 @@ export default function CollectionOverdue() {
     onSuccess: () => { invalidateQueries(); setActionOpen(false); resetActionForm(); toast.success(t('collection.actionSaved')) },
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
+  const createReminder = useCreateReminder()
   const [payForm, setPayForm] = useState({ amount: '', paymentDate: new Date().toISOString().slice(0, 10), method: 'CASH' })
   const registerPayment = useMutation({
     mutationFn: () => apiPost('/collection/payment', { debtId: selectedDebt!.id, amount: Number(payForm.amount), paymentDate: payForm.paymentDate, method: payForm.method }),
@@ -89,14 +63,20 @@ export default function CollectionOverdue() {
 
   function invalidateQueries() { queryClient.invalidateQueries({ queryKey: ['collection-debts'] }); queryClient.invalidateQueries({ queryKey: ['collection-stats'] }); queryClient.invalidateQueries({ queryKey: ['collection-overdue-summary'] }); queryClient.invalidateQueries({ queryKey: ['debt-stats'] }) }
   function resetActionForm() { setActionForm({ debtId: '', type: 'PHONE_CONTACT', description: '', actionDate: new Date().toISOString().slice(0, 10), outcome: '', nextAction: '', nextActionDate: '' }) }
-  function openActionWithType(type: 'call' | 'reminder', debtId?: string) { setActionType(type); const typeMap: Record<string, string> = { call: 'PHONE_CONTACT', reminder: 'REMINDER' }; setActionForm((f) => ({ ...f, type: typeMap[type], debtId: debtId ?? f.debtId, description: '' })); setActionOpen(true) }
+  function openReminder(debtId?: string, debt?: CollectionDebtRow | null) { setReminderDebt(debt ?? null); setReminderForm(emptyReminderForm(debtId ?? '')); setReminderOpen(true) }
+  function submitReminder() {
+    createReminder.mutate({
+      debtId: Number(reminderForm.debtId),
+      description: reminderForm.description.trim(),
+      actionDate: reminderForm.actionDate,
+      outcome: reminderForm.outcome || undefined,
+      nextAction: reminderForm.nextAction || undefined,
+      nextActionDate: reminderForm.nextActionDate || undefined,
+    }, { onSuccess: () => { setReminderOpen(false); setReminderDebt(null); setReminderForm(emptyReminderForm()) } })
+  }
+  function openActionWithType(type: 'call' | 'reminder', debtId?: string) { if (type === 'reminder') { openReminder(debtId); return } setActionType(type); const typeMap: Record<string, string> = { call: 'PHONE_CONTACT', reminder: 'REMINDER' }; setActionForm((f) => ({ ...f, type: typeMap[type], debtId: debtId ?? f.debtId, description: '' })); setActionOpen(true) }
 
   const totalResults = data?.totalElements ?? 0
-  const hasFilters = !!(searchQ || taxTypeFilter || periodFilter || Object.values(advApplied).some(Boolean))
-  const activeFilterCount = [searchQ, taxTypeFilter, periodFilter, advApplied.priority, advApplied.balanceMin, advApplied.balanceMax, advApplied.dueFrom, advApplied.dueTo].filter(Boolean).length
-  function resetFilters() { setSearchQ(''); setTaxTypeFilter(''); setPeriodFilter(''); setAdvApplied(EMPTY_ADV); setAdvDraft(EMPTY_ADV); setPage(0) }
-  function applyAdvanced() { setAdvApplied(advDraft); setPage(0) }
-  function removeChip(kind: keyof AdvancedFilters | 'q' | 'taxType' | 'period') { if (kind === 'q') setSearchQ(''); else if (kind === 'taxType') setTaxTypeFilter(''); else if (kind === 'period') setPeriodFilter(''); else setAdvApplied((a) => ({ ...a, [kind]: '' })); setPage(0) }
 
   if (isLoading && !data) return <CollectionSkeleton />
 
@@ -114,45 +94,38 @@ export default function CollectionOverdue() {
         <div className="flex flex-wrap shrink-0 items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
           <button onClick={() => openActionWithType('call')} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:bg-brand-500 active:scale-[0.98]">
-            <Plus className="h-4 w-4" /> Nouvelle action
+            <Plus className="h-4 w-4" /> {t('collection.newAction')}
           </button>
         </div>
       </div>
 
-      {/* KPIs */}
-      {stats && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label="Dossiers en retard" value={stats.overdueDebts} icon={<AlertTriangle className="h-5 w-5 text-rose-500" />} wrap="bg-rose-500/10" bar="bg-rose-500" sub={stats.overdueBalance > 0 ? `Solde : ${fmtMGA(stats.overdueBalance)}` : 'Aucun solde en retard'} />
-          <KpiCard label="Créances > 30 jours" value={stats.overdue30} icon={<Clock className="h-5 w-5 text-amber-500" />} wrap="bg-amber-500/10" bar="bg-amber-500" />
-          <KpiCard label="Créances > 60 jours" value={stats.overdue60} icon={<Clock className="h-5 w-5 text-orange-500" />} wrap="bg-orange-500/10" bar="bg-orange-500" />
-          <KpiCard label="Créances > 90 jours" value={stats.overdue90} icon={<Clock className="h-5 w-5 text-red-500" />} wrap="bg-red-500/10" bar="bg-red-500" />
-        </div>
-      )}
+      {/* KPIs — fiscale : retard stratifié 30/60/90 */}
+      {stats && <KpiStrip stage="overdue" stats={stats} fmtMGA={fmtMGA} />}
 
-      {/* Filtres + tableau */}
+      {/* Filtres + tableau — module En retard isolé */}
       <Card>
         <CollectionFilters
-          searchQ={searchQ} onSearchChange={(v) => { setSearchQ(v); setPage(0) }}
-          taxTypeFilter={taxTypeFilter} onTaxTypeChange={(v) => { setTaxTypeFilter(v); setPage(0) }}
-          periodFilter={periodFilter} onPeriodChange={(v) => { setPeriodFilter(v); setPage(0) }}
+          searchQ={f.searchQ} onSearchChange={(v) => { f.setSearchQ(v); f.setPage(0) }}
+          taxTypeFilter={f.taxTypeFilter} onTaxTypeChange={(v) => { f.setTaxTypeFilter(v); f.setPage(0) }}
+          periodFilter={f.periodFilter} onPeriodChange={(v) => { f.setPeriodFilter(v); f.setPage(0) }}
           taxTypes={taxTypes} periods={periods}
-          advDraft={advDraft} onAdvDraftChange={setAdvDraft} advApplied={advApplied}
-          onApplyAdvanced={applyAdvanced} onResetFilters={resetFilters}
-          showAdvanced={showAdvanced} onToggleAdvanced={() => setShowAdvanced(!showAdvanced)}
-          activeFilterCount={activeFilterCount} hasFilters={hasFilters}
-          onRemoveChip={removeChip}
+          advDraft={f.advDraft} onAdvDraftChange={f.setAdvDraft} advApplied={f.advApplied}
+          onApplyAdvanced={f.applyAdvanced} onResetFilters={f.resetFilters}
+          showAdvanced={f.showAdvanced} onToggleAdvanced={() => f.setShowAdvanced(!f.showAdvanced)}
+          activeFilterCount={f.activeFilterCount} hasFilters={f.hasFilters}
+          onRemoveChip={f.removeChip}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-2.5">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {!isLoading && data ? (<><span className="font-medium text-slate-700 dark:text-slate-300">{totalResults}</span> créance{totalResults > 1 ? 's' : ''} en retard</>) : 'Chargement…'}
+            {!isLoading && data ? (<span className="font-medium text-slate-700 dark:text-slate-300">{t('collection.count.overdue', { count: totalResults, plural: totalResults > 1 ? 's' : '' })}</span>) : t('collection.loading')}
           </p>
           {overdueSummary && overdueSummary.count > 0 && (
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 font-medium text-rose-500"><AlertTriangle className="h-3 w-3" /> {overdueSummary.count} dossier{overdueSummary.count > 1 ? 's' : ''}</span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 font-medium text-amber-600 dark:text-amber-400">{fmtMGA(overdueSummary.totalBalance)} de soldes</span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2.5 py-1 font-medium text-slate-600 dark:text-slate-400">Retard moyen : {overdueSummary.averageDays} j</span>
-              {overdueSummary.oldestDueDate && <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2.5 py-1 font-medium text-slate-600 dark:text-slate-400">Plus ancienne : {fmtDate(overdueSummary.oldestDueDate)}</span>}
+              <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2.5 py-1 font-medium text-rose-500"><AlertTriangle className="h-3 w-3" /> {t('collection.overdue.files', { count: overdueSummary.count, plural: overdueSummary.count > 1 ? 's' : '' })}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 font-medium text-amber-600 dark:text-amber-400">{t('collection.overdue.balances', { amount: fmtMGA(overdueSummary.totalBalance) })}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2.5 py-1 font-medium text-slate-600 dark:text-slate-400">{t('collection.overdue.avgDelay', { days: overdueSummary.averageDays })}</span>
+              {overdueSummary.oldestDueDate && <span className="inline-flex items-center gap-1 rounded-full bg-slate-500/10 px-2.5 py-1 font-medium text-slate-600 dark:text-slate-400">{t('collection.overdue.oldest', { date: fmtDate(overdueSummary.oldestDueDate) })}</span>}
             </div>
           )}
         </div>
@@ -161,102 +134,33 @@ export default function CollectionOverdue() {
           <div className="px-5 py-10">
             <div className="mx-auto max-w-md rounded-2xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-800 dark:bg-red-900/20">
               <AlertCircle className="mx-auto h-8 w-8 text-red-500" />
-              <p className="mt-2 font-medium text-red-700 dark:text-red-400">Impossible de charger les créances.</p>
+              <p className="mt-2 font-medium text-red-700 dark:text-red-400">{t('collection.loadErrorShort')}</p>
               <p className="mt-1 text-xs text-red-500/80">{apiErrorMessage(error)}</p>
-              <Button className="mt-4" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-3.5 w-3.5" /> Réessayer</Button>
+              <Button className="mt-4" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-3.5 w-3.5" /> {t('collection.retry')}</Button>
             </div>
           </div>
         ) : !data || data.content.length === 0 ? (
           <div className="py-14">
             <EmptyState icon={<Inbox className="h-10 w-10" />} title={t("collection.noOverdue")} subtitle={t("common.noResult")} />
-            {hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={resetFilters}><X className="h-4 w-4" /> Réinitialiser les filtres</Button></div>}
+            {f.hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={f.resetFilters}><X className="h-4 w-4" /> {t('collection.resetFilters')}</Button></div>}
           </div>
         ) : (
           <div className="animate-page-in">
             {isLoading ? <Spinner /> : (
               <>
-                <div className="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-                  <Table>
-                    <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
-                      <tr><Th>{t('common.reference')}</Th><Th>NIF</Th><Th>Contribuable</Th><Th>Impôt</Th><Th>Reste</Th><Th>Échéance</Th><Th>Jours retard</Th><Th>Priorité</Th><Th>Dernière action</Th><Th className="w-12"></Th></tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50 dark:divide-slate-700/30">
-                      {data.content.map((d) => {
-                        const isTerminal = TERMINAL_STATUSES.includes(d.debtStatus as DebtStatus)
-                        return (
-                          <tr key={d.id} className="group cursor-pointer transition hover:bg-slate-50/60 dark:hover:bg-slate-700/40" onClick={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }}>
-                            <Td><span className="font-mono text-xs font-semibold text-brand-700 dark:text-brand-400">{d.reference}</span></Td>
-                            <Td><span className="font-mono text-xs">{d.nif}</span></Td>
-                            <Td><span className="block max-w-[180px] truncate font-medium text-slate-800 dark:text-slate-200">{d.taxpayerName}</span></Td>
-                            <Td><span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">{d.taxTypeCode}</span></Td>
-                            <Td><span className="font-semibold text-red-500 dark:text-red-400">{fmtMGA(d.balance)}</span></Td>
-                            <Td><span className="text-sm font-semibold text-red-500 dark:text-red-400">{fmtDate(d.dueDate)}</span></Td>
-                            <Td><span className="text-sm font-semibold text-red-500 dark:text-red-400">{d.daysOverdue} j</span></Td>
-                            <Td><PriorityBadge priority={d.collectionPriority} /></Td>
-                            <Td><div className="max-w-[170px]">{d.lastAction ? <><p className="truncate text-xs text-slate-600 dark:text-slate-400">{ACTION_ICONS[d.lastActionType ?? ''] ?? ''} {t(ACTION_KEYS[d.lastActionType ?? ''] ?? 'common.unknown') ?? d.lastAction}</p>{d.lastActionDate && <p className="text-[10px] text-slate-400 dark:text-slate-500">le {fmtDate(d.lastActionDate)}</p>}</> : <span className="text-xs text-slate-400">—</span>}</div></Td>
-                            <Td><RowActions debt={d} onView={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }} onPayment={() => { setSelectedDebt(d); setPaymentOpen(true) }} onCall={() => openActionWithType('call', String(d.id))} onReminder={() => openActionWithType('reminder', String(d.id))} onNotice={() => {}} onCommandment={() => {}} onAtd={() => {}} onPaymentPlan={() => navigate(`/collection/plans?debt=${d.id}`)} onHistory={() => {}} /></Td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </Table>
-                </div>
-                <Pagination page={data.number} totalPages={data.totalPages} totalElements={data.totalElements} pageSize={size} onPageSizeChange={(n) => { setSize(n); setPage(0) }} onChange={setPage} />
+                <DebtTable stage="overdue" debts={data.content} onView={(d)=>{setDrawerDebtId(d.id);setDrawerOpen(true)}} onPayment={(d)=>{setSelectedDebt(d);setPaymentOpen(true)}} onAction={(_d,type)=>openActionWithType(type as any, String(_d.id))} onNotice={()=>{}} onPlan={(d)=>navigate(`/collection/plans?debt=${d.id}`)} onHistory={()=>{}} fmtMGA={fmtMGA} fmtDate={fmtDate} />
+                <Pagination page={data.number} totalPages={data.totalPages} totalElements={data.totalElements} pageSize={f.size} onPageSizeChange={(n) => { f.setSize(n); f.setPage(0) }} onChange={f.setPage} />
               </>
             )}
           </div>
         )}
       </Card>
 
-      {/* MODAL ACTION */}
-      {actionOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setActionOpen(false)}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">{actionType === 'call' ? 'Enregistrer un appel' : 'Envoyer une relance'}</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Créance</label>
-                <Select value={actionForm.debtId} onChange={(e) => setActionForm({ ...actionForm, debtId: e.target.value })}>
-                  <option value="">— Sélectionner —</option>
-                  {(actionDebts?.content ?? data?.content ?? []).filter((d) => d.balance > 0 && !TERMINAL_STATUSES.includes(d.debtStatus)).map((d) => (
-                    <option key={d.id} value={d.id}>{d.reference} — {d.taxpayerName} — reste {fmtMGA(d.balance)}</option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
-                <input value={actionForm.description} onChange={(e) => setActionForm({ ...actionForm, description: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="secondary" onClick={() => setActionOpen(false)}>Annuler</Button>
-                <Button onClick={() => createAction.mutate()} disabled={createAction.isPending || !actionForm.debtId || !actionForm.description}>{createAction.isPending ? 'Enregistrement…' : 'Enregistrer'}</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ActionModal open={actionOpen} onClose={()=>setActionOpen(false)} actionType={actionType} form={actionForm} setForm={setActionForm} debts={(actionDebts?.content ?? data?.content ?? []).filter((d:any)=>d.balance>0 && !TERMINAL_STATUSES.includes(d.debtStatus))} onSubmit={()=>createAction.mutate()} pending={createAction.isPending} error={createAction.isError} />
+      <PaymentModal open={paymentOpen} onClose={()=>setPaymentOpen(false)} debt={selectedDebt} form={payForm} setForm={setPayForm} onSubmit={()=>registerPayment.mutate()} pending={registerPayment.isPending} error={registerPayment.isError} fmtMGA={fmtMGA} />
+      <ReminderModal open={reminderOpen} onClose={()=>{ setReminderOpen(false); setReminderDebt(null) }} form={reminderForm} setForm={setReminderForm} debts={actionDebts?.content ?? data?.content ?? []} debt={reminderDebt} onSubmit={submitReminder} pending={createReminder.isPending} error={createReminder.isError ? createReminder.error : null} fmtMGA={fmtMGA} />
 
-      {/* MODAL PAIEMENT */}
-      {paymentOpen && selectedDebt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setPaymentOpen(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">Enregistrer un paiement</h3>
-            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800 mb-4">Créance : <strong className="font-mono">{selectedDebt.reference}</strong> — Solde : <strong className="text-amber-600">{fmtMGA(selectedDebt.balance)}</strong></div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Montant (MGA)</label>
-                <input type="number" min="1" max={selectedDebt.balance} value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="secondary" onClick={() => setPaymentOpen(false)}>Annuler</Button>
-                <Button onClick={() => registerPayment.mutate()} disabled={registerPayment.isPending || !payForm.amount}>{registerPayment.isPending ? 'Enregistrement…' : 'Enregistrer'}</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <DetailDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setDrawerDebtId(null) }} debtId={drawerDebtId} onPayment={(debt) => { setSelectedDebt(debt); setPaymentOpen(true) }} onReminder={(debt) => openActionWithType('reminder', String(debt.id))} onNotice={() => {}} onPlan={(debt) => navigate(`/collection/plans?debt=${debt.id}`)} onAction={(debt, type) => openActionWithType(type as 'call' | 'reminder', String(debt.id))} />
+      <DetailDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setDrawerDebtId(null) }} debtId={drawerDebtId} onPayment={(debt) => { setSelectedDebt(debt); setPaymentOpen(true) }} onReminder={(debt) => openReminder(String(debt.id), debt)} onNotice={() => {}} onPlan={(debt) => navigate(`/collection/plans?debt=${debt.id}`)} onAction={(debt, type) => openActionWithType(type as 'call' | 'reminder', String(debt.id))} />
     </div>
   )
 }

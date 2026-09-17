@@ -173,6 +173,8 @@ export default function TaxRules() {
   const [pageSize, setPageSize] = useState(25)
   const { openId: showMenuId, close: closeMenu, getTriggerProps, getDropdownProps } = useDropdownList()
   const [deleteConfirm, setDeleteConfirm] = useState<TaxRule | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
 
   /* -- Queries -- */
@@ -185,6 +187,12 @@ export default function TaxRules() {
     queryKey: ['tax-rules', 'versions', versionsRule?.id],
     queryFn: () => apiGet<TaxRuleVersion[]>(`/tax-rules/${versionsRule!.id}/versions`),
     enabled: !!versionsRule,
+  })
+
+  const { data: recentVersions, isFetching: loadingHistory } = useQuery({
+    queryKey: ['tax-rules', 'versions', 'recent'],
+    queryFn: () => apiGet<TaxRuleVersion[]>('/tax-rules/versions/recent?limit=50'),
+    enabled: historyOpen,
   })
 
 
@@ -385,7 +393,7 @@ export default function TaxRules() {
   if (isLoading) return <TaxRulesSkeleton />
 
   return (
-    <div className="fx-simple space-y-6">
+    <div className="fx-page space-y-6">
       {/* === 1. HEADER === */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -397,11 +405,11 @@ export default function TaxRules() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button variant="secondary" size="md" onClick={() => toast.info('Historique des versions')}>
+          <Button variant="secondary" size="md" onClick={() => setHistoryOpen(true)}>
             <History className="h-4 w-4" />
             Historique
           </Button>
-          <Button variant="secondary" size="md" onClick={() => toast.info('Importer des regles')}>
+          <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4" />
             Importer
           </Button>
@@ -685,6 +693,19 @@ export default function TaxRules() {
       {/* === 9. TEST CALCULATOR MODAL === */}
       <TestCalculatorModal rule={testRule} onClose={() => setTestRule(null)} />
 
+      {/* === 9b. RECENT VERSIONS (global) === */}
+      {historyOpen && (
+        <RecentVersionsModal
+          versions={recentVersions}
+          loading={loadingHistory}
+          rules={rules ?? []}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
+
+      {/* === 9c. IMPORT RULES === */}
+      {importOpen && <ImportRulesModal onClose={() => setImportOpen(false)} />}
+
       {/* === DELETE CONFIRM === */}
       {deleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && setDeleteConfirm(null)}>
@@ -900,6 +921,183 @@ function VersionHistoryModal({ rule, versions, onClose }: {
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* -- Recent Versions Modal (toutes règles) -- */
+function RecentVersionsModal({ versions, loading, rules, onClose }: {
+  versions: TaxRuleVersion[] | undefined; loading: boolean; rules: TaxRule[]; onClose: () => void
+}) {
+  const codeOf = (ruleId: number) => rules.find((r) => r.id === ruleId)?.code ?? `#${ruleId}`
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Historique recent des regles</h3>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              Dernierees modifications enregistrees, toutes regles confondues.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="px-6 py-5">
+          {loading || !versions ? (
+            <div className="py-8 text-center"><div className="h-8 w-8 mx-auto animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
+          ) : versions.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">Aucune modification enregistree.</p>
+          ) : (
+            <ol className="space-y-3">
+              {versions.map((v) => (
+                <li key={v.id} className="rounded-xl border border-slate-100 px-4 py-3 dark:border-slate-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <code className="rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-violet-700 dark:bg-slate-700 dark:text-violet-400">
+                        {codeOf(v.ruleId)}
+                      </code>
+                      <span className="text-xs font-medium text-slate-500 dark:text-slate-400">v{v.versionNumber}</span>
+                    </div>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(v.effectiveFrom)}</span>
+                  </div>
+                  {v.reason && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{v.reason}</p>}
+                  <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Par {v.changedBy || '--'}</p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* -- Import Rules Modal -- */
+const IMPORT_PLACEHOLDER = `[
+  {
+    "code": "R-TVA-20",
+    "name": "TVA taux normal",
+    "taxTypeCode": "TVA",
+    "calculationMethod": "PERCENTAGE_OF_BASE",
+    "rate": 20,
+    "effectiveFrom": "2026-01-01"
+  }
+]`
+
+function ImportRulesModal({ onClose }: { onClose: () => void }) {
+  const toast = useToast()
+  const queryClient = useQueryClient()
+  const [text, setText] = useState('')
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<{ created: number; errors: string[] } | null>(null)
+
+  async function runImport() {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(text)
+    } catch {
+      toast.error('JSON invalide')
+      return
+    }
+    if (!Array.isArray(parsed)) {
+      toast.error('Le JSON doit etre un tableau de regles')
+      return
+    }
+    setRunning(true)
+    const errors: string[] = []
+    let created = 0
+    for (const [i, raw] of parsed.entries()) {
+      const item = raw as Record<string, unknown>
+      const code = String(item.code ?? `#${i + 1}`)
+      try {
+        await apiPost('/tax-rules', {
+          code: item.code,
+          name: item.name,
+          taxTypeCode: item.taxTypeCode,
+          taxpayerType: item.taxpayerType || undefined,
+          regimeCode: item.regimeCode || undefined,
+          calculationMethod: item.calculationMethod ?? 'PERCENTAGE_OF_BASE',
+          rate: Number(item.rate ?? 0),
+          minimum: Number(item.minimum ?? 0),
+          maximum: Number(item.maximum ?? 0),
+          deduction: Number(item.deduction ?? 0),
+          exemption: Number(item.exemption ?? 0),
+          legalReference: item.legalReference || undefined,
+          brackets: item.brackets || undefined,
+          demo: Boolean(item.demo),
+          effectiveFrom: item.effectiveFrom ?? new Date().toISOString().slice(0, 10),
+          effectiveTo: item.effectiveTo || undefined,
+        })
+        created += 1
+      } catch (err) {
+        errors.push(`${code} : ${apiErrorMessage(err)}`)
+      }
+    }
+    setRunning(false)
+    setResult({ created, errors })
+    if (created > 0) {
+      queryClient.invalidateQueries({ queryKey: ['tax-rules'] })
+      toast.success(`${created} regle(s) importee(s)`)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Importer des regles</h3>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+              Collez un tableau JSON de regles ou chargez un fichier .json. Chaque regle passe par les validations habituelles.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept=".json,application/json"
+              onChange={async (e) => {
+                const f = e.target.files?.[0]
+                if (f) setText(await f.text())
+              }}
+              className="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-2 file:text-sm file:font-medium file:text-violet-700 dark:file:bg-violet-900/30 dark:file:text-violet-400"
+            />
+          </div>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={10}
+            placeholder={IMPORT_PLACEHOLDER}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-violet-400"
+          />
+          {result && (
+            <div className={`rounded-xl border px-4 py-3 text-sm ${
+              result.errors.length === 0
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
+                : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
+            }`}>
+              <p className="font-semibold">{result.created} regle(s) importee(s).</p>
+              {result.errors.length > 0 && (
+                <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                  {result.errors.map((err, i) => <li key={i}>{err}</li>)}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-700">
+          <Button variant="secondary" onClick={onClose}>Fermer</Button>
+          <Button variant="primary" onClick={runImport} disabled={running || !text.trim()} loading={running}>
+            <Upload className="h-4 w-4" /> Importer
+          </Button>
         </div>
       </div>
     </div>

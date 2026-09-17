@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Bell,
-  CheckCheck,
   ChevronDown,
   Globe,
   Key,
@@ -24,7 +23,6 @@ import { useLocaleFormatters } from '../lib/format'
 import type { Message, Notification, Page } from '../types'
 import { Avatar } from './Avatar'
 import { UserAvatar } from './UserAvatar'
-import { useToast } from './Toast'
 import GlobalSearch from './GlobalSearch'
 import ChangePasswordModal from './ChangePasswordModal'
 
@@ -43,7 +41,6 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
   const [openMenu, setOpenMenu] = useState<'notifications' | 'messages' | 'user' | 'lang' | null>(null)
   const [pwOpen, setPwOpen] = useState(false)
   const queryClient = useQueryClient()
-  const toast = useToast()
   const { resolved, toggle: cycleTheme } = useTheme()
   const { locale, setLocale, t } = useI18n()
   const { fmtDateTime } = useLocaleFormatters()
@@ -73,13 +70,6 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
     queryFn: () => apiGet<Page<Notification>>('/notifications?page=0&size=5'),
     enabled: openMenu === 'notifications' && !!user,
   })
-
-  async function markAllRead() {
-    await apiPost('/notifications/read-all')
-    queryClient.invalidateQueries({ queryKey: ['notifications'] })
-    queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] })
-    toast.success(t('header.markAllRead'))
-  }
 
   // Après ouverture du dropdown, tout marquer comme lu automatiquement
   // (le badge disparaît sans action manuelle supplémentaire)
@@ -222,14 +212,8 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
               </MenuButton>
               {openMenu === 'notifications' && (
               <DropdownPanel onClose={() => setOpenMenu(null)} width="w-80">
-                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-700">
+                <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-700">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('header.notifications')}</p>
-                  <button
-                    onClick={markAllRead}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
-                  >
-                    <CheckCheck className="h-3.5 w-3.5" /> {t('header.markAllRead')}
-                  </button>
                 </div>
                 <div className="max-h-80 overflow-y-auto">
                   {!recent || recent.content.length === 0 ? (
