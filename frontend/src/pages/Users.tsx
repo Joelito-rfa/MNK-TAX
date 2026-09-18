@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDropdownList } from '../lib/useDropdown'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDownRight,
@@ -16,7 +15,6 @@ import {
   Key,
   Lock,
   Mail,
-  MoreHorizontal,
   Phone,
   Plus,
   RotateCcw,
@@ -36,6 +34,7 @@ import { downloadCsv } from '../lib/csv'
 import { fmtDateTime } from '../lib/format'
 import type { Page, Role, User as UserType } from '../types'
 import { Button, Card, EmptyState } from '../components/ui'
+import RowActionPortal from '../components/RowActionPortal'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../lib/auth'
 
@@ -107,7 +106,6 @@ export default function Users() {
   const [filterRole, setFilterRole] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [pageSize, setPageSize] = useState(25)
-  const { openId: showMenuId, close: closeMenu, getTriggerProps, getDropdownProps } = useDropdownList()
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserType | null>(null)
@@ -246,10 +244,10 @@ export default function Users() {
           {can('USER_WRITE') && (
             <button
               onClick={() => setCreateOpen(true)}
-              className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+              className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30"
             >
               <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-              <Plus className="relative h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
+              <Plus className="relative h-4 w-4" />
               <span className="relative">Nouvel utilisateur</span>
             </button>
           )}
@@ -424,36 +422,26 @@ export default function Users() {
                         title="Voir le profil">
                         <Eye className="h-4 w-4" />
                       </button>
-                      <div className="relative">
-                        <button {...getTriggerProps(user.id)}
-                          className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                        {showMenuId === user.id && (
-                          <div {...getDropdownProps()} className="absolute right-0 z-50 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                            <div className="space-y-0.5">
-                              <MenuItem icon={<Eye className="h-4 w-4" />} label="Voir le profil"
-                                onClick={() => { setSelectedUser(user); closeMenu() }} />
-                              <MenuItem icon={<Edit3 className="h-4 w-4" />} label="Modifier"
-                                onClick={() => { setEditUser(user); closeMenu() }} />
-                              <MenuItem icon={<Shield className="h-4 w-4" />} label="Gerer les roles"
-                                onClick={() => { setPermissionsUser(user); closeMenu() }} />
-                              <MenuItem icon={<Key className="h-4 w-4" />} label="Reinitialiser le mot de passe"
-                                onClick={() => { setResetUser(user); closeMenu() }} />
-                              <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                              <MenuItem
-                                icon={user.enabled ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                                label={user.enabled ? 'Desactiver' : 'Activer'}
-                                onClick={() => { toggleEnabled.mutate({ id: user.id, enabled: !user.enabled }); closeMenu() }}
-                                danger={user.enabled} />
-                              {!user.roles.includes('SUPER_ADMIN') && (
-                                <MenuItem icon={<Trash2 className="h-4 w-4" />} label="Supprimer"
-                                  onClick={() => { setDeleteConfirm(user); closeMenu() }} danger />
-                              )}
-                            </div>
-                          </div>
+                      <RowActionPortal>
+                        <MenuItem icon={<Eye className="h-4 w-4" />} label="Voir le profil"
+                          onClick={() => { setSelectedUser(user) }} />
+                        <MenuItem icon={<Edit3 className="h-4 w-4" />} label="Modifier"
+                          onClick={() => { setEditUser(user) }} />
+                        <MenuItem icon={<Shield className="h-4 w-4" />} label="Gerer les roles"
+                          onClick={() => { setPermissionsUser(user) }} />
+                        <MenuItem icon={<Key className="h-4 w-4" />} label="Reinitialiser le mot de passe"
+                          onClick={() => { setResetUser(user) }} />
+                        <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                        <MenuItem
+                          icon={user.enabled ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                          label={user.enabled ? 'Desactiver' : 'Activer'}
+                          onClick={() => { toggleEnabled.mutate({ id: user.id, enabled: !user.enabled }) }}
+                          danger={user.enabled} />
+                        {!user.roles.includes('SUPER_ADMIN') && (
+                          <MenuItem icon={<Trash2 className="h-4 w-4" />} label="Supprimer"
+                            onClick={() => { setDeleteConfirm(user) }} danger />
                         )}
-                      </div>
+                      </RowActionPortal>
                     </div>
                   )}
                 </div>
@@ -573,9 +561,9 @@ function StatCard({ icon, iconBg, iconColor, label, value, sub, delta, deltaTone
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
-          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 transition-transform duration-300 group-hover:-translate-y-0.5 dark:text-slate-100">{value}</p>
+          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
         </div>
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg`}>{icon}</span>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}>{icon}</span>
       </div>
       <div className="mt-3 flex items-center gap-2 text-xs">
         {delta && (

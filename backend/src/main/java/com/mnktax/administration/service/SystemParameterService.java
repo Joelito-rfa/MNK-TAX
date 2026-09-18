@@ -3,6 +3,7 @@ package com.mnktax.administration.service;
 import com.mnktax.administration.entity.SystemParameter;
 import com.mnktax.administration.repository.SystemParameterRepository;
 import com.mnktax.audit.service.AuditService;
+import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,7 @@ public class SystemParameterService {
     @Transactional
     public SystemParameter upsert(String key, String value, String description, String category,
                                   HttpServletRequest http) {
+        rejectNegativeValue(key, value);
         SystemParameter parameter = parameterRepository.findByKey(key)
                 .orElseGet(() -> SystemParameter.builder()
                         .key(key)
@@ -51,6 +53,24 @@ public class SystemParameterService {
         SystemParameter saved = parameterRepository.save(parameter);
         auditService.record("UPDATE", "SYSTEM_PARAMETER", key, old, value, http);
         return saved;
+    }
+
+    private void rejectNegativeValue(String key, String value) {
+        if (value == null) {
+            return;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+        try {
+            if (Double.parseDouble(trimmed) < 0) {
+                throw new BusinessException("VALIDATION_ERROR",
+                        "La valeur du paramètre « " + key + " » ne peut pas être négative.");
+            }
+        } catch (NumberFormatException ignored) {
+            // Valeur non numérique (email, texte...) : aucun contrôle de signe.
+        }
     }
 
     public SystemParameter getRequired(Long id) {

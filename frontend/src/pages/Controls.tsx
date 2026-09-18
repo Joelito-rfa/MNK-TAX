@@ -1,10 +1,16 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { FileSearch, Gavel, Grid3X3, LayoutList, PlusCircle, MoreHorizontal, Pencil, Trash2, Eye, CalendarClock } from 'lucide-react'
-import { apiDelete, apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
+import { FileSearch, Gavel, Grid3X3, LayoutList, PlusCircle, Pencil, Trash2, Eye, CalendarClock } from 'lucide-react'
+import RowActionPortal from '../components/RowActionPortal'
+import { apiErrorMessage } from '../lib/api'
 import { fmtDate, fmtDateTime, fmtMGA } from '../lib/format'
-import type { Page, TaxControl, TaxControlDetail, TaxpayerSummary, User } from '../types'
+import { useTaxControlDetail, useTaxControls, useTaxpayersRef, useUsersRef } from '../features/control/api/queries'
+import {
+  useCloseTaxControl,
+  useCreateTaxControl,
+  useDeleteTaxControl,
+  useUpdateTaxControl,
+} from '../features/control/api/mutations'
 import { useAuth } from '../lib/auth'
 import {
   Badge,
@@ -25,7 +31,6 @@ import {
   Textarea,
   Th,
 } from '../components/ui'
-import { useToast } from '../components/Toast'
 
 export const controlTypeLabels: Record<string, string> = {
   DOCUMENTARY: 'Sur pièces',
@@ -58,27 +63,13 @@ export default function Controls() {
   const [createOpen, setCreateOpen] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
-  const [actionMenu, setActionMenu] = useState<number | null>(null)
-  const toast = useToast()
-  const queryClient = useQueryClient()
-
-  const remove = useMutation({
-    mutationFn: (id: number) => apiDelete(`/tax-controls/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['controls'] })
-      toast.success('Contrôle fiscal supprimé')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
+  const remove = useDeleteTaxControl()
 
   const params = new URLSearchParams({ page: String(page), size: String(size) })
   if (status) params.set('status', status)
   if (q) params.set('q', q)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['controls', page, size, status, q],
-    queryFn: () => apiGet<Page<TaxControl>>(`/tax-controls?${params.toString()}`),
-  })
+  const { data, isLoading } = useTaxControls(params.toString())
 
   return (
     <div className="space-y-6">
@@ -181,69 +172,36 @@ export default function Controls() {
                     </Td>
                     <Td>{fmtDate(c.createdAt)}</Td>
 <Td>
-                       <div className="relative">
-                         <button
-                           onClick={(e) => {
-                             e.stopPropagation()
-                             setActionMenu(actionMenu === c.id ? null : c.id)
-                           }}
-                           className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                           aria-label="Actions"
-                         >
-                           <MoreHorizontal className="h-4 w-4" />
-                         </button>
-                         {actionMenu === c.id && (
-                           <>
-                             <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                             <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                               <div className="space-y-0.5">
-                                 <button
-                                   onClick={(e) => {
-                                     e.stopPropagation()
-                                     setDetailId(c.id)
-                                     setActionMenu(null)
-                                   }}
-                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                 >
-                                   <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
-                                 </button>
-                                 <button
-                                   onClick={(e) => {
-                                     e.stopPropagation()
-                                     setDetailId(c.id)
-                                     setActionMenu(null)
-                                   }}
-                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                 >
-                                   <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
-                                 </button>
-                                 <button
-                                   onClick={(e) => {
-                                     e.stopPropagation()
-                                     setDetailId(c.id)
-                                     setActionMenu(null)
-                                   }}
-                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                 >
-                                   <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
-                                 </button>
-                                 <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                                 <button
-                                   onClick={(e) => {
-                                     e.stopPropagation()
-                                     if (confirm('Supprimer ce contrôle ?')) remove.mutate(c.id)
-                                     setActionMenu(null)
-                                   }}
-                                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                                 >
-                                   <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
-                                 </button>
-                               </div>
-                             </div>
-                           </>
-                         )}
-                       </div>
-                     </Td>
+                        <RowActionPortal>
+                          <button
+                            onClick={() => setDetailId(c.id)}
+                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                          >
+                            <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
+                          </button>
+                          <button
+                            onClick={() => setDetailId(c.id)}
+                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                          >
+                            <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
+                          </button>
+                          <button
+                            onClick={() => setDetailId(c.id)}
+                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                          >
+                            <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
+                          </button>
+                          <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                          <button
+                            onClick={() => {
+                              if (confirm('Supprimer ce contrôle ?')) remove.mutate(c.id)
+                            }}
+                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                          >
+                            <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
+                          </button>
+                        </RowActionPortal>
+                      </Td>
                   </tr>
                 ))}
               </tbody>
@@ -273,68 +231,35 @@ export default function Controls() {
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusBadge value={c.status} />
-                      <div className="relative">
+                      <RowActionPortal>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setActionMenu(actionMenu === c.id ? null : c.id)
-                          }}
-                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                          aria-label="Actions"
+                          onClick={() => setDetailId(c.id)}
+                          className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
-                          <MoreHorizontal className="h-4 w-4" />
+                          <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
                         </button>
-                        {actionMenu === c.id && (
-                          <>
-                            <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                            <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                              <div className="space-y-0.5">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setDetailId(c.id)
-                                    setActionMenu(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                >
-                                  <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                   setDetailId(c.id)
-                                   setActionMenu(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                >
-                                  <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                   setDetailId(c.id)
-                                   setActionMenu(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                >
-                                  <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
-                                </button>
-                                <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    if (confirm('Supprimer ce contrôle ?')) remove.mutate(c.id)
-                                    setActionMenu(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
-                                >
-                                  <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                        <button
+                          onClick={() => setDetailId(c.id)}
+                          className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
+                        </button>
+                        <button
+                          onClick={() => setDetailId(c.id)}
+                          className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
+                        </button>
+                        <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                        <button
+                          onClick={() => {
+                            if (confirm('Supprimer ce contrôle ?')) remove.mutate(c.id)
+                          }}
+                          className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                        >
+                          <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
+                        </button>
+                      </RowActionPortal>
                     </div>
                   </div>
                   <div className="space-y-2 text-sm">
@@ -371,23 +296,8 @@ export default function Controls() {
         )}
       </Card>
 
-      {createOpen && (
-        <CreateControlModal
-          onClose={() => {
-            setCreateOpen(false)
-            queryClient.invalidateQueries({ queryKey: ['controls'] })
-          }}
-        />
-      )}
-      {detailId != null && (
-        <ControlDetailModal
-          id={detailId}
-          onClose={() => {
-            setDetailId(null)
-            queryClient.invalidateQueries({ queryKey: ['controls'] })
-          }}
-        />
-      )}
+      {createOpen && <CreateControlModal onClose={() => setCreateOpen(false)} />}
+      {detailId != null && <ControlDetailModal id={detailId} onClose={() => setDetailId(null)} />}
     </div>
   )
 }
@@ -396,49 +306,37 @@ export default function Controls() {
 
 export function CreateControlModal({ onClose }: { onClose: () => void }) {
   const { can } = useAuth()
+  const [step, setStep] = useState(0)
   const [taxpayerId, setTaxpayerId] = useState('')
   const [controlType, setControlType] = useState('DOCUMENTARY')
   const [periodStart, setPeriodStart] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [reason, setReason] = useState('')
   const [agentId, setAgentId] = useState('')
-  const toast = useToast()
 
-  const { data: taxpayers, isLoading: loadingTaxpayers } = useQuery({
-    queryKey: ['taxpayers-lite'],
-    queryFn: () => apiGet<Page<TaxpayerSummary>>('/taxpayers?size=1000'),
-  })
+  const { data: taxpayers, isLoading: loadingTaxpayers } = useTaxpayersRef()
+  const { data: users } = useUsersRef(can('USER_READ'))
+  const create = useCreateTaxControl()
 
-  const { data: users } = useQuery({
-    queryKey: ['users-lite'],
-    queryFn: () => apiGet<Page<User>>('/users?size=1000'),
-    enabled: can('USER_READ'),
-  })
-
-  const create = useMutation({
-    mutationFn: () =>
-      apiPost('/tax-controls', {
-        taxpayerId: Number(taxpayerId),
-        controlType,
-        periodStart,
-        periodEnd,
-        reason,
-        agentId: agentId ? Number(agentId) : null,
-        documents: [],
-      }),
-    onSuccess: () => {
-      toast.success('Contrôle fiscal créé')
-      onClose()
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
-
+  const selectedTp = taxpayers?.content.find((t) => String(t.id) === taxpayerId) ?? null
   return (
-    <Modal open onClose={onClose} title="Nouveau contrôle fiscal" wide>
+    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — Nouveau contrôle fiscal`} wide>
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          create.mutate()
+          if (step < 2) return
+          create.mutate(
+            {
+              taxpayerId: Number(taxpayerId),
+              controlType,
+              periodStart,
+              periodEnd,
+              reason,
+              agentId: agentId ? Number(agentId) : null,
+              documents: [],
+            },
+            { onSuccess: onClose },
+          )
         }}
         className="space-y-4"
       >
@@ -447,51 +345,84 @@ export function CreateControlModal({ onClose }: { onClose: () => void }) {
             {apiErrorMessage(create.error)}
           </div>
         )}
-        <Field label="Contribuable">
-          <Select value={taxpayerId} onChange={(e) => setTaxpayerId(e.target.value)} required>
-            <option value="">— Sélectionner —</option>
-            {loadingTaxpayers
-              ? null
-              : taxpayers?.content.map((t) => (
+        <div className="flex items-center gap-2">
+          {[0, 1, 2].map((s) => (
+            <div key={s} className={`h-1.5 flex-1 rounded-full transition ${s <= step ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+          ))}
+        </div>
+        {step === 0 && (
+          <div className="space-y-4 animate-fade-in">
+            <Field label="Contribuable">
+              <Select value={taxpayerId} onChange={(e) => setTaxpayerId(e.target.value)} required>
+                <option value="">— Sélectionner —</option>
+                {loadingTaxpayers ? null : taxpayers?.content.map((t) => (
                   <option key={t.id} value={t.id}>{t.nif} — {t.name}</option>
-                ))}
-          </Select>
-        </Field>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Type de contrôle">
-            <Select value={controlType} onChange={(e) => setControlType(e.target.value)}>
-              {Object.entries(controlTypeLabels).map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
-              ))}
-            </Select>
-          </Field>
-          {can('USER_READ') && (
-            <Field label="Agent responsable">
-              <Select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-                <option value="">— Non assigné —</option>
-                {users?.content.map((u) => (
-                  <option key={u.id} value={u.id}>{u.username}</option>
                 ))}
               </Select>
             </Field>
-          )}
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Début de période contrôlée">
-            <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} required />
-          </Field>
-          <Field label="Fin de période contrôlée">
-            <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} required />
-          </Field>
-        </div>
-        <Field label="Motif du contrôle">
-          <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} required maxLength={500} />
-        </Field>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
-          <Button type="submit" disabled={create.isPending || !taxpayerId || !periodStart || !periodEnd || !reason.trim()}>
-            {create.isPending ? 'Création…' : 'Créer'}
-          </Button>
+            {selectedTp && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+                <p className="font-medium text-slate-900 dark:text-slate-100">{selectedTp.name}</p>
+                <p className="text-slate-500">NIF : {selectedTp.nif}</p>
+              </div>
+            )}
+            <Field label="Type de contrôle">
+              <Select value={controlType} onChange={(e) => setControlType(e.target.value)}>
+                {Object.entries(controlTypeLabels).map(([v, label]) => (
+                  <option key={v} value={v}>{label}</option>
+                ))}
+              </Select>
+            </Field>
+            {can('USER_READ') && (
+              <Field label="Agent responsable">
+                <Select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+                  <option value="">— Non assigné —</option>
+                  {users?.content.map((u) => (
+                    <option key={u.id} value={u.id}>{u.username}</option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+          </div>
+        )}
+        {step === 1 && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Début de période contrôlée">
+                <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} required />
+              </Field>
+              <Field label="Fin de période contrôlée">
+                <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} required />
+              </Field>
+            </div>
+            <Field label="Motif du contrôle">
+              <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} required maxLength={500} />
+            </Field>
+          </div>
+        )}
+        {step === 2 && (
+          <div className="space-y-4 animate-fade-in">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+              <div className="flex justify-between"><span className="text-slate-500">Contribuable</span><span className="font-medium">{selectedTp ? `${selectedTp.name} (${selectedTp.nif})` : '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Type</span><span className="font-medium">{controlTypeLabels[controlType] ?? controlType}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Période</span><span className="font-medium">{periodStart || '—'} → {periodEnd || '—'}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">Motif</span><span className="text-right font-medium">{reason || '—'}</span></div>
+            </div>
+          </div>
+        )}
+        <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
+          <div>{step > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>}</div>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            {step < 2 ? (
+              <Button type="button" size="sm" className="bg-brand-600 text-white" disabled={step === 0 ? !taxpayerId : !periodStart || !periodEnd || !reason.trim()} onClick={() => setStep(step + 1)}>Suivant →</Button>
+            ) : (
+              <Button type="submit" disabled={create.isPending || !taxpayerId || !periodStart || !periodEnd || !reason.trim()}>
+                {create.isPending ? 'Création…' : 'Créer'}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
     </Modal>
@@ -502,8 +433,6 @@ export function CreateControlModal({ onClose }: { onClose: () => void }) {
 
 export function ControlDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
   const { can } = useAuth()
-  const toast = useToast()
-  const queryClient = useQueryClient()
 
   const [nextStatus, setNextStatus] = useState('')
   const [observations, setObservations] = useState('')
@@ -512,44 +441,9 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
   const [penaltyAmount, setPenaltyAmount] = useState('')
   const [closeRedressement, setCloseRedressement] = useState('')
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['control', id],
-    queryFn: () => apiGet<TaxControlDetail>(`/tax-controls/${id}`),
-  })
-
-  const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['control', id] })
-    queryClient.invalidateQueries({ queryKey: ['controls'] })
-  }
-
-  const update = useMutation({
-    mutationFn: () => {
-      const body: Record<string, unknown> = {}
-      if (nextStatus) body.status = nextStatus
-      if (observations !== '') body.observations = observations
-      if (anomalies !== '') body.anomalies = anomalies
-      if (redressement !== '') body.redressement = Number(redressement)
-      if (penaltyAmount !== '') body.penaltyAmount = Number(penaltyAmount)
-      return apiPatch(`/tax-controls/${id}`, body)
-    },
-    onSuccess: () => {
-      setNextStatus('')
-      refresh()
-      toast.success('Contrôle mis à jour')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
-
-  const closeWithRedressement = useMutation({
-    mutationFn: () =>
-      apiPatch(`/tax-controls/${id}/close?redressement=${encodeURIComponent(closeRedressement)}`),
-    onSuccess: () => {
-      setCloseRedressement('')
-      refresh()
-      toast.success('Contrôle clôturé avec redressement')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
+  const { data, isLoading } = useTaxControlDetail(id)
+  const update = useUpdateTaxControl()
+  const closeWithRedressement = useCloseTaxControl()
 
   if (isLoading || !data) {
     return (
@@ -672,7 +566,21 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
             <div className="mt-3 flex justify-end">
               <Button
                 size="sm"
-                onClick={() => update.mutate()}
+                onClick={() =>
+                  update.mutate(
+                    {
+                      id,
+                      body: {
+                        ...(nextStatus ? { status: nextStatus } : {}),
+                        ...(observations !== '' ? { observations } : {}),
+                        ...(anomalies !== '' ? { anomalies } : {}),
+                        ...(redressement !== '' ? { redressement: Number(redressement) } : {}),
+                        ...(penaltyAmount !== '' ? { penaltyAmount: Number(penaltyAmount) } : {}),
+                      },
+                    },
+                    { onSuccess: () => setNextStatus('') },
+                  )
+                }
                 disabled={update.isPending || (!nextStatus && observations === '' && anomalies === '' && redressement === '' && penaltyAmount === '')}
               >
                 Appliquer
@@ -695,7 +603,12 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
               <Button
                 variant="danger"
                 size="sm"
-                onClick={() => closeWithRedressement.mutate()}
+                onClick={() =>
+                  closeWithRedressement.mutate(
+                    { id, redressement: closeRedressement },
+                    { onSuccess: () => setCloseRedressement('') },
+                  )
+                }
                 disabled={closeWithRedressement.isPending || !closeRedressement || Number(closeRedressement) <= 0}
               >
                 <PlusCircle className="h-4 w-4" /> Clôturer avec redressement

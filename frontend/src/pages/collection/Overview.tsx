@@ -231,7 +231,7 @@ export default function CollectionOverview() {
           <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="h-4 w-4" />{t('collection.export')}</Button>
           <Button variant="secondary" size="sm" onClick={exportEtatPdf}><FileText className="h-4 w-4" />{t('collection.report')}</Button>
           <Link to="/reports"><Button variant="secondary" size="sm"><FileSpreadsheet className="h-4 w-4" />{t('collection.report')}</Button></Link>
-          <button onClick={() => openActionWithType('call')} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98]">
+          <button onClick={() => openActionWithType('call')} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30">
             <Plus className="h-4 w-4" /> {t('collection.newAction')}
           </button>
         </div>

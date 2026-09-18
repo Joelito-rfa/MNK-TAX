@@ -40,6 +40,7 @@ import { useI18n } from '../lib/i18n'
 import { useLocaleFormatters } from '../lib/format'
 import type { DashboardActivity, DashboardSummary, Deadline } from '../types'
 import { Card, EmptyState, type IconTone } from '../components/ui'
+import { StepBar } from '../components/Stepper'
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../lib/theme'
 import WelcomeHero, { PERIOD_PRESETS } from '../components/WelcomeHero'
@@ -251,14 +252,19 @@ export default function Dashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const chart = useChartColors()
-  const [periodPreset, setPeriodPreset] = useState('year')
+   const chart = useChartColors()
+   const [periodPreset, setPeriodPreset] = useState('year')
+   const [recoveryStep, setRecoveryStep] = useState(0)
 
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-  }
+   const handleRefresh = () => {
+     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+   }
 
-  // Période sélectionnée pour le bandeau
+   const handleRecoveryStepChange = (step: number) => {
+     setRecoveryStep(step)
+   }
+
+   // Période sélectionnée pour le bandeau
   const selectedPreset = PERIOD_PRESETS.find((p) => p.id === periodPreset) ?? PERIOD_PRESETS[0]
   const months = selectedPreset.months
 
@@ -774,8 +780,57 @@ export default function Dashboard() {
               <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t('dashboard.recovery.subtitle')}</p>
             </div>
           </div>
+          <StepBar step={recoveryStep} total={3} />
+          <div className="mt-1.5 flex justify-between gap-2 text-[11px] font-medium uppercase tracking-wide">
+            {['Vue', 'Détail', 'Actions'].map((label, i) => (
+              <button key={label} onClick={() => handleRecoveryStepChange(i)} className={`transition hover:opacity-80 ${i <= recoveryStep ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400 dark:text-slate-500'}`}>{label}</button>
+            ))}
+          </div>
           <div className="px-5 py-5">
-            <RecoveryGauge rate={collectionRate} collected={data.totalCollected} totalDue={totalDue} outstanding={data.totalOutstanding} />
+            {recoveryStep === 0 && (
+              <RecoveryGauge rate={collectionRate} collected={data.totalCollected} totalDue={totalDue} outstanding={data.totalOutstanding} />
+            )}
+            {recoveryStep === 1 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500 dark:text-slate-400">{t('dashboard.recovery.goal')}</span>
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">{fmtMGA(totalDue)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500 dark:text-slate-400">{t('dashboard.recovery.collected')}</span>
+                  <span className="font-semibold text-emerald-700">{fmtMGA(data.totalCollected)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500 dark:text-slate-400">{t('dashboard.recovery.remaining')}</span>
+                  <span className="font-semibold text-orange-600">{fmtMGA(data.totalOutstanding)}</span>
+                </div>
+                <div className="pt-2">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                    <span>{t('dashboard.recovery.progress')}</span>
+                    <span className="font-semibold" style={{ color: collectionRate >= 70 ? C.green : collectionRate >= 40 ? C.blue : C.orange }}>{collectionRate.toFixed(1)} %</span>
+                  </div>
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                    <div className="h-full origin-left animate-progress rounded-full transition-all duration-500" style={{ width: `${collectionRate}%`, background: collectionRate >= 70 ? C.green : collectionRate >= 40 ? C.blue : C.orange }} />
+                  </div>
+                </div>
+                <div className="mt-3 rounded-xl border border-slate-200/70 bg-slate-50 p-3 dark:border-slate-700/50 dark:bg-slate-800">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Actions récentes</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Dernière action : {new Date().toLocaleDateString('fr-MG')}</p>
+                </div>
+              </div>
+            )}
+            {recoveryStep === 2 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Créances</span>
+                  <Link to="/debts" className="text-xs font-medium text-brand-600 hover:underline">Voir tout</Link>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-slate-800">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Recouvrement</span>
+                  <Link to="/collection" className="text-xs font-medium text-brand-600 hover:underline">Gérer</Link>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
 

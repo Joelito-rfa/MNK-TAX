@@ -96,19 +96,27 @@ function detectContext(lastBot: string): string {
   return '_default'
 }
 
-/* ── Bot face (vivant) ── */
-function BotFace({ active }: { active: boolean }) {
-  return (
-    <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 shadow-lg shadow-indigo-500/40 ring-2 ring-white/20">
-      <Bot className="h-6 w-6 text-white" />
-      <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-violet-500/40" style={{ animationDuration: '2.5s' }} />
-      <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
-        <span className={`absolute inline-flex h-full w-full rounded-full ${active ? 'animate-ping bg-emerald-400' : 'bg-emerald-400 opacity-75'}`} />
-        <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
-      </span>
-    </div>
-  )
-}
+  /* ── Bot face (vivant) 3D ── */
+  function BotFace({ active }: { active: boolean }) {
+    return (
+      <div className="ai-bot-3d-wrap">
+        <div className="ai-bot-3d">
+          <div className="ai-bot-3d-head">
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 shadow-lg shadow-indigo-500/40 ring-2 ring-white/20">
+              <Bot className="h-6 w-6 text-white" />
+              <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-violet-500/40" style={{ animationDuration: '2.5s' }} />
+              <span className="absolute -right-0.5 -top-0.5 flex h-3 w-3">
+                <span className={`absolute inline-flex h-full w-full rounded-full ${active ? 'animate-ping bg-emerald-400' : 'bg-emerald-400 opacity-75'}`} />
+                <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-400" />
+              </span>
+            </div>
+          </div>
+          <div className="ai-bot-3d-body" />
+        </div>
+        <div className="ai-bot-3d-glow" />
+      </div>
+    )
+  }
 
 /** Position par défaut : bas-droite */
 function defaultPos(): Position {
@@ -295,9 +303,12 @@ export default function AiAssistant() {
       {/* ── Panneau de chat ── */}
       {open && (
         <div
-          className="animate-panel fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700/50 dark:bg-slate-800"
+          className="ai-panel-3d animate-panel fixed z-[60] flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 dark:border-slate-700/50 dark:bg-slate-800"
           style={{ width: 400, maxWidth: 'calc(100vw - 1rem)', right: 20, bottom: 88, height: 520, maxHeight: 'calc(100vh - 130px)' }}
         >
+          <div className="ai-panel-3d-shadow" />
+          {/* Corps connecteur 3D entre la tête et le panneau */}
+          <div className="ai-connector" style={{ top: -18, left: '50%', marginLeft: '-3px' }} />
           {/* En-tête */}
           <div className="flex shrink-0 items-center gap-3 border-b border-slate-100 bg-brand-600 px-4 py-3 dark:border-slate-700">
             <BotFace active />

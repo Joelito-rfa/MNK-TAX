@@ -1,19 +1,24 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { useMutation } from '@tanstack/react-query'
 import {
-  Ban, Download, Eye, Filter,
-  Link2, MoreHorizontal, RefreshCw, Search, Shield, X,
+  Ban, Banknote, Download, Eye, FileText, Filter,
+  Link2, RefreshCw, Search, Shield, Wallet, X,
 
 } from 'lucide-react'
-import { apiErrorMessage, apiGet, apiGetBlob, apiPost, apiPut } from '../lib/api'
+import { apiErrorMessage, apiGet } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
-import { fmtDate, fmtMGA } from '../lib/format'
-import type { Page, Receipt, TaxType } from '../types'
+import { fmtDate, fmtMGA, fmtNumber } from '../lib/format'
+import { useAuth } from '../lib/auth'
+import type { Page, Receipt } from '../types'
 import {
   Button, Card, EmptyState, Modal, PageHeader, Pagination,
-  Select, Spinner, StatusBadge, Table, Td, Th,
+  Select, Spinner, StatCard, StatusBadge, Table, Td, Th,
 } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { useReceiptDetail, useReceipts, useReceiptStats, useTaxTypesRef } from '../features/receipt/api/queries'
+import { useCancelReceipt, useDownloadReceipt, useRefundReceipt, useReplaceReceipt } from '../features/receipt/api/mutations'
+import RowActionPortal from '../components/RowActionPortal'
 
 const methodLabels: Record<string, string> = {
   CASH: 'Espèces',
@@ -35,6 +40,7 @@ const statusLabels: Record<string, string> = {
 }
 
 export default function Receipts() {
+  const { can } = useAuth()
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(25)
   const [q, setQ] = useState('')
@@ -45,9 +51,8 @@ const [showFilters, setShowFilters] = useState(false)
   const [detail, setDetail] = useState<Receipt | null>(null)
   const [sortField, setSortField] = useState('issuedAt')
   const [sortDir, setSortDir] = useState('desc')
-  const [_cancelOpen, setCancelOpen] = useState(false)
-  const [actionMenu, setActionMenu] = useState<number | null>(null)
   const toast = useToast()
+  const downloadReceipt = useDownloadReceipt()
 
   const params = new URLSearchParams({ page: String(page), size: String(size), sort: `${sortField},${sortDir}` })
   if (status) params.set('status', status)
@@ -55,30 +60,9 @@ const [showFilters, setShowFilters] = useState(false)
   if (method) params.set('method', method)
   if (q) params.set('q', q)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['receipts', page, size, status, taxType, method, q, sortField, sortDir],
-    queryFn: () => apiGet<Page<Receipt>>(`/receipts?${params.toString()}`),
-  })
-
-  const { data: taxTypes } = useQuery({
-    queryKey: ['tax-types-ref'],
-    queryFn: () => apiGet<TaxType[]>('/tax-types'),
-  })
-
-  const downloadPdf = async (r: Receipt) => {
-    try {
-      const blob = await apiGetBlob(`/receipts/${r.id}/pdf`)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `quittance-${r.receiptNumber}.pdf`
-      link.click()
-      URL.revokeObjectURL(url)
-      toast.success('PDF téléchargé')
-    } catch (err) {
-      toast.error(apiErrorMessage(err))
-    }
-  }
+  const { data, isLoading } = useReceipts(params.toString())
+  const { data: taxTypes } = useTaxTypesRef()
+  const { data: stats } = useReceiptStats()
 
   const resetFilters = () => {
     setStatus('')
@@ -138,6 +122,37 @@ const [showFilters, setShowFilters] = useState(false)
           </div>
         }
       />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Quittances émises"
+          value={fmtNumber(stats?.totalReceipts ?? 0)}
+          sub={stats ? `dont ${stats.todayReceipts} aujourd'hui` : undefined}
+          icon={<FileText className="h-5 w-5" />}
+          tone="brand"
+        />
+        <StatCard
+          label="Quittances valides"
+          value={fmtNumber(stats?.validReceipts ?? 0)}
+          sub={stats ? `${stats.cancelledReceipts} annulée(s)` : undefined}
+          icon={<Shield className="h-5 w-5" />}
+          tone="emerald"
+        />
+        <StatCard
+          label="Encaissé ce mois"
+          value={fmtMGA(stats?.monthAmount ?? 0)}
+          sub={stats ? `aujourd'hui ${fmtMGA(stats.todayAmount)}` : undefined}
+          icon={<Wallet className="h-5 w-5" />}
+          tone="sky"
+        />
+        <StatCard
+          label="Remboursées"
+          value={fmtNumber(stats?.refundedReceipts ?? 0)}
+          sub={stats ? `${stats.replacedReceipts} remplacée(s)` : undefined}
+          icon={<Banknote className="h-5 w-5" />}
+          tone="rose"
+        />
+      </div>
 
       <Card>
         {/* ── Barre de recherche et filtres ── */}
@@ -259,56 +274,46 @@ const [showFilters, setShowFilters] = useState(false)
                         <StatusBadge value={r.status} />
                       </Td>
                       <Td>
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setActionMenu(actionMenu === r.id ? null : r.id)
-                            }}
-                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                            aria-label="Actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                          {actionMenu === r.id && (
-                            <>
-                              <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                              <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                                <div className="space-y-0.5">
+                        <RowActionPortal>
                                   <button
-                                    onClick={() => { setDetail(r); setActionMenu(null) }}
+                                    onClick={() => { setDetail(r) }}
                                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                   >
                                     <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les détails
                                   </button>
-                                  <button
-                                    onClick={() => { downloadPdf(r); setActionMenu(null) }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-brand-600 transition-colors hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
-                                  >
-                                    <Download className="h-4 w-4 shrink-0" /> Télécharger PDF
-                                  </button>
+                                  {can('RECEIPT_DOWNLOAD') && (
+                                    <button
+                                      onClick={() => { downloadReceipt.mutate(r) }}
+                                      className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-brand-600 transition-colors hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-900/20"
+                                    >
+                                      <Download className="h-4 w-4 shrink-0" /> Télécharger PDF
+                                    </button>
+                                  )}
                                   <a
                                     href={`/verify/receipt/${r.verificationToken}`}
                                     target="_blank"
                                     rel="noreferrer"
-                                    onClick={() => setActionMenu(null)}
                                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                   >
                                     <Link2 className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Vérification publique
                                   </a>
-                                  {r.status === 'ISSUED' || r.status === 'VALID' ? (
+                                  {can('RECEIPT_REFUND') && r.status === 'VALID' && (
                                     <button
-                                      onClick={() => { setCancelOpen(true); setActionMenu(null) }}
+                                      onClick={() => { setDetail(r) }}
+                                      className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                                    >
+                                      <Banknote className="h-4 w-4 shrink-0" /> Rembourser la quittance
+                                    </button>
+                                  )}
+                                  {can('RECEIPT_CANCEL') && (r.status === 'ISSUED' || r.status === 'VALID') && (
+                                    <button
+                                      onClick={() => { setDetail(r) }}
                                       className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-rose-600 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20"
                                     >
                                       <Ban className="h-4 w-4 shrink-0" /> Annuler la quittance
                                     </button>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                                  )}
+                        </RowActionPortal>
                       </Td>
                     </tr>
                   ))}
@@ -333,42 +338,23 @@ const [showFilters, setShowFilters] = useState(false)
 /* ──────────────────── Détail quittance ──────────────────── */
 
 function ReceiptDetailModal({ receipt, onClose }: { receipt: Receipt; onClose: () => void }) {
-  const queryClient = useQueryClient()
-  const toast = useToast()
+  const { can } = useAuth()
   const [cancelOpen, setCancelOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [replaceOpen, setReplaceOpen] = useState(false)
+  const [refundOpen, setRefundOpen] = useState(false)
+  const [refundReference, setRefundReference] = useState('')
 
-  const { data: full } = useQuery({
-    queryKey: ['receipt', receipt.id],
-    queryFn: () => apiGet<Receipt>(`/receipts/${receipt.id}`),
-    initialData: receipt,
-  })
+  const { data } = useReceiptDetail(receipt.id, receipt)
+  const full = data ?? receipt
+  const cancelMutation = useCancelReceipt()
+  const replaceMutation = useReplaceReceipt()
+  const refundMutation = useRefundReceipt()
+  const downloadReceipt = useDownloadReceipt()
 
-  const cancelMutation = useMutation({
-    mutationFn: (reason: string) => apiPut(`/receipts/${receipt.id}/cancel`, { reason }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['receipts'] })
-      queryClient.invalidateQueries({ queryKey: ['receipt-stats'] })
-      onClose()
-      toast.success('Quittance annulée')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
-
-  const replaceMutation = useMutation({
-    mutationFn: () => apiPost(`/receipts/${receipt.id}/replace`, { reason: 'Remplacement demandé' }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['receipts'] })
-      queryClient.invalidateQueries({ queryKey: ['receipt-stats'] })
-      onClose()
-      toast.success('Quittance remplacée — nouvelle quittance créée')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
-
-  const canCancel = !['CANCELLED', 'VOID', 'REFUNDED', 'REPLACED'].includes(full.status)
-  const canReplace = !['CANCELLED', 'VOID', 'REPLACED'].includes(full.status)
+  const canCancel = can('RECEIPT_CANCEL') && !['CANCELLED', 'VOID', 'REFUNDED', 'REPLACED'].includes(full.status)
+  const canReplace = can('RECEIPT_REPLACE') && !['CANCELLED', 'VOID', 'REPLACED'].includes(full.status)
+  const canRefund = can('RECEIPT_REFUND') && ['ISSUED', 'VALID'].includes(full.status)
 
   return (
     <Modal open onClose={onClose} title={`Quittance ${full.receiptNumber}`} wide>
@@ -382,24 +368,14 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: Receipt; onClose: (
           <p className="font-mono text-sm text-brand-700">{full.reference}</p>
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={async () => {
-              try {
-                const blob = await apiGetBlob(`/receipts/${full.id}/pdf`)
-                const url = URL.createObjectURL(blob)
-                const link = document.createElement('a')
-                link.href = url
-                link.download = `quittance-${full.receiptNumber}.pdf`
-                link.click()
-                URL.revokeObjectURL(url)
-              } catch (err) {
-                toast.error(apiErrorMessage(err))
-              }
-            }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-brand-400"
-          >
-            <Download className="h-3.5 w-3.5" /> Télécharger PDF
-          </button>
+          {can('RECEIPT_DOWNLOAD') && (
+            <button
+              onClick={() => downloadReceipt.mutate(full)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-brand-400"
+            >
+              <Download className="h-3.5 w-3.5" /> Télécharger PDF
+            </button>
+          )}
           {full.verificationToken && (
             <a
               href={`/verify/receipt/${full.verificationToken}`}
@@ -422,7 +398,7 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: Receipt; onClose: (
       {/* Informations contribuable */}
       <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Contribuable</h4>
       <dl className="mb-4 divide-y divide-slate-100 dark:divide-slate-700/50">
-        <DetailRow label="Nom" value={full.taxpayerName} />
+        <DetailRow label="Nom" value={full.taxpayerName} link={`/taxpayers/${full.taxpayerId}`} />
         <DetailRow label="NIF" value={full.nif} mono />
         {full.centerCode && <DetailRow label="Centre fiscal" value={full.centerCode} />}
       </dl>
@@ -437,12 +413,33 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: Receipt; onClose: (
       {/* Informations paiement */}
       <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Paiement</h4>
       <dl className="mb-4 divide-y divide-slate-100 dark:divide-slate-700/50">
-        {full.paymentReference && <DetailRow label="Réf. paiement" value={full.paymentReference} mono link="/payments" />}
+        {full.paymentReference && (
+          <DetailRow
+            label="Réf. paiement"
+            value={full.paymentReference}
+            mono
+            link={full.paymentId ? `/payments?debtId=${full.debtId ?? ''}` : `/payments?q=${encodeURIComponent(full.paymentReference)}`}
+          />
+        )}
         <DetailRow label="Date" value={fmtDate(full.paymentDate ?? full.issuedAt)} />
         <DetailRow label="Mode" value={methodLabels[full.method] ?? full.method} />
         {full.transactionReference && <DetailRow label="Réf. transaction" value={full.transactionReference} mono />}
-        {full.debtReference && <DetailRow label="Créance" value={full.debtReference} mono link="/debts" />}
-        {full.declarationReference && <DetailRow label="Déclaration" value={full.declarationReference} mono link="/declarations" />}
+        {full.debtReference && (
+          <DetailRow
+            label="Créance"
+            value={full.debtReference}
+            mono
+            link={full.debtId ? `/debts/${full.debtId}` : `/debts?q=${encodeURIComponent(full.debtReference)}`}
+          />
+        )}
+        {full.declarationReference && (
+          <DetailRow
+            label="Déclaration"
+            value={full.declarationReference}
+            mono
+            link={full.declarationId ? `/declarations/${full.declarationId}` : `/declarations?q=${encodeURIComponent(full.declarationReference)}`}
+          />
+        )}
       </dl>
 
       {/* Métadonnées */}
@@ -469,6 +466,11 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: Receipt; onClose: (
           {canReplace && (
             <Button variant="ghost" size="sm" className="text-amber-600 hover:text-amber-700" onClick={() => setReplaceOpen(true)}>
               <RefreshCw className="h-4 w-4" /> Remplacer
+            </Button>
+          )}
+          {canRefund && (
+            <Button variant="ghost" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => setRefundOpen(true)}>
+              <Banknote className="h-4 w-4" /> Rembourser
             </Button>
           )}
         </div>
@@ -498,7 +500,7 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: Receipt; onClose: (
               <Button
                 variant="ghost"
                 className="text-red-600"
-                onClick={() => cancelMutation.mutate(cancelReason)}
+                onClick={() => cancelMutation.mutate({ id: full.id, reason: cancelReason }, { onSuccess: onClose })}
                 disabled={cancelMutation.isPending || !cancelReason.trim()}
               >
                 {cancelMutation.isPending ? 'Annulation…' : "Confirmer l'annulation"}
@@ -521,10 +523,48 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: Receipt; onClose: (
               <Button
                 variant="ghost"
                 className="text-amber-600"
-                onClick={() => replaceMutation.mutate()}
+                onClick={() => replaceMutation.mutate({ id: full.id, reason: 'Remplacement demandé' }, { onSuccess: onClose })}
                 disabled={replaceMutation.isPending}
               >
                 {replaceMutation.isPending ? 'Remplacement…' : 'Confirmer le remplacement'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal remboursement */}
+      {refundOpen && (
+        <Modal open onClose={() => setRefundOpen(false)} title="Rembourser la quittance">
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              La quittance <strong>{full.reference}</strong> ({fmtMGA(full.amount)}) sera marquée comme <strong>REMBOURSÉE</strong>.
+            </p>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Référence du remboursement
+              </label>
+              <input
+                value={refundReference}
+                onChange={(e) => setRefundReference(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                placeholder="ex : REMB-2026-001 (optionnel)"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setRefundOpen(false)}>Annuler</Button>
+              <Button
+                variant="ghost"
+                className="text-emerald-600"
+                onClick={() =>
+                  refundMutation.mutate(
+                    { id: full.id, refundReference: refundReference.trim() || undefined },
+                    { onSuccess: onClose },
+                  )
+                }
+                disabled={refundMutation.isPending}
+              >
+                {refundMutation.isPending ? 'Remboursement…' : 'Confirmer le remboursement'}
               </Button>
             </div>
           </div>
@@ -540,7 +580,7 @@ function DetailRow({ label, value, mono, link }: { label: string; value: string;
       <dt className="text-sm text-slate-500 dark:text-slate-400">{label}</dt>
       <dd className={`text-right text-sm font-medium text-slate-900 dark:text-slate-100 ${mono ? 'font-mono' : ''}`}>
         {link ? (
-          <span className="text-brand-700 hover:underline cursor-pointer">{value}</span>
+          <Link to={link} className="text-brand-700 hover:underline dark:text-brand-400">{value}</Link>
         ) : value}
       </dd>
     </div>

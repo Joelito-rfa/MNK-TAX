@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, ChevronRight, Copy, Plus, Shield, Users, Key, MoreHorizontal, Trash2, Pencil } from 'lucide-react'
+import { ChevronDown, ChevronRight, Copy, Plus, Shield, Users, Key, Trash2, Pencil } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiDelete, apiPost, apiPut } from '../lib/api'
 import type { Role, Page, User } from '../types'
 import {
@@ -22,6 +22,7 @@ import {
 } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../lib/auth'
+import RowActionPortal from '../components/RowActionPortal'
 
 /* ─────────── Catégories de permissions ─────────── */
 
@@ -56,7 +57,6 @@ export default function Roles() {
   const [duplicateRole, setDuplicateRole] = useState<Role | null>(null)
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('')
-  const [actionMenu, setActionMenu] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -155,38 +155,38 @@ export default function Roles() {
       {/* Statistiques */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card hover style={{ animationDelay: '0s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg dark:bg-blue-900/30 dark:text-blue-400">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
             <Shield className="h-4.5 w-4.5" />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900 transition-transform duration-300 group-hover:-translate-y-px dark:text-white">{stats.system}</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.system}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Rôles système</p>
           </div>
         </Card>
         <Card hover style={{ animationDelay: '0.08s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-600 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg dark:bg-violet-900/30 dark:text-violet-400">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
             <Shield className="h-4.5 w-4.5" />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900 transition-transform duration-300 group-hover:-translate-y-px dark:text-white">{stats.custom}</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.custom}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Rôles personnalisés</p>
           </div>
         </Card>
         <Card hover style={{ animationDelay: '0.16s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg dark:bg-emerald-900/30 dark:text-emerald-400">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
             <Users className="h-4.5 w-4.5" />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900 transition-transform duration-300 group-hover:-translate-y-px dark:text-white">{usersPage?.totalElements ?? '—'}</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{usersPage?.totalElements ?? '—'}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Utilisateurs</p>
           </div>
         </Card>
         <Card hover style={{ animationDelay: '0.24s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600 transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg dark:bg-amber-900/30 dark:text-amber-400">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
             <Key className="h-4.5 w-4.5" />
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900 transition-transform duration-300 group-hover:-translate-y-px dark:text-white">{stats.totalPerms}</p>
+            <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.totalPerms}</p>
             <p className="text-[11px] text-slate-500 dark:text-slate-400">Permissions</p>
           </div>
         </Card>
@@ -230,24 +230,9 @@ export default function Roles() {
                   <Td className="text-sm text-slate-600 dark:text-slate-400">{r.permissions.length}</Td>
                   <Td className="text-sm text-slate-600 dark:text-slate-400">{usersByRole[r.code] ?? 0}</Td>
                   <Td>
-                    <div className="relative">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setActionMenu(actionMenu === r.id ? null : r.id)
-                        }}
-                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                        aria-label="Actions"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                      {actionMenu === r.id && (
-                        <>
-                          <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                          <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                            <div className="space-y-0.5">
+                    <RowActionPortal>
                               <button
-                                onClick={() => { openRole(r); setActionMenu(null) }}
+                                onClick={() => { openRole(r) }}
                                 className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                 disabled={r.system}
                               >
@@ -256,25 +241,21 @@ export default function Roles() {
                               {!r.system && can('ROLE_WRITE') && (
                                 <>
                                   <button
-                                    onClick={() => { openRoleForDuplication(r); setActionMenu(null) }}
+                                    onClick={() => { openRoleForDuplication(r) }}
                                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                   >
                                     <Copy className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Dupliquer
                                   </button>
                                   <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                                   <button
-                                    onClick={() => { if (window.confirm(`Supprimer le rôle ${r.code} ?`)) { deleteRole.mutate(r.id); setActionMenu(null) } }}
+                                    onClick={() => { if (window.confirm(`Supprimer le rôle ${r.code} ?`)) { deleteRole.mutate(r.id) } }}
                                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-rose-600 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20"
                                   >
                                     <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
                                   </button>
                                 </>
                               )}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    </RowActionPortal>
                   </Td>
                 </tr>
               ))}

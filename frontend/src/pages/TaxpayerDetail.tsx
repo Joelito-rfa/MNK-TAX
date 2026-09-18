@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUpRight, Banknote, Download, FilePlus2, FileQuestion, FileSearch, Pause, PhoneCall, Play, Send, Square, Upload, Wallet } from 'lucide-react'
+import { ArrowUpRight, Banknote, Download, FilePlus2, FileQuestion, FileSearch, Pause, Pencil, PhoneCall, Play, Plus, Send, Square, Trash2, Upload, Wallet, Wand2 } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiPatch, apiPost, apiPut, api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { fmtBytes, fmtDate, fmtDateTime, fmtMGA } from '../lib/format'
 import type {
+  Assessment,
   AuditLog,
   CollectionAction,
   Complaint,
@@ -15,6 +16,7 @@ import type {
   MessagePriority,
   Obligation,
   Page,
+  Periodicity,
   Payment,
   Receipt,
   Refund,
@@ -46,13 +48,22 @@ import {
   Th,
 } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { useObligations } from '../features/obligation/api/queries'
+import { useAssessments } from '../features/assessment/api/queries'
+import {
+  useCreateObligation,
+  useDeleteObligation,
+  useGenerateObligations,
+  useUpdateObligation,
+} from '../features/obligation/api/mutations'
 
-type Tab = 'overview' | 'obligations' | 'declarations' | 'debts' | 'payments' | 'receipts' | 'documents' | 'collection' | 'controls' | 'complaints' | 'refunds' | 'messages' | 'history'
+type Tab = 'overview' | 'obligations' | 'declarations' | 'assessments' | 'debts' | 'payments' | 'receipts' | 'documents' | 'collection' | 'controls' | 'complaints' | 'refunds' | 'messages' | 'history'
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Fiche' },
   { id: 'obligations', label: 'Obligations' },
   { id: 'declarations', label: 'Déclarations' },
+  { id: 'assessments', label: 'Impositions' },
   { id: 'debts', label: 'Créances' },
   { id: 'payments', label: 'Paiements' },
   { id: 'receipts', label: 'Quittances' },
@@ -168,8 +179,9 @@ export default function TaxpayerDetail() {
             <Overview taxpayer={taxpayer} />
           </div>
         )}
-        {tab === 'obligations' && <ObligationsTab taxpayerId={taxpayerId} />}
+        {tab === 'obligations' && <ObligationsTab taxpayerId={taxpayerId} taxRegimeId={taxpayer.taxRegimeId} />}
         {tab === 'declarations' && <DeclarationsTab taxpayerId={taxpayerId} closed={taxpayer.status === 'CLOSED'} />}
+        {tab === 'assessments' && <AssessmentsTab taxpayerId={taxpayerId} />}
         {tab === 'debts' && <DebtsTab taxpayerId={taxpayerId} />}
         {tab === 'payments' && <PaymentsTab taxpayerId={taxpayerId} />}
         {tab === 'receipts' && <ReceiptsTab taxpayerId={taxpayerId} />}
@@ -794,16 +806,75 @@ function Overview({ taxpayer }: { taxpayer: TaxpayerDetail }) {
 
 /* ──────────────────────── Obligations Tab ──────────────────────── */
 
-function ObligationsTab({ taxpayerId }: { taxpayerId: number }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['obligations', taxpayerId],
-    queryFn: () => apiGet<Obligation[]>(`/obligations?taxpayerId=${taxpayerId}`),
-  })
-  if (isLoading) return <Spinner />
+const periodicityLabels: Record<string, string> = {
+  MONTHLY: 'Mensuelle',
+  QUARTERLY: 'Trimestrielle',
+  ANNUAL: 'Annuelle',
+  BIENNIAL: 'Bisannuelle',
+}
+
+function ObligationsTab({ taxpayerId, taxRegimeId }: { taxpayerId: number; taxRegimeId: number | null }) {
+  const { can } = useAuth()
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState<Obligation | null>(null)
+  const { data, isLoading } = useObligations(taxpayerId)
+  const generate = useGenerateObligations()
+  const remove = useDeleteObligation()
+  const canWrite = can('TAXPAYER_WRITE')
+  const obligations = data ?? []
+
   return (
     <Card>
-      {!data || data.length === 0 ? (
-        <EmptyState title="Aucune obligation fiscale" />
+      <CardHeader
+        title="Obligations fiscales"
+        subtitle={`${obligations.length} obligation(s) — échéances de déclaration et de paiement suivies`}
+        actions={
+          canWrite && (
+            <div className="flex flex-wrap gap-2">
+              {taxRegimeId && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => generate.mutate({ taxpayerId, regimeId: taxRegimeId })}
+                  disabled={generate.isPending}
+                >
+                  <Wand2 className="h-4 w-4" />
+                  {generate.isPending ? 'Génération…' : 'Générer depuis le régime'}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditing(null)
+                  setFormOpen(true)
+                }}
+              >
+                <Plus className="h-4 w-4" /> Nouvelle obligation
+              </Button>
+            </div>
+          )
+        }
+      />
+      {isLoading ? (
+        <Spinner />
+      ) : obligations.length === 0 ? (
+        <div className="px-5 py-8">
+          <EmptyState
+            title="Aucune obligation fiscale"
+            subtitle={
+              taxRegimeId
+                ? 'Générez-les automatiquement à partir du régime fiscal du contribuable.'
+                : "Le contribuable n'a pas de régime fiscal : créez les obligations manuellement."
+            }
+          />
+          {taxRegimeId && canWrite && (
+            <div className="mt-4 flex justify-center">
+              <Button onClick={() => generate.mutate({ taxpayerId, regimeId: taxRegimeId })} disabled={generate.isPending}>
+                <Wand2 className="h-4 w-4" /> Générer automatiquement
+              </Button>
+            </div>
+          )}
+        </div>
       ) : (
         <Table>
           <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50">
@@ -812,18 +883,262 @@ function ObligationsTab({ taxpayerId }: { taxpayerId: number }) {
               <Th>Périodicité</Th>
               <Th>Début</Th>
               <Th>Fin</Th>
+              <Th>Échéance déclaration</Th>
+              <Th>Échéance paiement</Th>
+              <Th>Déclaration</Th>
+              <Th>Paiement</Th>
               <Th>Statut</Th>
+              <Th></Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-            {data.map((o) => (
+            {obligations.map((o) => (
               <tr key={o.id}>
-                <Td className="font-medium text-slate-900 dark:text-slate-100">{o.taxTypeName}</Td>
-                <Td>{o.periodicity}</Td>
+                <Td className="font-medium text-slate-900 dark:text-slate-100">
+                  <Link to={`/declarations?q=${encodeURIComponent(o.taxTypeCode)}`} className="hover:text-brand-700 hover:underline">
+                    {o.taxTypeName}
+                  </Link>
+                  <span className="block text-xs text-slate-400">{o.taxTypeCode}</span>
+                </Td>
+                <Td>{periodicityLabels[o.periodicity] ?? o.periodicity}</Td>
                 <Td>{fmtDate(o.startDate)}</Td>
                 <Td>{o.endDate ? fmtDate(o.endDate) : '—'}</Td>
+                <Td>{o.declarationDeadline ? fmtDate(o.declarationDeadline) : '—'}</Td>
+                <Td>{o.paymentDeadline ? fmtDate(o.paymentDeadline) : '—'}</Td>
+                <Td>
+                  <StatusBadge value={o.declarationStatus} />
+                </Td>
+                <Td>
+                  <StatusBadge value={o.paymentStatus} />
+                </Td>
                 <Td>
                   <StatusBadge value={o.status} />
+                </Td>
+                <Td>
+                  {canWrite && (
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => {
+                          setEditing(o)
+                          setFormOpen(true)
+                        }}
+                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                        aria-label="Modifier"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm('Supprimer cette obligation fiscale ?')) remove.mutate(o.id)
+                        }}
+                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/20 dark:hover:text-rose-400"
+                        aria-label="Supprimer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+      {formOpen && (
+        <ObligationFormModal
+          taxpayerId={taxpayerId}
+          taxRegimeId={taxRegimeId}
+          obligation={editing}
+          onClose={() => setFormOpen(false)}
+        />
+      )}
+    </Card>
+  )
+}
+
+function ObligationFormModal({
+  taxpayerId,
+  taxRegimeId,
+  obligation,
+  onClose,
+}: {
+  taxpayerId: number
+  taxRegimeId: number | null
+  obligation: Obligation | null
+  onClose: () => void
+}) {
+  const isUpdate = obligation !== null
+  const [taxTypeCode, setTaxTypeCode] = useState(obligation?.taxTypeCode ?? '')
+  const [periodicity, setPeriodicity] = useState<string>(obligation?.periodicity ?? 'ANNUAL')
+  const [startDate, setStartDate] = useState(obligation?.startDate ?? new Date().toISOString().slice(0, 10))
+  const [endDate, setEndDate] = useState(obligation?.endDate ?? '')
+  const [declarationDeadline, setDeclarationDeadline] = useState(obligation?.declarationDeadline ?? '')
+  const [paymentDeadline, setPaymentDeadline] = useState(obligation?.paymentDeadline ?? '')
+  const [expectedAmount, setExpectedAmount] = useState(
+    obligation?.expectedAmount != null ? String(obligation.expectedAmount) : '',
+  )
+  const [status, setStatus] = useState<string>(obligation?.status ?? 'ACTIVE')
+
+  const { data: taxTypes } = useQuery({
+    queryKey: ['tax-types-ref'],
+    queryFn: () => apiGet<TaxType[]>('/tax-types'),
+  })
+  const create = useCreateObligation()
+  const update = useUpdateObligation()
+  const pending = create.isPending || update.isPending
+
+  const submit = (e: { preventDefault: () => void }) => {
+    e.preventDefault()
+    const common = {
+      periodicity: periodicity as Periodicity,
+      endDate: endDate || null,
+      declarationDeadline: declarationDeadline || null,
+      paymentDeadline: paymentDeadline || null,
+      expectedAmount: expectedAmount ? Number(expectedAmount) : null,
+    }
+    if (isUpdate) {
+      update.mutate({ id: obligation.id, body: { ...common, status } }, { onSuccess: onClose })
+      return
+    }
+    create.mutate(
+      {
+        taxpayerId,
+        taxTypeCode,
+        startDate,
+        taxRegimeId,
+        ...common,
+      },
+      { onSuccess: onClose },
+    )
+  }
+
+  return (
+    <Modal open onClose={onClose} title={isUpdate ? 'Modifier l obligation fiscale' : 'Nouvelle obligation fiscale'} wide>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Type d impôt">
+            {isUpdate ? (
+              <Input value={obligation.taxTypeName} disabled />
+            ) : (
+              <Select value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)} required>
+                <option value="">— Sélectionner —</option>
+                {taxTypes?.map((tt) => (
+                  <option key={tt.code} value={tt.code}>
+                    {tt.code} — {tt.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field label="Périodicité">
+            <Select value={periodicity} onChange={(e) => setPeriodicity(e.target.value)}>
+              {Object.entries(periodicityLabels).map(([v, label]) => (
+                <option key={v} value={v}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {!isUpdate && (
+            <Field label="Date de début">
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+            </Field>
+          )}
+          <Field label="Date de fin (optionnel)">
+            <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </Field>
+          <Field label="Échéance déclaration">
+            <Input type="date" value={declarationDeadline} onChange={(e) => setDeclarationDeadline(e.target.value)} />
+          </Field>
+          <Field label="Échéance paiement">
+            <Input type="date" value={paymentDeadline} onChange={(e) => setPaymentDeadline(e.target.value)} />
+          </Field>
+          <Field label="Montant attendu (MGA)">
+            <Input
+              type="number"
+              min="0"
+              step="1"
+              value={expectedAmount}
+              onChange={(e) => setExpectedAmount(e.target.value)}
+              placeholder="Optionnel"
+            />
+          </Field>
+          {isUpdate && (
+            <Field label="Statut">
+              <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="ACTIVE">Active</option>
+                <option value="SUSPENDED">Suspendue</option>
+                <option value="CLOSED">Clôturée</option>
+              </Select>
+            </Field>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button type="submit" disabled={pending || (!isUpdate && !taxTypeCode)}>
+            {pending ? 'Enregistrement…' : isUpdate ? 'Enregistrer' : 'Créer'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+/* ──────────────────────── Impositions Tab ──────────────────────── */
+
+function AssessmentsTab({ taxpayerId }: { taxpayerId: number }) {
+  const { data, isLoading } = useAssessments(`taxpayerId=${taxpayerId}&size=50`)
+  if (isLoading) return <Spinner />
+  const assessments: Assessment[] = data?.content ?? []
+  return (
+    <Card>
+      <CardHeader
+        title="Impositions"
+        subtitle={`${assessments.length} imposition(s) calculée(s) automatiquement`}
+        actions={
+          <Link to={`/assessments?taxpayerId=${taxpayerId}`} className="text-sm font-medium text-brand-700 hover:underline">
+            Voir tout
+          </Link>
+        }
+      />
+      {assessments.length === 0 ? (
+        <EmptyState
+          title="Aucune imposition"
+          subtitle="Les impositions sont générées automatiquement après validation des déclarations."
+        />
+      ) : (
+        <Table>
+          <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50">
+            <tr>
+              <Th>Référence</Th>
+              <Th>Impôt</Th>
+              <Th>Période</Th>
+              <Th>Base imposable</Th>
+              <Th>Impôt net</Th>
+              <Th>Calculé le</Th>
+              <Th>Déclaration</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+            {assessments.map((a) => (
+              <tr key={a.id}>
+                <Td className="font-mono font-medium text-brand-700 dark:text-brand-300">{a.reference}</Td>
+                <Td>
+                  <Badge tone="violet">{a.taxTypeCode}</Badge>
+                </Td>
+                <Td>{a.period}</Td>
+                <Td className="tabular-nums">{fmtMGA(a.taxBase)}</Td>
+                <Td className="font-medium tabular-nums">{fmtMGA(a.netTax)}</Td>
+                <Td>{fmtDate(a.calculationDate)}</Td>
+                <Td>
+                  <Link
+                    to={`/declarations/${a.declarationId}`}
+                    className="font-mono text-xs text-brand-700 hover:underline dark:text-brand-300"
+                  >
+                    {a.declarationReference}
+                  </Link>
                 </Td>
               </tr>
             ))}

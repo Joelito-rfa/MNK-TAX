@@ -117,7 +117,7 @@ export default function CollectionNotices() {
         </div>
         <div className="flex flex-wrap shrink-0 items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
-          <button onClick={() => openNotice()} className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:bg-orange-500 active:scale-[0.98]">
+          <button onClick={() => openNotice()} className="inline-flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:bg-orange-500">
             <Plus className="h-4 w-4" /> {t('collection.modal.notice.new')}
           </button>
         </div>

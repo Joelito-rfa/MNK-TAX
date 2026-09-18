@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDropdownList } from '../lib/useDropdown'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -14,7 +13,6 @@ import {
   FileText,
   Filter,
   List,
-  MoreHorizontal,
   Pencil,
   Plus,
   Search,
@@ -28,6 +26,7 @@ import { useI18n } from '../lib/i18n'
 import { useLocaleFormatters } from '../lib/format'
 import type { Deadline, TaxType } from '../types'
 import { Button, Card, EmptyState, Field, Input, Modal, Select, Badge } from '../components/ui'
+import RowActionPortal from '../components/RowActionPortal'
 import { useToast } from '../components/Toast'
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
@@ -156,7 +155,6 @@ export default function Deadlines() {
   const [createOpen, setCreateOpen] = useState(false)
   const [detailDeadline, setDetailDeadline] = useState<Deadline | null>(null)
   const [editDeadline, setEditDeadline] = useState<Deadline | null>(null)
-  const { openId: showMenuId, close: closeMenu, getTriggerProps, getDropdownProps } = useDropdownList()
 
   const remove = useMutation({
     mutationFn: (id: number) => apiDelete(`/deadlines/${id}`),
@@ -374,10 +372,10 @@ export default function Deadlines() {
           </button>
           <button
             onClick={() => setCreateOpen(true)}
-            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30"
           >
             <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-            <Plus className="relative h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
+            <Plus className="relative h-4 w-4" />
             <span className="relative">Nouvelle echeance</span>
           </button>
         </div>
@@ -555,13 +553,13 @@ export default function Deadlines() {
                 <div
                   key={i}
                   style={{ animationDelay: `${Math.min(i * 0.012, 0.4)}s` }}
-                  className={`min-h-[88px] animate-fade-in border-b border-r border-slate-100 p-1.5 transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:z-10 hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-lg hover:shadow-violet-500/10 hover:bg-slate-50 dark:border-slate-700/50 dark:hover:bg-slate-700/30 dark:hover:shadow-black/30 ${
+                  className={`min-h-[88px] animate-fade-in border-b border-r border-slate-100 p-1.5 transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:z-10 hover:shadow-lg hover:shadow-violet-500/10 hover:bg-slate-50 dark:border-slate-700/50 dark:hover:bg-slate-700/30 dark:hover:shadow-black/30 ${
                     !cell.isCurrentMonth ? 'bg-slate-50/30 dark:bg-slate-800/30' : ''
                   } ${isToday ? 'bg-violet-50/60 dark:bg-violet-900/10' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <span
-                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition-transform duration-200 hover:scale-110 ${
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
                         isToday
                           ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30'
                           : cell.isCurrentMonth
@@ -722,38 +720,27 @@ export default function Deadlines() {
                           </Badge>
                         </td>
                         <td className="whitespace-nowrap px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                          <div className="relative">
-                            <button {...getTriggerProps(d.id)}
-                              className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
+                          <RowActionPortal width={208}>
+                            <button onClick={() => { setDetailDeadline(d) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                              <Target className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les details
                             </button>
-                            {showMenuId === d.id && (
-                              <div {...getDropdownProps()} className="absolute right-0 z-50 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                                <div className="space-y-0.5">
-                                  <button onClick={() => { setDetailDeadline(d); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
-                                    <Target className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les details
-                                  </button>
-                                  <button onClick={() => { setEditDeadline(d); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
-                                    <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
-                                  </button>
-                                  <button onClick={() => { toast.success('Echeance marquee comme terminee'); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
-                                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" /> Marquer terminee
-                                  </button>
-                                  <button onClick={() => { closeMenu(); navigate(`/declarations?taxType=${encodeURIComponent(d.taxTypeCode)}&period=${encodeURIComponent(d.period)}`) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
-                                    <FileText className="h-4 w-4 shrink-0 text-blue-500" /> Creer la declaration
-                                  </button>
-                                  <button onClick={() => { closeMenu(); navigate('/payments/new') }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
-                                    <CalendarClock className="h-4 w-4 shrink-0 text-violet-500" /> Enregistrer paiement
-                                  </button>
-                                  <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                                  <button onClick={() => { if (confirm('Supprimer cette échéance ?')) remove.mutate(d.id); closeMenu() }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
-                                    <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                            <button onClick={() => { setEditDeadline(d) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                              <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
+                            </button>
+                            <button onClick={() => { toast.success('Echeance marquee comme terminee') }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" /> Marquer terminee
+                            </button>
+                            <button onClick={() => { navigate(`/declarations?taxType=${encodeURIComponent(d.taxTypeCode)}&period=${encodeURIComponent(d.period)}`) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                              <FileText className="h-4 w-4 shrink-0 text-blue-500" /> Creer la declaration
+                            </button>
+                            <button onClick={() => { navigate('/payments/new') }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                              <CalendarClock className="h-4 w-4 shrink-0 text-violet-500" /> Enregistrer paiement
+                            </button>
+                            <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                            <button onClick={() => { if (confirm('Supprimer cette échéance ?')) remove.mutate(d.id) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
+                              <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
+                            </button>
+                          </RowActionPortal>
                         </td>
                       </tr>
                     )
@@ -802,7 +789,7 @@ export default function Deadlines() {
                 const days = daysUntil(d.declarationDeadline)
                 const tc = getTaxColor(d.taxTypeCode)
                 return (
-                  <Card key={d.id} hover className="cursor-pointer overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5" onClick={() => setDetailDeadline(d)}>
+                   <Card key={d.id} hover className="cursor-pointer overflow-hidden transition-all duration-200 hover:shadow-lg" onClick={() => setDetailDeadline(d)}>
                     <div className={`border-l-4 ${
                       status === 'overdue' ? 'border-l-red-500' :
                       status === 'soon' ? 'border-l-amber-500' : 'border-l-violet-500'
@@ -889,7 +876,7 @@ export default function Deadlines() {
                       <div className="ml-4 pl-6 pb-1">
                         <button
                           onClick={() => setDetailDeadline(d)}
-                          className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 text-left transition-all duration-200 hover:border-slate-200 hover:shadow-md hover:-translate-y-0.5 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
+                           className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 text-left transition-all duration-200 hover:border-slate-200 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600"
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5">
@@ -962,7 +949,7 @@ function KpiCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
-          <p className={`mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight transition-transform duration-300 group-hover:-translate-y-0.5 ${
+          <p className={`mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight ${
             accent === 'red' ? 'text-red-600 dark:text-red-400' :
             accent === 'green' ? 'text-emerald-600 dark:text-emerald-400' :
             'text-slate-900 dark:text-slate-100'
@@ -970,7 +957,7 @@ function KpiCard({
             {value}
           </p>
         </div>
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg`}>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}>
           {icon}
         </span>
       </div>
@@ -1129,6 +1116,7 @@ function CreateDeadlineModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient()
   const toast = useToast()
   const { t } = useI18n()
+  const [step, setStep] = useState(0)
   const [taxTypeCode, setTaxTypeCode] = useState('')
   const [period, setPeriod] = useState('')
   const [declarationDeadline, setDeclarationDeadline] = useState('')
@@ -1151,40 +1139,62 @@ function CreateDeadlineModal({ onClose }: { onClose: () => void }) {
   })
 
   return (
-    <Modal open onClose={onClose} title={t("deadlines.newDeadline")} subtitle="Date configurable, jamais codee en dur.">
-      <form
-        onSubmit={(e) => { e.preventDefault(); create.mutate() }}
-        className="space-y-4"
-      >
+    <Modal open onClose={onClose} title={`${t("deadlines.newDeadline")} — Étape ${step + 1}/3`} subtitle="Date configurable, jamais codee en dur.">
+      <form onSubmit={(e) => { e.preventDefault(); if (step === 2) create.mutate() }} className="space-y-4">
         {create.isError && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {apiErrorMessage(create.error)}
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{apiErrorMessage(create.error)}</div>
+        )}
+        <div className="flex items-center gap-2">
+          {[0, 1, 2].map((s) => (
+            <div key={s} className={`h-1.5 flex-1 rounded-full transition ${s <= step ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+          ))}
+        </div>
+        {step === 0 && (
+          <div className="space-y-4 animate-fade-in">
+            <Field label="Impot">
+              <Select value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)}>
+                <option value="">Selectionner</option>
+                {(taxTypes ?? []).map((t) => (
+                  <option key={t.code} value={t.code}>{t.code} - {t.name}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Periode (ex : 2026-08)">
+              <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="2026-08" />
+            </Field>
           </div>
         )}
-        <Field label="Impot">
-          <Select value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)}>
-            <option value="">Selectionner</option>
-            {(taxTypes ?? []).map((t) => (
-              <option key={t.code} value={t.code}>{t.code} - {t.name}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Periode (ex : 2026-08)">
-          <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="2026-08" />
-        </Field>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Limite de declaration">
-            <Input type="date" value={declarationDeadline} onChange={(e) => setDeclarationDeadline(e.target.value)} />
-          </Field>
-          <Field label="Limite de paiement">
-            <Input type="date" value={paymentDeadline} onChange={(e) => setPaymentDeadline(e.target.value)} />
-          </Field>
-        </div>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
-          <Button type="submit" disabled={create.isPending || !taxTypeCode || !period || !declarationDeadline || !paymentDeadline}>
-            {create.isPending ? 'Creation...' : 'Creer'}
-          </Button>
+        {step === 1 && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 animate-fade-in">
+            <Field label="Limite de declaration">
+              <Input type="date" value={declarationDeadline} onChange={(e) => setDeclarationDeadline(e.target.value)} />
+            </Field>
+            <Field label="Limite de paiement">
+              <Input type="date" value={paymentDeadline} onChange={(e) => setPaymentDeadline(e.target.value)} />
+            </Field>
+          </div>
+        )}
+        {step === 2 && (
+          <div className="space-y-4 animate-fade-in">
+            <h4 className="text-sm font-semibold">Récapitulatif</h4>
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+              <div className="flex justify-between"><span className="text-slate-500">Impôt</span><span className="font-medium">{taxTypeCode || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Période</span><span className="font-medium">{period || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Déclaration</span><span className="font-medium">{declarationDeadline || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Paiement</span><span className="font-medium">{paymentDeadline || '—'}</span></div>
+            </div>
+          </div>
+        )}
+        <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
+          <div>{step > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>}</div>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            {step < 2 ? (
+              <Button type="button" size="sm" className="bg-brand-600 text-white" disabled={step === 0 ? !taxTypeCode || !period : !declarationDeadline || !paymentDeadline} onClick={() => setStep(step + 1)}>Suivant →</Button>
+            ) : (
+              <Button type="submit" disabled={create.isPending || !taxTypeCode || !period || !declarationDeadline || !paymentDeadline}>{create.isPending ? 'Creation...' : 'Creer'}</Button>
+            )}
+          </div>
         </div>
       </form>
     </Modal>

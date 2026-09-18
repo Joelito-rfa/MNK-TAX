@@ -111,7 +111,7 @@ export function Card({ children, className = '', hover = false, onClick, style }
     <div
       onClick={onClick}
       style={style}
-      className={`card fx-spot animate-fade-in transition-all duration-200 ${hover ? 'hover:-translate-y-0.5 hover:shadow-card-hover' : ''} ${className}`}
+      className={`card card-3d fx-spot animate-fade-in transition-all duration-200 ${hover ? 'hover:-translate-y-0.5 hover:shadow-card-hover' : ''} ${className}`}
     >
       {children}
     </div>
@@ -242,7 +242,7 @@ export const statusTone = (value: string): BadgeTone => {
   const v = value.toLowerCase()
   if (['active', 'paid', 'validated', 'allocated', 'issued', 'submitted', 'accepted', 'approved', 'valid', 'generated'].includes(v)) return 'green'
   if (['suspended', 'rejected', 'void', 'cancelled', 'overdue', 'in_collection', 'failed', 'refunded'].includes(v)) return 'red'
-  if (['draft', 'closed', 'inactive', 'recorded', 'pending', 'review', 'waiting', 'under_review', 'redressement'].includes(v)) return 'amber'
+  if (['draft', 'closed', 'inactive', 'recorded', 'pending', 'review', 'waiting', 'under_review', 'redressement', 'unpaid', 'partially_paid', 'not_submitted'].includes(v)) return 'amber'
   if (['replaced'].includes(v)) return 'amber'
   if (v.includes('collection')) return 'violet'
   if (v.includes('open')) return 'blue'
@@ -275,6 +275,9 @@ export function StatusBadge({ value }: { value: string }) {
     OVERDUE: 'En retard',
     IN_COLLECTION: 'Recouvrement',
     PAID: 'Payée',
+    UNPAID: 'Impayé',
+    PARTIALLY_PAID: 'Partiellement payé',
+    NOT_SUBMITTED: 'Non déclarée',
     RECORDED: 'Enregistré',
     ALLOCATED: 'Alloué',
     ISSUED: 'Émise',

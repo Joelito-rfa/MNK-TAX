@@ -1,12 +1,19 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from '../../../lib/api'
-import type { Page, Refund, TaxpayerSummary } from '../../../types'
+import type { Page, Refund, RefundStats, TaxpayerSummary } from '../../../types'
 import { refundKeys } from './keys'
 
 export function useRefunds(params: string) {
   return useQuery({
     queryKey: refundKeys.list(params),
     queryFn: () => apiGet<Page<Refund>>(`/refunds?${params}`),
+  })
+}
+
+export function useRefundStats() {
+  return useQuery({
+    queryKey: refundKeys.stats,
+    queryFn: () => apiGet<RefundStats>('/refunds/stats'),
   })
 }
 

@@ -344,6 +344,15 @@ export interface PaymentAllocationDto {
   comment: string | null
 }
 
+/** Résultat du contrôle de cohérence d'un paiement (`GET /payments/{id}/reconcile`). */
+export interface PaymentReconcile {
+  consistent: boolean
+  paymentAmount: number
+  allocationSum: number
+  unpaidAmount: number
+  issues: string[]
+}
+
 export interface Payment {
   id: number
   reference: string
@@ -722,15 +731,42 @@ export interface TaxRuleVersion {
   effectiveFrom: string
 }
 
+export type DeclarationObligationStatus = 'NOT_SUBMITTED' | 'SUBMITTED' | 'VALIDATED' | 'REJECTED' | 'CANCELLED'
+export type PaymentObligationStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID' | 'OVERDUE' | 'CANCELLED'
+
 export interface Obligation {
   id: number
   taxpayerId: number
   taxTypeCode: string
   taxTypeName: string
+  taxRegimeId: number | null
+  taxRegimeName: string | null
+  taxCenterId: number | null
+  taxCenterName: string | null
   periodicity: Periodicity
   startDate: string
-  endDate: string
+  endDate: string | null
+  period: string | null
+  declarationDeadline: string | null
+  paymentDeadline: string | null
+  expectedAmount: number | null
+  declarationStatus: DeclarationObligationStatus
+  paymentStatus: PaymentObligationStatus
   status: ObligationStatus
+}
+
+export interface CreateObligationRequest {
+  taxpayerId: number
+  taxTypeCode: string
+  periodicity: Periodicity
+  startDate: string
+  endDate?: string | null
+  taxRegimeId?: number | null
+  taxCenterId?: number | null
+  period?: string | null
+  declarationDeadline?: string | null
+  paymentDeadline?: string | null
+  expectedAmount?: number | null
 }
 
 export interface Deadline {
@@ -842,7 +878,8 @@ export interface Message {
 }
 
 export interface SendMessageRequest {
-  recipientUsername: string
+  recipientUsername?: string
+  recipientId?: number | null
   subject: string
   content: string
   replyToId?: number | null
@@ -1314,6 +1351,33 @@ export interface ReportStats {
   totalReceipts: number
   receiptTotalAmount: number
   validReceipts: number
+}
+
+/** `GET /reports/stats/declarations` */
+export interface DeclarationReportStats {
+  total: number
+  draft: number
+  submitted: number
+  underReview: number
+  validated: number
+  rejected: number
+  paid: number
+  aCorriger: number
+  declaredAmount: number
+  paidAmount: number
+  remaining: number
+}
+
+/** `GET /reports/stats/debts` */
+export interface DebtReportStats {
+  total: number
+  overdue: number
+  inCollection: number
+  paid: number
+  totalAmount: number
+  collected: number
+  outstanding: number
+  collectionRate: number
 }
 
 export interface DeclarationReportStats {

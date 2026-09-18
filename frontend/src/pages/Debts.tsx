@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -14,7 +14,6 @@ import {
   Grid3X3,
   Inbox,
   LayoutList,
-  MoreHorizontal,
   Pause,
   Play,
   Plus,
@@ -27,10 +26,12 @@ import {
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
+import { apiErrorMessage } from '../lib/api'
+import { fetchDebts, useDebtStats, useDebts, useTaxpayerSearch, useTaxTypesRef } from '../features/debt/api/queries'
+import { useCloseDebt, useCreateDebt, useMarkOverdue, useResumeDebt, useSuspendDebt } from '../features/debt/api/mutations'
 import { fmtMGA } from '../lib/format'
 import { downloadCsv } from '../lib/csv'
-import type { DebtStats, MarkOverdueResult, Page, TaxDebt, TaxType, TaxpayerSummary } from '../types'
+import type { TaxpayerSummary } from '../types'
 import {
   Badge,
   Button,
@@ -49,6 +50,7 @@ import {
   Th,
 } from '../components/ui'
 import { useToast } from '../components/Toast'
+import RowActionPortal from '../components/RowActionPortal'
 
 /* ── Constants ── */
 const originLabels: Record<string, string> = {
@@ -145,22 +147,30 @@ export default function Debts() {
   const [priority, setPriority] = useState('')
   const [q, setQ] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [actionMenu, setActionMenu] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
   const [createOpen, setCreateOpen] = useState(false)
+  const [createStep, setCreateStep] = useState(0)
   const [taxpayerSearch, setTaxpayerSearch] = useState('')
-  const queryClient = useQueryClient()
+  const [selectedTaxpayer, setSelectedTaxpayer] = useState<TaxpayerSummary | null>(null)
   const toast = useToast()
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
+    trigger,
     formState: { errors },
   } = useForm<CreateDebtForm>({
     resolver: zodResolver(createDebtSchema),
     defaultValues: { priority: 'NORMAL' },
   })
+  const watchedPrincipal = watch('principal')
+  const watchedPriority = watch('priority')
+  const watchedTaxType = watch('taxTypeCode')
+  const watchedPeriod = watch('period')
+  const watchedObs = watch('observations')
 
   /* ── Query params ── */
   const params = new URLSearchParams({ page: String(page), size: String(size) })
@@ -172,113 +182,24 @@ export default function Debts() {
   if (q) params.set('q', q)
 
   /* ── Queries ── */
-  const { data, isLoading } = useQuery({
-    queryKey: ['debts', page, size, status, taxType, origin, priority, q],
-    queryFn: () => apiGet<Page<TaxDebt>>(`/debts?${params.toString()}`),
-  })
-
-  const { data: stats } = useQuery({
-    queryKey: ['debt-stats'],
-    queryFn: () => apiGet<DebtStats>('/debts/stats'),
-  })
-
-  const { data: taxTypes } = useQuery({
-    queryKey: ['tax-types-ref'],
-    queryFn: () => apiGet<TaxType[]>('/tax-types'),
-  })
-
-  const { data: taxpayerResults } = useQuery({
-    queryKey: ['taxpayer-search', taxpayerSearch],
-    queryFn: () => apiGet<Page<TaxpayerSummary>>(`/taxpayers?q=${encodeURIComponent(taxpayerSearch)}&size=10`),
-    enabled: taxpayerSearch.length >= 2,
-  })
+  const { data, isLoading } = useDebts(params.toString())
+  const { data: stats } = useDebtStats()
+  const { data: taxTypes } = useTaxTypesRef()
+  const { data: taxpayerResults } = useTaxpayerSearch(taxpayerSearch)
 
   /* ── Mutations ── */
-  const createMutation = useMutation({
-    mutationFn: (payload: CreateDebtForm) => {
-      const body: Record<string, unknown> = {
-        taxpayerId: Number(payload.taxpayerId),
-        principal: Number(payload.principal),
-      }
-      if (payload.taxTypeCode) body.taxTypeCode = payload.taxTypeCode
-      if (payload.period) body.period = payload.period
-      if (payload.observations) body.observations = payload.observations
-      if (payload.priority) body.priority = payload.priority
-      return apiPost('/debts', body)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['debts'] })
-      queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      setCreateOpen(false)
-      reset()
-      setTaxpayerSearch('')
-      toast.success('Créance créée avec succès')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
-  const { mutate: markOverdue, isPending: markOverduePending } = useMutation({
-    mutationFn: () => {
-      const p = new URLSearchParams()
-      if (taxType) p.set('taxTypeCode', taxType)
-      if (period) p.set('period', period)
-      if (q) p.set('q', q)
-      // Add other filters as needed
-      return apiPost(`/debts/mark-overdue?${p.toString()}`) as Promise<MarkOverdueResult>
-    },
-    onSuccess: (result: MarkOverdueResult) => {
-      queryClient.invalidateQueries({ queryKey: ['debts'] })
-      queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-      if (result.updated > 0) {
-        toast.success(`${result.updated} créance(s) mise(s) en retard`)
-      } else {
-        toast.info('Aucune créance en retard détectée')
-      }
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
-
-  const suspendMutation = useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
-      apiPatch(`/debts/${id}/suspend`, reason ? { reason } : {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['debts'] })
-      queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
-      setActionMenu(null)
-      toast.success('Créance suspendue')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
-
-  const resumeMutation = useMutation({
-    mutationFn: (id: number) => apiPatch(`/debts/${id}/resume`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['debts'] })
-      queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
-      setActionMenu(null)
-      toast.success('Créance réactivée')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
-
-  const closeMutation = useMutation({
-    mutationFn: (id: number) => apiPatch(`/debts/${id}/close`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['debts'] })
-      queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
-      setActionMenu(null)
-      toast.success('Créance clôturée')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
+  const createMutation = useCreateDebt()
+  const { mutate: markOverdue, isPending: markOverduePending } = useMarkOverdue()
+  const suspendMutation = useSuspendDebt()
+  const resumeMutation = useResumeDebt()
+  const closeMutation = useCloseDebt()
 
   const exportCsv = useMutation({
     mutationFn: async () => {
       const p = new URLSearchParams(params)
       p.delete('page')
       p.delete('size')
-      const rows = await apiGet<Page<TaxDebt>>(`/debts?${p.toString()}&size=9999`)
+      const rows = await fetchDebts(`${p.toString()}&size=9999`)
       downloadCsv(
         `creances_${new Date().toISOString().slice(0, 10)}.csv`,
         ['Référence', 'NIF', 'Contribuable', 'Impôt', 'Période', 'Origine', 'Priorité', 'Total', 'Payé', 'Solde', 'Jours retard', 'Statut'],
@@ -363,15 +284,15 @@ export default function Debts() {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => markOverdue()}
+              onClick={() => markOverdue({ taxTypeCode: taxType, period, q })}
               disabled={markOverduePending}
               className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-900/20"
             >
               <AlertTriangle className="h-4 w-4" /> Détecter les impayés
             </Button>
             <Button
-              onClick={() => { reset(); setCreateOpen(true) }}
-              className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
+              onClick={() => { reset(); setSelectedTaxpayer(null); setTaxpayerSearch(''); setCreateStep(0); setCreateOpen(true) }}
+              className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 transition-all duration-200"
             >
               <Plus className="h-4 w-4" /> Ajouter une créance
             </Button>
@@ -712,64 +633,43 @@ export default function Debts() {
 
                       {/* Actions */}
                       <Td>
-                        <div className="relative">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setActionMenu(actionMenu === d.id ? null : d.id)
-                            }}
-                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                            aria-label="Actions"
+                        <RowActionPortal>
+                          <Link
+                            to={`/debts/${d.id}`}
+                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                          {actionMenu === d.id && (
+                            <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les détails
+                          </Link>
+                          {d.status === 'SUSPENDED' && (
+                            <button
+                              onClick={() => resumeMutation.mutate(d.id)}
+                              className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                            >
+                              <Play className="h-4 w-4 shrink-0" /> Réactiver
+                            </button>
+                          )}
+                          {d.status !== 'PAID' && d.status !== 'CANCELLED' && d.status !== 'SUSPENDED' && d.status !== 'CLOSED' && (
+                            <button
+                              onClick={() => suspendMutation.mutate({ id: d.id })}
+                              className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                            >
+                              <Pause className="h-4 w-4 shrink-0" /> Suspendre
+                            </button>
+                          )}
+                          {d.status !== 'PAID' && d.status !== 'CANCELLED' && d.status !== 'CLOSED' && (
                             <>
-                              <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                              <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                                <div className="space-y-0.5">
-                                <Link
-                                  to={`/debts/${d.id}`}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                  onClick={() => setActionMenu(null)}
-                                >
-                                  <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les détails
-                                </Link>
-                                {d.status === 'SUSPENDED' && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); resumeMutation.mutate(d.id) }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
-                                  >
-                                    <Play className="h-4 w-4 shrink-0" /> Réactiver
-                                  </button>
-                                )}
-                                {d.status !== 'PAID' && d.status !== 'CANCELLED' && d.status !== 'SUSPENDED' && d.status !== 'CLOSED' && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); suspendMutation.mutate({ id: d.id }) }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
-                                  >
-                                    <Pause className="h-4 w-4 shrink-0" /> Suspendre
-                                  </button>
-                                )}
-                                {d.status !== 'PAID' && d.status !== 'CANCELLED' && d.status !== 'CLOSED' && (
-                                  <>
-                                    <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        if (confirm('Clôturer cette créance ?')) closeMutation.mutate(d.id)
-                                      }}
-                                      className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                                    >
-                                      <Check className="h-4 w-4 shrink-0" /> Clôturer
-                                    </button>
-                                  </>
-                                )}
-                                </div>
-                              </div>
+                              <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                              <button
+                                onClick={() => {
+                                  if (confirm('Clôturer cette créance ?')) closeMutation.mutate(d.id)
+                                }}
+                                className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                              >
+                                <Check className="h-4 w-4 shrink-0" /> Clôturer
+                              </button>
                             </>
                           )}
-                        </div>
+                        </RowActionPortal>
                       </Td>
                     </tr>
                   )
@@ -855,64 +755,43 @@ export default function Debts() {
                       )}
                     </div>
                     <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-end">
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setActionMenu(actionMenu === d.id ? null : d.id)
-                          }}
-                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                          aria-label="Actions"
+                      <RowActionPortal>
+                        <Link
+                          to={`/debts/${d.id}`}
+                          className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                        {actionMenu === d.id && (
+                          <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les détails
+                        </Link>
+                        {d.status === 'SUSPENDED' && (
+                          <button
+                            onClick={() => resumeMutation.mutate(d.id)}
+                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                          >
+                            <Play className="h-4 w-4 shrink-0" /> Réactiver
+                          </button>
+                        )}
+                        {d.status !== 'PAID' && d.status !== 'CANCELLED' && d.status !== 'SUSPENDED' && d.status !== 'CLOSED' && (
+                          <button
+                            onClick={() => suspendMutation.mutate({ id: d.id })}
+                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
+                          >
+                            <Pause className="h-4 w-4 shrink-0" /> Suspendre
+                          </button>
+                        )}
+                        {d.status !== 'PAID' && d.status !== 'CANCELLED' && d.status !== 'CLOSED' && (
                           <>
-                            <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                            <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                              <div className="space-y-0.5">
-                              <Link
-                                to={`/debts/${d.id}`}
-                                className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                onClick={() => setActionMenu(null)}
-                              >
-                                <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les détails
-                              </Link>
-                              {d.status === 'SUSPENDED' && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); resumeMutation.mutate(d.id) }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
-                                >
-                                  <Play className="h-4 w-4 shrink-0" /> Réactiver
-                                </button>
-                              )}
-                              {d.status !== 'PAID' && d.status !== 'CANCELLED' && d.status !== 'SUSPENDED' && d.status !== 'CLOSED' && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); suspendMutation.mutate({ id: d.id }) }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20"
-                                >
-                                  <Pause className="h-4 w-4 shrink-0" /> Suspendre
-                                </button>
-                              )}
-                              {d.status !== 'PAID' && d.status !== 'CANCELLED' && d.status !== 'CLOSED' && (
-                                <>
-                                  <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      if (confirm('Clôturer cette créance ?')) closeMutation.mutate(d.id)
-                                    }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                                  >
-                                    <Check className="h-4 w-4 shrink-0" /> Clôturer
-                                  </button>
-                                </>
-                              )}
-                              </div>
-                            </div>
+                            <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                            <button
+                              onClick={() => {
+                                if (confirm('Clôturer cette créance ?')) closeMutation.mutate(d.id)
+                              }}
+                              className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                            >
+                              <Check className="h-4 w-4 shrink-0" /> Clôturer
+                            </button>
                           </>
                         )}
-                      </div>
+                      </RowActionPortal>
                     </div>
                   </div>
                 </Card>
@@ -922,16 +801,26 @@ export default function Debts() {
         )}
       </Card>
 
-      {/* ── Create Modal ── */}
+      {/* ── Create Modal : wizard 3 étapes ── */}
       <Modal
         open={createOpen}
-        onClose={() => { setCreateOpen(false); setTaxpayerSearch('') }}
-        title="Ajouter une créance"
-        subtitle="Créer une nouvelle créance fiscale manuellement."
+        onClose={() => { setCreateOpen(false); setCreateStep(0); setTaxpayerSearch(''); setSelectedTaxpayer(null) }}
+        title={`Étape ${createStep + 1}/3 — Ajouter une créance`}
+        subtitle={createStep === 0 ? 'Sélection du contribuable' : createStep === 1 ? 'Détails fiscaux et montant' : 'Vérification et validation'}
         wide
       >
         <form
-          onSubmit={handleSubmit((v) => createMutation.mutate(v))}
+          onSubmit={handleSubmit((v) =>
+            createMutation.mutate(v, {
+              onSuccess: () => {
+                setCreateOpen(false)
+                setCreateStep(0)
+                reset()
+                setTaxpayerSearch('')
+                setSelectedTaxpayer(null)
+              },
+            }),
+          )}
           className="space-y-4"
           noValidate
         >
@@ -940,80 +829,156 @@ export default function Debts() {
               {apiErrorMessage(createMutation.error)}
             </div>
           )}
+          <div className="flex items-center gap-2">
+            {[0, 1, 2].map((s) => (
+              <div key={s} className={`h-1.5 flex-1 rounded-full transition ${s <= createStep ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+            ))}
+          </div>
+          <div className="flex justify-between text-[11px] font-medium uppercase tracking-wide">
+            {['Contribuable', 'Montant', 'Récapitulatif'].map((label, i) => (
+              <span key={label} className={i <= createStep ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
+            ))}
+          </div>
 
-          <Field label="Contribuable (NIF ou nom)">
-            <input
-              type="text"
-              placeholder="Rechercher par NIF ou nom..."
-              value={taxpayerSearch}
-              onChange={(e) => setTaxpayerSearch(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-            />
-            {taxpayerResults && taxpayerResults.content.length > 0 && (
-              <div className="mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
-                {taxpayerResults.content.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => {
-                      register('taxpayerId').onChange({ target: { value: String(t.id), name: 'taxpayerId' } })
-                      setTaxpayerSearch(`${t.nif} — ${t.name}`)
-                    }}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700"
-                  >
-                    <CreditCard className="h-4 w-4 shrink-0 text-slate-400" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{t.name}</p>
-                      <p className="font-mono text-xs text-violet-600 dark:text-violet-400">{t.nif}</p>
+          {createStep === 0 && (
+            <div className="space-y-4 animate-fade-in">
+              <Field label="Contribuable (NIF ou nom)">
+                <input
+                  type="text"
+                  placeholder="Rechercher par NIF ou nom... (min 2 caractères)"
+                  value={taxpayerSearch}
+                  onChange={(e) => setTaxpayerSearch(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                />
+                {taxpayerResults && taxpayerResults.content.length > 0 && !selectedTaxpayer && (
+                  <div className="mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
+                    {taxpayerResults.content.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setValue('taxpayerId', String(t.id), { shouldValidate: true })
+                          setSelectedTaxpayer(t)
+                          setTaxpayerSearch(`${t.nif} — ${t.name}`)
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700"
+                      >
+                        <CreditCard className="h-4 w-4 shrink-0 text-slate-400" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{t.name}</p>
+                          <p className="font-mono text-xs text-violet-600 dark:text-violet-400">{t.nif}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input type="hidden" {...register('taxpayerId')} />
+                {errors.taxpayerId && <p className="mt-1 text-xs text-rose-600">{errors.taxpayerId.message}</p>}
+              </Field>
+              {selectedTaxpayer && (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-800/50 dark:bg-violet-900/20">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
+                      <CreditCard className="h-5 w-5" />
                     </div>
+                    <div>
+                      <p className="font-medium text-slate-900 dark:text-slate-100">{selectedTaxpayer.name}</p>
+                      <p className="font-mono text-xs text-violet-600 dark:text-violet-400">NIF : {selectedTaxpayer.nif}</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => { setSelectedTaxpayer(null); setValue('taxpayerId', ''); setTaxpayerSearch('') }} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600">
+                    <X className="h-4 w-4" />
                   </button>
-                ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {createStep === 1 && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Type d'impôt">
+                  <Select {...register('taxTypeCode')}>
+                    <option value="">— Sélectionner —</option>
+                    {taxTypes?.map((tt) => (
+                      <option key={tt.code} value={tt.code}>{tt.code} — {tt.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Période">
+                  <Input placeholder="ex : 2024" {...register('period')} />
+                </Field>
               </div>
-            )}
-            <input type="hidden" {...register('taxpayerId')} />
-            {errors.taxpayerId && <p className="mt-1 text-xs text-rose-600">{errors.taxpayerId.message}</p>}
-          </Field>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Montant principal (MGA)">
+                  <Input type="number" step="0.01" placeholder="0.00" {...register('principal')} />
+                  {errors.principal && <p className="mt-1 text-xs text-rose-600">{errors.principal.message}</p>}
+                  {watchedPrincipal && Number(watchedPrincipal) > 0 && (
+                    <p className="mt-1 text-xs font-medium text-violet-600 dark:text-violet-400">{fmtMGA(Number(watchedPrincipal))}</p>
+                  )}
+                </Field>
+                <Field label="Priorité">
+                  <Select {...register('priority')}>
+                    <option value="LOW">Basse</option>
+                    <option value="NORMAL">Normale</option>
+                    <option value="HIGH">Haute</option>
+                    <option value="URGENT">Urgente</option>
+                  </Select>
+                </Field>
+              </div>
+              <Field label="Observations (facultatif)">
+                <Input placeholder="Notes ou observations..." {...register('observations')} />
+              </Field>
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Type d'impôt">
-              <Select {...register('taxTypeCode')}>
-                <option value="">— Sélectionner —</option>
-                {taxTypes?.map((tt) => (
-                  <option key={tt.code} value={tt.code}>{tt.code} — {tt.name}</option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Période">
-              <Input placeholder="ex : 2024" {...register('period')} />
-            </Field>
-          </div>
+          {createStep === 2 && (
+            <div className="space-y-4 animate-fade-in">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+                <div className="flex justify-between"><span className="text-slate-500">Contribuable</span><span className="font-medium text-slate-900 dark:text-slate-100">{selectedTaxpayer ? `${selectedTaxpayer.name} (${selectedTaxpayer.nif})` : taxpayerSearch || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Impôt</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedTaxType || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Période</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedPeriod || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Montant</span><strong className="text-violet-600 dark:text-violet-400">{watchedPrincipal ? fmtMGA(Number(watchedPrincipal)) : '—'}</strong></div>
+                <div className="flex justify-between"><span className="text-slate-500">Priorité</span><span className="font-medium text-slate-900 dark:text-slate-100">{(watchedPriority && priorityLabels[watchedPriority]) || watchedPriority || '—'}</span></div>
+                {watchedObs && <div className="flex justify-between gap-4"><span className="text-slate-500">Observations</span><span className="text-right font-medium text-slate-900 dark:text-slate-100">{watchedObs}</span></div>}
+              </div>
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field label="Montant principal (MGA)">
-              <Input type="number" step="0.01" placeholder="0.00" {...register('principal')} />
-              {errors.principal && <p className="mt-1 text-xs text-rose-600">{errors.principal.message}</p>}
-            </Field>
-            <Field label="Priorité">
-              <Select {...register('priority')}>
-                <option value="LOW">Basse</option>
-                <option value="NORMAL">Normale</option>
-                <option value="HIGH">Haute</option>
-                <option value="URGENT">Urgente</option>
-              </Select>
-            </Field>
-          </div>
-
-          <Field label="Observations (facultatif)">
-            <Input placeholder="Notes ou observations..." {...register('observations')} />
-          </Field>
-
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="ghost" type="button" onClick={() => { setCreateOpen(false); setTaxpayerSearch('') }}>
-              Annuler
-            </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? 'Création...' : 'Créer la créance'}
-            </Button>
+          <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
+            <div>
+              {createStep > 0 && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setCreateStep(createStep - 1)}>← Précédent</Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" type="button" onClick={() => { setCreateOpen(false); setCreateStep(0); setTaxpayerSearch(''); setSelectedTaxpayer(null) }}>
+                Annuler
+              </Button>
+              {createStep < 2 ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  className="bg-brand-600 text-white"
+                  onClick={async () => {
+                    if (createStep === 0) {
+                      const ok = await trigger('taxpayerId')
+                      if (ok) setCreateStep(1)
+                    } else {
+                      const ok = await trigger('principal')
+                      if (ok) setCreateStep(2)
+                    }
+                  }}
+                >
+                  Suivant →
+                </Button>
+              ) : (
+                <Button type="submit" size="sm" disabled={createMutation.isPending} className="bg-brand-600 text-white shadow-lg shadow-violet-500/25">
+                  {createMutation.isPending ? 'Création...' : 'Créer la créance'}
+                </Button>
+              )}
+            </div>
           </div>
         </form>
       </Modal>

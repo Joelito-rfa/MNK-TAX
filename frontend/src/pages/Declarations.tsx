@@ -1,14 +1,16 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
   ArrowDown,
   ArrowUp,
   Calendar,
+  CalendarDays,
   Check,
   CheckCircle2,
   ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Clock,
   Copy,
@@ -18,7 +20,6 @@ import {
   Grid3X3,
   Inbox,
   LayoutList,
-  MoreHorizontal,
   Pencil,
   Plus,
   RefreshCw,
@@ -29,22 +30,25 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
+import { apiErrorMessage } from '../lib/api'
+import { declarationKeys } from '../features/declaration/api/keys'
 import {
-  apiDelete,
-  apiErrorMessage,
-  apiGet,
-  apiPost,
-  apiPut,
-} from '../lib/api'
+  fetchDeclarations,
+  useDeclarationCalendar,
+  useDeclarationDetail,
+  useDeclarationHistory,
+  useDeclarations,
+  useDeclarationStats,
+  useTaxpayersRef,
+  useTaxTypesRef,
+} from '../features/declaration/api/queries'
+import {
+  useCreateDeclaration,
+  useDeclarationAction,
+  useUpdateDeclaration,
+} from '../features/declaration/api/mutations'
 import { fmtDate, fmtDateTime, fmtNumber } from '../lib/format'
-import type {
-  Declaration,
-  DeclarationHistoryEntry,
-  DeclarationStatistics,
-  Page,
-  TaxType,
-  TaxpayerSummary,
-} from '../types'
+import type { CalendarEntry, Declaration, TaxType } from '../types'
 import {
   Badge,
   Button,
@@ -57,11 +61,13 @@ import {
   Pagination,
   SearchInput,
   Select,
+  Spinner,
   Table,
   Td,
   Th,
 } from '../components/ui'
 import { useToast } from '../components/Toast'
+import RowActionPortal from '../components/RowActionPortal'
 
 /* ── Constants ── */
 const statusLabels: Record<string, string> = {
@@ -117,7 +123,6 @@ export default function Declarations() {
   const navigate = useNavigate()
   const toast = useToast()
   const queryClient = useQueryClient()
-
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(20)
   const [q, setQ] = useState('')
@@ -132,13 +137,12 @@ export default function Declarations() {
   const [presetTaxTypeCode, setPresetTaxTypeCode] = useState('')
   const [presetPeriod, setPresetPeriod] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
-  const [actionMenu, setActionMenu] = useState<number | null>(null)
   const [confirmModal, setConfirmModal] = useState<{ type: string; id: number } | null>(null)
   const [rejectMotif, setRejectMotif] = useState('')
   const [correctionMotif, setCorrectionMotif] = useState('')
   const [validateComment, setValidateComment] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'cards' | 'calendar'>('list')
 
   /* ── Ouverture pré-remplie depuis le calendrier (?new=1&taxType&period) ── */
   useEffect(() => {
@@ -161,43 +165,19 @@ export default function Declarations() {
   params.set('sort', `${sortField},${sortDir}`)
 
   /* ── Queries ── */
-  const { data, isLoading } = useQuery({
-    queryKey: ['declarations', params.toString()],
-    queryFn: () => apiGet<Page<Declaration>>(`/declarations?${params.toString()}`),
-  })
-
-  const { data: stats } = useQuery({
-    queryKey: ['declaration-stats'],
-    queryFn: () => apiGet<DeclarationStatistics>('/declarations/statistics'),
-  })
-
-  const { data: taxTypes } = useQuery({
-    queryKey: ['tax-types'],
-    queryFn: () => apiGet<TaxType[]>('/tax-types'),
-  })
+  const { data, isLoading } = useDeclarations(params.toString())
+  const { data: stats } = useDeclarationStats()
+  const { data: taxTypes } = useTaxTypesRef()
 
   /* ── Mutations ── */
-  const doAction = useMutation({
-    mutationFn: async ({ id, op, body }: { id: number; op: string; body?: unknown }) => {
-      if (op === 'delete') return apiDelete(`/declarations/${id}`)
-      if (op === 'rectificative') return apiPost(`/declarations/${id}/rectificative`, body ?? {})
-      return apiPut(`/declarations/${id}/${op}`, body ?? {})
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['declarations'] })
-      queryClient.invalidateQueries({ queryKey: ['declaration-stats'] })
-      setConfirmModal(null)
-      toast.success('Action effectuée')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
+  const doAction = useDeclarationAction()
 
   const exportMutation = useMutation({
     mutationFn: async () => {
       const p = new URLSearchParams(params)
       p.delete('page')
       p.delete('size')
-      const rows = await apiGet<Page<Declaration>>(`/declarations?${p.toString()}&size=9999`)
+      const rows = await fetchDeclarations(`${p.toString()}&size=9999`)
       const csv = [
         'Référence,NIF,Contribuable,Impôt,Période,Assiette,Déclaré,Calculé,Statut',
         ...rows.content.map(
@@ -267,26 +247,26 @@ export default function Declarations() {
 
   function getActions(d: Declaration) {
     const actions: { label: string; icon: React.ReactNode; action: () => void; danger?: boolean }[] = []
-    actions.push({ label: 'Voir les détails', icon: <Eye className="h-4 w-4" />, action: () => { navigate(`/declarations/${d.id}`); setActionMenu(null) } })
+    actions.push({ label: 'Voir les détails', icon: <Eye className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
     if (d.status === 'DRAFT') {
-      actions.push({ label: 'Modifier', icon: <Pencil className="h-4 w-4" />, action: () => { navigate(`/declarations/${d.id}`); setActionMenu(null) } })
-      actions.push({ label: 'Soumettre', icon: <Send className="h-4 w-4" />, action: () => { doAction.mutate({ id: d.id, op: 'submit' }); setActionMenu(null) } })
-      actions.push({ label: 'Supprimer', icon: <Trash2 className="h-4 w-4" />, action: () => { setConfirmModal({ type: 'cancel', id: d.id }); setActionMenu(null) }, danger: true })
+      actions.push({ label: 'Modifier', icon: <Pencil className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
+      actions.push({ label: 'Soumettre', icon: <Send className="h-4 w-4" />, action: () => doAction.mutate({ id: d.id, op: 'submit' }) })
+      actions.push({ label: 'Supprimer', icon: <Trash2 className="h-4 w-4" />, action: () => setConfirmModal({ type: 'cancel', id: d.id }), danger: true })
     }
     if (d.status === 'SUBMITTED') {
-      actions.push({ label: 'Contrôler', icon: <ShieldCheck className="h-4 w-4" />, action: () => { doAction.mutate({ id: d.id, op: 'review' }); setActionMenu(null) } })
-      actions.push({ label: 'Rejeter', icon: <XCircle className="h-4 w-4" />, action: () => { setConfirmModal({ type: 'reject', id: d.id }); setActionMenu(null) }, danger: true })
+      actions.push({ label: 'Contrôler', icon: <ShieldCheck className="h-4 w-4" />, action: () => doAction.mutate({ id: d.id, op: 'review' }) })
+      actions.push({ label: 'Rejeter', icon: <XCircle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'reject', id: d.id }), danger: true })
     }
     if (d.status === 'UNDER_REVIEW') {
-      actions.push({ label: 'Valider', icon: <CheckCircle2 className="h-4 w-4" />, action: () => { setConfirmModal({ type: 'validate', id: d.id }); setActionMenu(null) } })
-      actions.push({ label: 'Rejeter', icon: <XCircle className="h-4 w-4" />, action: () => { setConfirmModal({ type: 'reject', id: d.id }); setActionMenu(null) }, danger: true })
-      actions.push({ label: 'Demander correction', icon: <AlertTriangle className="h-4 w-4" />, action: () => { setConfirmModal({ type: 'correction', id: d.id }); setActionMenu(null) } })
+      actions.push({ label: 'Valider', icon: <CheckCircle2 className="h-4 w-4" />, action: () => setConfirmModal({ type: 'validate', id: d.id }) })
+      actions.push({ label: 'Rejeter', icon: <XCircle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'reject', id: d.id }), danger: true })
+      actions.push({ label: 'Demander correction', icon: <AlertTriangle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'correction', id: d.id }) })
     }
     if (['VALIDATED', 'LIQUIDEE', 'PAYEE'].includes(d.status)) {
-      actions.push({ label: 'Rectificative', icon: <Copy className="h-4 w-4" />, action: () => { setConfirmModal({ type: 'rectificative', id: d.id }); setActionMenu(null) } })
+      actions.push({ label: 'Rectificative', icon: <Copy className="h-4 w-4" />, action: () => setConfirmModal({ type: 'rectificative', id: d.id }) })
     }
     if (d.status === 'A_CORRIGER') {
-      actions.push({ label: 'Modifier', icon: <Pencil className="h-4 w-4" />, action: () => { navigate(`/declarations/${d.id}`); setActionMenu(null) } })
+      actions.push({ label: 'Modifier', icon: <Pencil className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
     }
     return actions
   }
@@ -326,7 +306,7 @@ export default function Declarations() {
         subtitle="Suivi, contrôle et validation des déclarations fiscales."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['declarations'] })}>
+            <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: declarationKeys.all })}>
               <RefreshCw className="h-4 w-4" /> Actualiser
             </Button>
             <Button variant="secondary" size="sm" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
@@ -334,7 +314,7 @@ export default function Declarations() {
             </Button>
             <Button
               onClick={() => setCreateOpen(true)}
-              className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
+              className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 transition-all duration-200"
             >
               <Plus className="h-4 w-4" /> Nouvelle déclaration
             </Button>
@@ -496,6 +476,17 @@ export default function Declarations() {
             >
               <Grid3X3 className="h-4 w-4" />
             </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`rounded-md p-1.5 transition ${
+                viewMode === 'calendar'
+                  ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
+              aria-label="Vue calendrier"
+            >
+              <CalendarDays className="h-4 w-4" />
+            </button>
           </div>
         </div>
 
@@ -518,6 +509,8 @@ export default function Declarations() {
               </Button>
             </div>
           </div>
+        ) : viewMode === 'calendar' ? (
+          <DeclarationsCalendar />
         ) : viewMode === 'list' ? (
           <>
             <Table>
@@ -619,41 +612,19 @@ export default function Declarations() {
 
                     {/* Actions */}
                     <Td>
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setActionMenu(actionMenu === d.id ? null : d.id)
-                          }}
-                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                          aria-label="Actions"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                        {actionMenu === d.id && (
-                          <>
-                            <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                            <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                              <div className="space-y-0.5">
-                              {getActions(d).map((a, i) => (
-                                <button
-                                  key={i}
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    a.action()
-                                  }}
-                                  className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 ${
-                                    a.danger ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-200'
-                                  }`}
-                                >
-                                  <span className="shrink-0">{a.icon}</span> {a.label}
-                                </button>
-                              ))}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                      <RowActionPortal>
+                        {getActions(d).map((a, i) => (
+                          <button
+                            key={i}
+                            onClick={() => a.action()}
+                            className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                              a.danger ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-200'
+                            }`}
+                          >
+                            <span className="shrink-0">{a.icon}</span> {a.label}
+                          </button>
+                        ))}
+                      </RowActionPortal>
                     </Td>
                   </tr>
                 ))}
@@ -711,39 +682,19 @@ export default function Declarations() {
                     </div>
                   </div>
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-end">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setActionMenu(actionMenu === d.id ? null : d.id)
-                      }}
-                      className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                      aria-label="Actions"
-                    >
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
-                    {actionMenu === d.id && (
-                      <>
-                        <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                        <div className="absolute right-0 top-full z-40 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                          <div className="space-y-0.5">
-                          {getActions(d).map((a, i) => (
-                            <button
-                              key={i}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                a.action()
-                              }}
-                              className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 ${
-                                a.danger ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-200'
-                              }`}
-                            >
-                              <span className="shrink-0">{a.icon}</span> {a.label}
-                            </button>
-                          ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
+                    <RowActionPortal>
+                      {getActions(d).map((a, i) => (
+                        <button
+                          key={i}
+                          onClick={() => a.action()}
+                          className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 ${
+                            a.danger ? 'text-rose-600 dark:text-rose-400' : 'text-slate-700 dark:text-slate-200'
+                          }`}
+                        >
+                          <span className="shrink-0">{a.icon}</span> {a.label}
+                        </button>
+                      ))}
+                    </RowActionPortal>
                   </div>
                 </div>
               </Card>
@@ -767,16 +718,17 @@ export default function Declarations() {
         <ConfirmActionModal
           type={confirmModal.type}
           onConfirm={() => {
+            const done = { onSuccess: () => setConfirmModal(null) }
             if (confirmModal.type === 'validate') {
-              doAction.mutate({ id: confirmModal.id, op: 'validate', body: { comment: validateComment } })
+              doAction.mutate({ id: confirmModal.id, op: 'validate', body: { comment: validateComment } }, done)
             } else if (confirmModal.type === 'reject') {
-              doAction.mutate({ id: confirmModal.id, op: 'reject', body: { motif: rejectMotif } })
+              doAction.mutate({ id: confirmModal.id, op: 'reject', body: { motif: rejectMotif } }, done)
             } else if (confirmModal.type === 'correction') {
-              doAction.mutate({ id: confirmModal.id, op: 'correction', body: { motif: correctionMotif } })
+              doAction.mutate({ id: confirmModal.id, op: 'correction', body: { motif: correctionMotif } }, done)
             } else if (confirmModal.type === 'cancel') {
-              doAction.mutate({ id: confirmModal.id, op: 'cancel' })
+              doAction.mutate({ id: confirmModal.id, op: 'cancel' }, done)
             } else if (confirmModal.type === 'rectificative') {
-              doAction.mutate({ id: confirmModal.id, op: 'rectificative', body: {} })
+              doAction.mutate({ id: confirmModal.id, op: 'rectificative', body: {} }, done)
             }
           }}
           onClose={() => setConfirmModal(null)}
@@ -797,16 +749,8 @@ export default function Declarations() {
 /* ════════════════════════════════════════════════════════════ */
 
 function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
-  const { data: detail, isLoading } = useQuery({
-    queryKey: ['declarations', id],
-    queryFn: () => apiGet<Declaration>(`/declarations/${id}`),
-    enabled: !!id,
-  })
-  const { data: history } = useQuery({
-    queryKey: ['declarations', id, 'history'],
-    queryFn: () => apiGet<DeclarationHistoryEntry[]>(`/declarations/${id}/history`),
-    enabled: !!id,
-  })
+  const { data: detail, isLoading } = useDeclarationDetail(id)
+  const { data: history } = useDeclarationHistory(id)
   const [tab, setTab] = useState<'info' | 'calcul' | 'annexes' | 'historique'>('info')
   const [editOpen, setEditOpen] = useState(false)
 
@@ -1026,8 +970,6 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
 /* ════════════════════════════════════════════════════════════ */
 
 function EditDeclarationModal({ declaration, onClose }: { declaration: Declaration; onClose: () => void }) {
-  const toast = useToast()
-  const queryClient = useQueryClient()
   const isCorrection = declaration.status === 'A_CORRIGER'
   const [exercice, setExercice] = useState(declaration.exercice ?? '')
   const [regime, setRegime] = useState(declaration.regime ?? '')
@@ -1041,25 +983,7 @@ function EditDeclarationModal({ declaration, onClose }: { declaration: Declarati
       : [{ label: '', amount: '' }],
   )
 
-  const editMutation = useMutation({
-    mutationFn: () =>
-      apiPut(`/declarations/${declaration.id}${isCorrection ? '/correct' : ''}`, {
-        taxBase: Number(taxBase),
-        declaredAmount: declaredAmount ? Number(declaredAmount) : undefined,
-        taux: taux ? Number(taux) : undefined,
-        exercice: exercice || undefined,
-        regime: regime || undefined,
-        dateEcheance: dateEcheance || undefined,
-        lines: lines.filter((l) => l.label).map((l, i) => ({ lineNumber: i + 1, label: l.label, amount: Number(l.amount) || 0 })),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['declarations', declaration.id] })
-      queryClient.invalidateQueries({ queryKey: ['declarations'] })
-      onClose()
-      toast.success(isCorrection ? 'Correction appliquée' : 'Déclaration modifiée')
-    },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
+  const editMutation = useUpdateDeclaration()
 
   return (
     <Modal open onClose={onClose} title={isCorrection ? 'Corriger la déclaration' : 'Modifier la déclaration'} subtitle={`${declaration.reference} — ${declaration.taxTypeCode} · ${declaration.period}`} wide>
@@ -1092,7 +1016,30 @@ function EditDeclarationModal({ declaration, onClose }: { declaration: Declarati
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
-          <Button type="button" onClick={() => editMutation.mutate()} disabled={editMutation.isPending || !taxBase}>
+          <Button
+            type="button"
+            onClick={() =>
+              editMutation.mutate(
+                {
+                  id: declaration.id,
+                  isCorrection,
+                  body: {
+                    taxBase: Number(taxBase),
+                    declaredAmount: declaredAmount ? Number(declaredAmount) : undefined,
+                    taux: taux ? Number(taux) : undefined,
+                    exercice: exercice || undefined,
+                    regime: regime || undefined,
+                    dateEcheance: dateEcheance || undefined,
+                    lines: lines
+                      .filter((l) => l.label)
+                      .map((l, i) => ({ lineNumber: i + 1, label: l.label, amount: Number(l.amount) || 0 })),
+                  },
+                },
+                { onSuccess: onClose },
+              )
+            }
+            disabled={editMutation.isPending || !taxBase}
+          >
             {editMutation.isPending ? 'Enregistrement…' : isCorrection ? 'Appliquer la correction' : 'Enregistrer'}
           </Button>
         </div>
@@ -1111,8 +1058,6 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
   presetTaxTypeCode?: string
   presetPeriod?: string
 }) {
-  const toast = useToast()
-  const queryClient = useQueryClient()
   const [step, setStep] = useState(1)
   const [taxpayerId, setTaxpayerId] = useState('')
   const [taxTypeCode, setTaxTypeCode] = useState(presetTaxTypeCode)
@@ -1125,29 +1070,11 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
   const [dateEcheance, setDateEcheance] = useState('')
   const [lines, setLines] = useState<{ label: string; amount: string }[]>([{ label: '', amount: '' }])
 
-  const { data: taxpayers, isLoading: loadingTaxpayers } = useQuery({
-    queryKey: ['taxpayers-lite'],
-    queryFn: () => apiGet<Page<TaxpayerSummary>>('/taxpayers?size=1000'),
-  })
+  const { data: taxpayers, isLoading: loadingTaxpayers } = useTaxpayersRef()
 
   const selectedTaxpayer = taxpayers?.content.find((t) => String(t.id) === taxpayerId) ?? null
 
-  const createMutation = useMutation({
-    mutationFn: () => apiPost('/declarations', {
-      taxpayerId: Number(taxpayerId),
-      taxTypeCode,
-      period,
-      exercice,
-      regime: regime || undefined,
-      taxBase: Number(taxBase),
-      declaredAmount: declaredAmount ? Number(declaredAmount) : undefined,
-      taux: taux ? Number(taux) : undefined,
-      dateEcheance: dateEcheance || undefined,
-      lines: lines.filter((l) => l.label).map((l, i) => ({ lineNumber: i + 1, label: l.label, amount: Number(l.amount) || 0 })),
-    }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['declarations'] }); queryClient.invalidateQueries({ queryKey: ['declaration-stats'] }); toast.success('Déclaration créée'); onClose() },
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
+  const createMutation = useCreateDeclaration()
 
   return (
     <Modal open onClose={onClose} title={`Étape ${step}/4 — Nouvelle déclaration`} wide>
@@ -1236,7 +1163,28 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setStep(3)}>Retour</Button>
-            <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
+            <Button
+              onClick={() =>
+                createMutation.mutate(
+                  {
+                    taxpayerId: Number(taxpayerId),
+                    taxTypeCode,
+                    period,
+                    exercice,
+                    regime: regime || undefined,
+                    taxBase: Number(taxBase),
+                    declaredAmount: declaredAmount ? Number(declaredAmount) : undefined,
+                    taux: taux ? Number(taux) : undefined,
+                    dateEcheance: dateEcheance || undefined,
+                    lines: lines
+                      .filter((l) => l.label)
+                      .map((l, i) => ({ lineNumber: i + 1, label: l.label, amount: Number(l.amount) || 0 })),
+                  },
+                  { onSuccess: onClose },
+                )
+              }
+              disabled={createMutation.isPending}
+            >
               {createMutation.isPending ? 'Création…' : 'Créer la déclaration'}
             </Button>
           </div>
@@ -1325,6 +1273,121 @@ function RecapRow({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between">
       <span className="text-slate-500 dark:text-slate-400">{label}</span>
       <span className="font-medium text-slate-900 dark:text-slate-100">{value}</span>
+    </div>
+  )
+}
+
+/* ──────────────────────── Calendrier des déclarations ──────────────────────── */
+
+const MONTH_NAMES = [
+  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
+]
+
+const CLOSED_DECLARATION_STATUSES = ['VALIDATED', 'LIQUIDEE', 'PAYEE', 'CANCELLED']
+
+/** Vue calendrier annuelle alimentée par `GET /declarations/calendar?year=`. */
+function DeclarationsCalendar() {
+  const navigate = useNavigate()
+  const [year, setYear] = useState(new Date().getFullYear())
+
+  const { data, isLoading } = useDeclarationCalendar(year)
+
+  const entries = useMemo(() => data ?? [], [data])
+  const today = new Date().toISOString().slice(0, 10)
+  const isOverdue = (e: CalendarEntry) =>
+    !!e.dateEcheance && e.dateEcheance < today && !CLOSED_DECLARATION_STATUSES.includes(e.status)
+
+  const buckets = useMemo(() => {
+    const map = new Map<number, CalendarEntry[]>()
+    for (let m = 0; m < 12; m += 1) map.set(m, [])
+    entries.forEach((e) => {
+      if (!e.dateEcheance) return
+      const month = new Date(e.dateEcheance).getMonth()
+      if (month >= 0 && month < 12) map.get(month)!.push(e)
+    })
+    map.forEach((list) => list.sort((a, b) => (a.dateEcheance ?? '').localeCompare(b.dateEcheance ?? '')))
+    return map
+  }, [entries])
+
+  const overdueCount = entries.filter(isOverdue).length
+
+  return (
+    <div className="space-y-4 p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5">
+          <Button variant="ghost" size="sm" onClick={() => setYear((y) => y - 1)} aria-label="Année précédente">
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="min-w-16 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">{year}</span>
+          <Button variant="ghost" size="sm" onClick={() => setYear((y) => y + 1)} aria-label="Année suivante">
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge tone="slate">
+            {entries.length} échéance{entries.length > 1 ? 's' : ''}
+          </Badge>
+          {overdueCount > 0 && (
+            <Badge tone="red">
+              {overdueCount} en retard
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <Spinner />
+      ) : entries.length === 0 ? (
+        <EmptyState
+          icon={<CalendarDays className="h-10 w-10" />}
+          title={`Aucune échéance en ${year}`}
+          subtitle="Aucune déclaration avec échéance sur cette année."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from(buckets.entries()).map(([month, list]) =>
+            list.length === 0 ? null : (
+              <div key={month} className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-700/50">
+                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-700/50 dark:bg-slate-800/30">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{MONTH_NAMES[month]}</p>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{list.length}</span>
+                </div>
+                <ul className="divide-y divide-slate-50 dark:divide-slate-700/40">
+                  {list.map((e) => (
+                    <li key={e.id}>
+                      <button
+                        onClick={() => navigate(`/declarations/${e.id}`)}
+                        className="w-full px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700/40"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-xs font-medium text-violet-700 dark:text-violet-400">{e.reference}</span>
+                          <span
+                            className={`text-xs tabular-nums ${
+                              isOverdue(e) ? 'font-semibold text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400'
+                            }`}
+                          >
+                            {e.dateEcheance ? fmtDate(e.dateEcheance) : '—'}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-slate-600 dark:text-slate-300">{e.taxpayerName}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <Badge tone={statusToneMap[e.status] as any}>
+                            {statusIcons[e.status]}
+                            {statusLabels[e.status] ?? e.status}
+                          </Badge>
+                          <Badge tone="slate">{e.taxTypeCode}</Badge>
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500">{e.period}</span>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ),
+          )}
+        </div>
+      )}
     </div>
   )
 }

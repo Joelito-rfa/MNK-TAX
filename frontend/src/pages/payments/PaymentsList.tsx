@@ -84,7 +84,8 @@ export function PaymentsList({ initialStatus = '', pendingMode = false }: Paymen
             <PaymentTable
               payments={data.content}
               onView={setDetail}
-              onCancel={setDetail}
+              onCancel={can('PAYMENT_CANCEL') ? setDetail : undefined}
+              onAllocate={can('PAYMENT_ALLOCATE') ? setDetail : undefined}
               onConfirm={canConfirm ? (p) => confirmPayment.mutate(p.id) : undefined}
             />
             <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-slate-700/50">

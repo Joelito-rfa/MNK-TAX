@@ -6,7 +6,6 @@ import {
   FileText,
   Filter,
   Key,
-  MoreHorizontal,
   Pencil,
   Percent,
   Save,
@@ -21,6 +20,7 @@ import { fmtDateTime } from '../lib/format'
 import { useAuth } from '../lib/auth'
 import type { SystemParameter } from '../types'
 import { Button, Card, EmptyState, Field, Input, Modal } from '../components/ui'
+import RowActionPortal from '../components/RowActionPortal'
 import { useToast } from '../components/Toast'
 import AdminPanel from '../components/communication/AdminPanel'
 
@@ -73,7 +73,6 @@ export default function Parameters() {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
   const [showInactive, setShowInactive] = useState(false)
-  const [actionMenu, setActionMenu] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -104,6 +103,15 @@ export default function Parameters() {
     setSelected(p)
     setEditValue(p.value)
     setEditDescription(p.description)
+  }
+
+  /* ── Les valeurs numériques ne doivent jamais être négatives ── */
+  const editValueIsNegative =
+    editValue.trim() !== '' && !isNaN(Number(editValue)) && Number(editValue) < 0
+
+  const handleEditValueChange = (raw: string) => {
+    // Bloque la saisie du signe moins (frappe, collage, mobile)
+    setEditValue(raw.replace(/-/g, ''))
   }
 
   /* ── Derived data ── */
@@ -173,7 +181,7 @@ export default function Parameters() {
           size="md"
           loading={save.isPending}
           onClick={() => {
-            if (selected) save.mutate()
+            if (selected && !editValueIsNegative) save.mutate()
           }}
           className="w-full sm:w-auto"
         >
@@ -384,32 +392,14 @@ export default function Parameters() {
                       <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
                       <span className="text-xs font-medium text-emerald-600">Actif</span>
                     </div>
-                    <div className="relative">
+                    <RowActionPortal width={192}>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setActionMenu(actionMenu === p.id ? null : p.id)
-                        }}
-                        className="flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white px-3 py-2 text-xs font-medium text-slate-600 dark:text-slate-400 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
+                        onClick={() => { openEdit(p) }}
+                        className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                       >
-                        <MoreHorizontal className="h-3.5 w-3.5" />
+                        <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
                       </button>
-                      {actionMenu === p.id && (
-                        <>
-                          <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                          <div className="absolute right-0 top-full z-40 mt-1 w-48 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                            <div className="space-y-0.5">
-                              <button
-                                onClick={() => { openEdit(p); setActionMenu(null) }}
-                                className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                              >
-                                <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
+                    </RowActionPortal>
                   </div>
 
                   {/* Mobile layout */}
@@ -445,32 +435,14 @@ export default function Parameters() {
                           <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
                           <span className="text-[10px] font-medium text-emerald-600">Actif</span>
                         </div>
-                        <div className="relative">
+                        <RowActionPortal width={192}>
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setActionMenu(actionMenu === p.id ? null : p.id)
-                            }}
-                            className="flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-400 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700"
+                            onClick={() => { openEdit(p) }}
+                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
-                            <MoreHorizontal className="h-3 w-3" />
+                            <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
                           </button>
-                          {actionMenu === p.id && (
-                            <>
-                              <div className="fixed inset-0 z-30 bg-black/5" onClick={() => setActionMenu(null)} />
-                              <div className="absolute right-0 top-full z-40 mt-1 w-48 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                                <div className="space-y-0.5">
-                                  <button
-                                    onClick={() => { openEdit(p); setActionMenu(null) }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
-                                  >
-                                    <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
-                                  </button>
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                        </RowActionPortal>
                       </div>
                     </div>
                   </div>
@@ -518,6 +490,7 @@ export default function Parameters() {
           <form
             onSubmit={(e) => {
               e.preventDefault()
+              if (editValueIsNegative) return
               save.mutate()
             }}
             className="space-y-5"
@@ -549,10 +522,16 @@ export default function Parameters() {
                 min="0"
                 step="0.01"
                 value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
+                onChange={(e) => handleEditValueChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === '-') e.preventDefault()
+                }}
                 placeholder="Entrez la valeur…"
                 className="font-mono"
               />
+              {editValueIsNegative && (
+                <p className="mt-1 text-xs text-rose-600">La valeur ne peut pas être négative.</p>
+              )}
             </Field>
 
             <Field label="Description">
@@ -571,7 +550,7 @@ export default function Parameters() {
                 <Button type="button" variant="secondary" onClick={() => setSelected(null)} className="flex-1 sm:flex-none">
                   Annuler
                 </Button>
-                <Button type="submit" variant="primary" loading={save.isPending} disabled={!editValue} className="flex-1 sm:flex-none">
+                <Button type="submit" variant="primary" loading={save.isPending} disabled={!editValue || editValueIsNegative} className="flex-1 sm:flex-none">
                   <Save className="h-4 w-4" />
                   Enregistrer
                 </Button>
@@ -611,12 +590,12 @@ function InfoCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
-          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 transition-transform duration-300 group-hover:-translate-y-0.5 dark:text-slate-100">
+          <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">
             {value}
           </p>
         </div>
         <span
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-300 [transition-timing-function:cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-110 group-hover:-rotate-6 group-hover:shadow-lg`}
+          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}
         >
           {icon}
         </span>

@@ -1,12 +1,10 @@
-import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react'
+import { TrendingDown, TrendingUp } from 'lucide-react'
 import { useI18n } from '../../lib/i18n'
-import { useAuth } from '../../lib/auth'
 import { usePaymentStats } from '../../features/payment/api/queries'
 import { PaymentStatsCards } from '../../features/payment/components/PaymentStatsCards'
 
 export default function PaymentsStats() {
   const { t } = useI18n()
-  const { can } = useAuth()
   const { data: stats, isLoading } = usePaymentStats()
 
   if (isLoading) {

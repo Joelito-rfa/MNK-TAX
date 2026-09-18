@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import TaxpayerRowActions from '../components/TaxpayerRowActions'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowDown,
@@ -10,7 +11,6 @@ import {
   ChevronRight,
   Copy,
   Download,
-  FileText,
   Filter,
   File,
   Grid3X3,
@@ -19,7 +19,6 @@ import {
   LayoutList,
   Mail,
   MapPin,
-  MoreHorizontal,
   Phone,
   Plus,
   RefreshCw,
@@ -30,9 +29,10 @@ import {
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { apiErrorMessage, apiGet, apiPost, apiPatch } from '../lib/api'
+import { apiErrorMessage } from '../lib/api'
+import { fetchTaxpayers, useTaxCenters, useTaxpayerDetail, useTaxpayers, useTaxRegimes } from '../features/taxpayer/api/queries'
+import { useCreateTaxpayer, useUpdateTaxpayerStatus } from '../features/taxpayer/api/mutations'
 import { fmtDate, timeAgo } from '../lib/format'
-import type { Page, TaxCenter, TaxRegime, TaxpayerSummary, TaxpayerDetail } from '../types'
 import {
   Badge,
   Button,
@@ -137,7 +137,6 @@ export default function Taxpayers() {
   const [selectedTaxpayer, setSelectedTaxpayer] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
   const [showFilters, setShowFilters] = useState(false)
-  const [menuOpen, setMenuOpen] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -155,65 +154,14 @@ export default function Taxpayers() {
   if (sortColumn) params.set('sort', `${sortColumn.sort},${sortDir}`)
 
   /* ── Queries ── */
-  const { data, isLoading } = useQuery({
-    queryKey: ['taxpayers', page, size, q, type, status, taxCenterFilter, taxRegimeFilter, sortKey, sortDir],
-    queryFn: () => apiGet<Page<TaxpayerSummary>>(`/taxpayers?${params.toString()}`),
-  })
-
-  const { data: taxCenters } = useQuery({
-    queryKey: ['tax-centers'],
-    queryFn: () => apiGet<TaxCenter[]>('/tax-centers'),
-  })
-
-  const { data: taxRegimes } = useQuery({
-    queryKey: ['tax-regimes'],
-    queryFn: () => apiGet<TaxRegime[]>('/tax-regimes'),
-  })
-
-  const { data: detail, isLoading: detailLoading } = useQuery({
-    queryKey: ['taxpayer-detail', selectedTaxpayer],
-    queryFn: () => apiGet<TaxpayerDetail>(`/taxpayers/${selectedTaxpayer}`),
-    enabled: selectedTaxpayer !== null,
-  })
+  const { data, isLoading } = useTaxpayers(params.toString())
+  const { data: taxCenters } = useTaxCenters()
+  const { data: taxRegimes } = useTaxRegimes()
+  const { data: detail, isLoading: detailLoading } = useTaxpayerDetail(selectedTaxpayer)
 
   /* ── Mutations ── */
-  const createMutation = useMutation({
-    mutationFn: (payload: CreateForm) => {
-      const body: Record<string, unknown> = {
-        type: payload.type,
-        name: payload.name,
-      }
-      if (payload.businessName) body.businessName = payload.businessName
-      if (payload.firstName) body.firstName = payload.firstName
-      if (payload.lastName) body.lastName = payload.lastName
-      if (payload.birthDate) body.birthDate = payload.birthDate
-      if (payload.legalRepresentative) body.legalRepresentative = payload.legalRepresentative
-      if (payload.registrationDate) body.registrationDate = payload.registrationDate
-      if (payload.phone) body.phone = payload.phone
-      if (payload.email) body.email = payload.email
-      if (payload.address) body.address = payload.address
-      if (payload.taxCenterId) body.taxCenterId = Number(payload.taxCenterId)
-      if (payload.taxRegimeId) body.taxRegimeId = Number(payload.taxRegimeId)
-      return apiPost('/taxpayers', body)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['taxpayers'] })
-      queryClient.invalidateQueries({ queryKey: ['taxpayer-stats'] })
-      setCreateOpen(false)
-      setCreateStep(0)
-      toast.success('Contribuable créé avec succès')
-    },
-  })
-
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      apiPatch(`/taxpayers/${id}/status?status=${status}`, {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['taxpayers'] })
-      queryClient.invalidateQueries({ queryKey: ['taxpayer-stats'] })
-      toast.success('Statut mis à jour')
-    },
-  })
+  const createMutation = useCreateTaxpayer()
+  const statusMutation = useUpdateTaxpayerStatus()
 
   /* ── Form ── */
   const {
@@ -287,7 +235,7 @@ export default function Taxpayers() {
     p.delete('page')
     p.delete('size')
     p.delete('sort')
-    apiGet<Page<TaxpayerSummary>>(`/taxpayers?${p.toString()}&size=9999`).then((rows) => {
+    fetchTaxpayers(`${p.toString()}&size=9999`).then((rows) => {
       const csv = [
         'NIF,Nom,Type,Contact,Email,Statut,Centre fiscal,Régime',
         ...rows.content.map(
@@ -355,7 +303,7 @@ export default function Taxpayers() {
                 setCreateStep(0)
                 setCreateOpen(true)
               }}
-              className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 active:scale-[0.98] transition-all duration-200"
+              className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 transition-all duration-200"
             >
               <Plus className="h-4 w-4" /> Ajouter un contribuable
             </Button>
@@ -713,83 +661,18 @@ export default function Taxpayers() {
 
                     {/* Actions */}
                     <Td>
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setMenuOpen(menuOpen === t.id ? null : t.id)
-                          }}
-                          className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                          aria-label="Actions"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                        {menuOpen === t.id && (
-                          <>
-                            <div className="fixed inset-0 z-30 bg-black/80" onClick={() => setMenuOpen(null)} />
-                            <div className="absolute right-0 top-full z-40 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-200/50 dark:border-slate-700 dark:bg-slate-800 dark:shadow-slate-900/50">
-                              <div className="space-y-0.5">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedTaxpayer(t.id)
-                                    setMenuOpen(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
-                                >
-                                  <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-500" /> Voir le profil
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    window.location.href = `/taxpayers/${t.id}`
-                                  }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
-                                >
-                                  <FileText className="h-4 w-4 shrink-0 text-slate-500" /> Voir les détails
-                                </button>
-                                <div className="my-1 border-t border-slate-100" />
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    copyToClipboard(t.nif, toast)
-                                    setMenuOpen(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
-                                >
-                                  <Copy className="h-4 w-4 shrink-0 text-slate-500" /> Copier le NIF
-                                </button>
-                                {t.status === 'ACTIVE' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      if (confirm('Suspendre ce contribuable ?')) {
-                                        statusMutation.mutate({ id: t.id, status: 'SUSPENDED' })
-                                      }
-                                      setMenuOpen(null)
-                                    }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-amber-600 transition-colors hover:bg-amber-50"
-                                  >
-                                    <Shield className="h-4 w-4 shrink-0" /> Suspendre
-                                  </button>
-                                )}
-                                {t.status === 'SUSPENDED' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      statusMutation.mutate({ id: t.id, status: 'ACTIVE' })
-                                      setMenuOpen(null)
-                                    }}
-                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50"
-                                  >
-                                    <Check className="h-4 w-4 shrink-0" /> Réactiver
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                      <TaxpayerRowActions
+                        taxpayer={t}
+                        onViewProfile={() => setSelectedTaxpayer(t.id)}
+                        onViewDetails={() => { window.location.href = `/taxpayers/${t.id}` }}
+                        onCopyNif={() => copyToClipboard(t.nif, toast)}
+                        onSuspend={() => {
+                          if (confirm('Suspendre ce contribuable ?')) {
+                            statusMutation.mutate({ id: t.id, status: 'SUSPENDED' })
+                          }
+                        }}
+                        onReactivate={() => statusMutation.mutate({ id: t.id, status: 'ACTIVE' })}
+                      />
                     </Td>
                   </tr>
                 ))}
@@ -903,7 +786,14 @@ export default function Taxpayers() {
         wide
       >
         <form
-          onSubmit={handleSubmit((v) => createMutation.mutate(v))}
+          onSubmit={handleSubmit((v) =>
+            createMutation.mutate(v, {
+              onSuccess: () => {
+                setCreateOpen(false)
+                setCreateStep(0)
+              },
+            }),
+          )}
           className="space-y-4"
           noValidate
         >

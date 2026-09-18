@@ -34,7 +34,7 @@ import { apiErrorMessage, apiGet } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
 import type {
   Page, Payment, TaxDebt, Declaration, TaxpayerSummary,
-  ReportStats, AuditLog,
+  ReportStats, AuditLog, DeclarationReportStats, DebtReportStats,
 } from '../types'
 import { Button, Card, EmptyState, Modal, StatusBadge } from '../components/ui'
 import { useI18n } from '../lib/i18n'
@@ -274,6 +274,16 @@ export default function Reports() {
   const { data: receipts } = useQuery({
     queryKey: ['report-receipts'],
     queryFn: () => apiGet<Page<import('../types').Receipt>>('/receipts?size=9999'),
+  })
+
+  const { data: declarationReport } = useQuery({
+    queryKey: ['report-stats-declarations'],
+    queryFn: () => apiGet<DeclarationReportStats>('/reports/stats/declarations'),
+  })
+
+  const { data: debtReport } = useQuery({
+    queryKey: ['report-stats-debts'],
+    queryFn: () => apiGet<DebtReportStats>('/reports/stats/debts'),
   })
 
   const isLoading = loadingStats || loadingDebts || loadingPayments || loadingDeclarations || loadingTaxpayers
@@ -531,12 +541,14 @@ export default function Reports() {
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['report-stats'] })
+    queryClient.invalidateQueries({ queryKey: ['report-stats-declarations'] })
+    queryClient.invalidateQueries({ queryKey: ['report-stats-debts'] })
     queryClient.invalidateQueries({ queryKey: ['report-collection'] })
     queryClient.invalidateQueries({ queryKey: ['report-payments'] })
     queryClient.invalidateQueries({ queryKey: ['report-declarations'] })
     queryClient.invalidateQueries({ queryKey: ['report-taxpayers'] })
     toast.success(t('toast.saveSuccess'))
-  }, [queryClient, toast])
+  }, [queryClient, toast, t])
 
   const handlePreview = useCallback((reportId: string) => {
     switch (reportId) {
@@ -678,10 +690,10 @@ export default function Reports() {
           {/* Generer un rapport */}
           <button
             onClick={() => setGenerateModalOpen(true)}
-            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30"
           >
             <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-            <Plus className="relative h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
+            <Plus className="relative h-4 w-4" />
             <span className="relative">Generer un rapport</span>
           </button>
         </div>
@@ -735,6 +747,85 @@ export default function Reports() {
           delta="+ CSV / Excel"
           deltaTone="up"
         />
+      </div>
+
+      {/* === 2bis. SYNTHESE DECLARATIONS & CREANCES === */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="p-5">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+              <ClipboardList className="h-4.5 w-4.5" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rapport des déclarations</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Répartition par statut et montants déclarés</p>
+            </div>
+          </div>
+          {!declarationReport ? (
+            <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <MiniStat label="Total" value={fmtNumber(declarationReport.total)} />
+                <MiniStat label="Brouillons" value={fmtNumber(declarationReport.draft)} tone="text-slate-500" />
+                <MiniStat label="Soumises" value={fmtNumber(declarationReport.submitted)} tone="text-blue-600" />
+                <MiniStat label="En contrôle" value={fmtNumber(declarationReport.underReview)} tone="text-amber-600" />
+                <MiniStat label="Validées" value={fmtNumber(declarationReport.validated)} tone="text-emerald-600" />
+                <MiniStat label="Rejetées" value={fmtNumber(declarationReport.rejected)} tone="text-rose-600" />
+                <MiniStat label="À corriger" value={fmtNumber(declarationReport.aCorriger)} tone="text-amber-600" />
+                <MiniStat label="Payées" value={fmtNumber(declarationReport.paid)} tone="text-emerald-600" />
+              </div>
+              <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700/50">
+                <MoneyRow label="Montant déclaré" value={fmtMGA(declarationReport.declaredAmount)} />
+                <MoneyRow label="Montant payé" value={fmtMGA(declarationReport.paidAmount)} tone="text-emerald-600" />
+                <MoneyRow label="Reste à payer" value={fmtMGA(declarationReport.remaining)} tone="text-rose-600" />
+              </div>
+              <RateBar
+                label="Taux de paiement"
+                percent={
+                  declarationReport.declaredAmount > 0
+                    ? (declarationReport.paidAmount / declarationReport.declaredAmount) * 100
+                    : 0
+                }
+                color="bg-emerald-500"
+              />
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-5">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">
+              <TrendingUp className="h-4.5 w-4.5" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rapport des créances</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Encours, retards et taux de recouvrement</p>
+            </div>
+          </div>
+          {!debtReport ? (
+            <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <MiniStat label="Total" value={fmtNumber(debtReport.total)} />
+                <MiniStat label="En retard" value={fmtNumber(debtReport.overdue)} tone="text-rose-600" />
+                <MiniStat label="Recouvrement" value={fmtNumber(debtReport.inCollection)} tone="text-violet-600" />
+                <MiniStat label="Payées" value={fmtNumber(debtReport.paid)} tone="text-emerald-600" />
+              </div>
+              <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700/50">
+                <MoneyRow label="Montant total" value={fmtMGA(debtReport.totalAmount)} />
+                <MoneyRow label="Recouvré" value={fmtMGA(debtReport.collected)} tone="text-emerald-600" />
+                <MoneyRow label="Encours" value={fmtMGA(debtReport.outstanding)} tone="text-rose-600" />
+              </div>
+              <RateBar
+                label="Taux de recouvrement"
+                percent={debtReport.collectionRate}
+                color="bg-brand-500"
+              />
+            </div>
+          )}
+        </Card>
       </div>
 
       {/* === 3. RAPPORTS DISPONIBLES === */}
@@ -896,7 +987,7 @@ export default function Reports() {
               }}
               className="group flex items-start gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all duration-200 hover:border-violet-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-violet-500"
             >
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${report.iconBg} ${report.iconColor} transition-transform duration-200 group-hover:scale-110`}>
+              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${report.iconBg} ${report.iconColor}`}>
                 {report.icon}
               </span>
               <div className="min-w-0">
@@ -1005,7 +1096,7 @@ function StatCard({
             {value}
           </p>
         </div>
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-200 group-hover:scale-110`}>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}>
           {icon}
         </span>
       </div>
@@ -1111,7 +1202,7 @@ function ReportCardComponent({
         <div className="mt-4 flex items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
           <button
             onClick={onGenerate}
-            className="group/btn relative flex-1 inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-violet-500/20 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="group/btn relative flex-1 inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-violet-500/20 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/30"
           >
             <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100" />
             <Zap className="relative h-3.5 w-3.5 transition-transform duration-200 group-hover/btn:scale-110" />
@@ -1209,6 +1300,41 @@ function RecentReportRow({
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════ Blocs de synthèse ═══════════════════════════ */
+
+function MiniStat({ label, value, tone = 'text-slate-900 dark:text-slate-100' }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-slate-800/40">
+      <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">{label}</p>
+      <p className={`text-sm font-semibold tabular-nums ${tone}`}>{value}</p>
+    </div>
+  )
+}
+
+function MoneyRow({ label, value, tone = 'text-slate-900 dark:text-slate-100' }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-slate-500 dark:text-slate-400">{label}</span>
+      <span className={`font-semibold tabular-nums ${tone}`}>{value}</span>
+    </div>
+  )
+}
+
+function RateBar({ label, percent, color }: { label: string; percent: number; color: string }) {
+  const value = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span className="text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">{value.toFixed(1)} %</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+        <div className={`h-full rounded-full transition-all duration-500 ${color}`} style={{ width: `${value}%` }} />
       </div>
     </div>
   )

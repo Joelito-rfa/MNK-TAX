@@ -944,14 +944,107 @@ html:not(.dark) .nif-moon { display: none; }
     transform: translateY(-2px);
     box-shadow: 0 8px 20px -8px rgb(16 24 40 / 0.14);
   }
-  .dark .grid > .card:hover {
-    box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.5);
-  }
-  .dark .card {
-    @apply border-slate-700/50 bg-slate-800 shadow-[0_1px_2px_rgba(0,0,0,0.3)];
-  }
+   .dark .grid > .card:hover {
+     box-shadow: 0 8px 20px -8px rgb(0 0 0 / 0.5);
+   }
 
-  .input-base {
+   /* Override pour les cartes 3D dans les grilles */
+   .grid > .card-3d:hover {
+     transform: rotateX(2deg) rotateY(-2deg) translateY(-2px);
+     box-shadow:
+       0 8px 24px -6px rgba(99 102 241 / 0.15),
+       0 2px 8px rgba(16 24 40 / 0.1);
+   }
+   .dark .grid > .card-3d:hover {
+     box-shadow:
+       0 8px 24px -6px rgba(99 102 241 / 0.2),
+       0 2px 8px rgba(0 0 0 / 0.3);
+   }
+
+   .dark .card {
+     @apply border-slate-700/50 bg-slate-800 shadow-[0_1px_2px_rgba(0,0,0,0.3)];
+   }
+
+   /* ── Cadre 3D : perspective + bords extrudés ── */
+   .card-3d {
+     perspective: 1200px;
+     transform-style: preserve-3d;
+     position: relative;
+     border: 1px solid rgba(99 102 241 / 0.15);
+     box-shadow:
+       0 1px 2px rgba(16 24 40 / 0.05),
+       0 4px 12px rgba(16 24 40 / 0.06),
+       inset 0 1px 0 rgba(255 255 255 / 0.5);
+     transition:
+       transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+       box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+       border-color 0.3s ease;
+   }
+   .card-3d::before {
+     content: "";
+     position: absolute;
+     inset: 0;
+     border-radius: inherit;
+     pointer-events: none;
+     transform: translateZ(-1px);
+     border: 1px solid rgba(99 102 241 / 0.08);
+     box-shadow:
+       0 8px 24px -6px rgba(99 102 241 / 0.12),
+       0 2px 6px -2px rgba(0 0 0 / 0.1);
+     z-index: -1;
+   }
+   .card-3d::after {
+     content: "";
+     position: absolute;
+     bottom: 0;
+     left: 0;
+     right: 0;
+     height: 40%;
+     background: linear-gradient(to bottom, transparent, rgba(0 0 0 / 0.06));
+     border-radius: 0 0 inherit inherit;
+     transform: translateZ(-4px) scaleY(0.6);
+     transform-origin: top;
+     pointer-events: none;
+     z-index: -1;
+   }
+   .card-3d:hover {
+     transform: rotateX(2deg) rotateY(-2deg) translateY(-2px);
+     box-shadow:
+       0 8px 24px -6px rgba(99 102 241 / 0.15),
+       0 2px 8px rgba(16 24 40 / 0.1),
+       inset 0 1px 0 rgba(255 255 255 / 0.7);
+     border-color: rgba(99 102 241 / 0.3);
+   }
+   .card-3d:hover::before {
+     box-shadow:
+       0 12px 32px -8px rgba(99 102 241 / 0.2),
+       0 4px 10px -4px rgba(0 0 0 / 0.15);
+   }
+   .dark .card-3d {
+     border-color: rgba(99 102 241 / 0.1);
+     box-shadow:
+       0 1px 2px rgba(0 0 0 / 0.25),
+       0 4px 12px rgba(0 0 0 / 0.2),
+       inset 0 1px 0 rgba(255 255 255 / 0.05);
+   }
+   .dark .card-3d::before {
+     border-color: rgba(99 102 241 / 0.06);
+     box-shadow:
+       0 8px 24px -6px rgba(0 0 0 / 0.3),
+       0 2px 6px -2px rgba(0 0 0 / 0.2);
+   }
+   .dark .card-3d:hover {
+     border-color: rgba(99 102 241 / 0.25);
+     box-shadow:
+       0 8px 24px -6px rgba(99 102 241 / 0.2),
+       0 2px 8px rgba(0 0 0 / 0.3),
+       inset 0 1px 0 rgba(255 255 255 / 0.1);
+   }
+   .dark .card-3d::after {
+     background: linear-gradient(to bottom, transparent, rgba(0 0 0 / 0.15));
+   }
+
+   .input-base {
     @apply w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
   }
   .dark .input-base {
@@ -2097,7 +2190,7 @@ html.dark .chart-peak-label { fill: #94a3b8; }
 @media (prefers-reduced-motion: reduce) {
   .side-list > li, .header-in { animation: none !important; }
   .hbtn { transition: none !important; }
-  .fx-spot, .fx-spot::before, .fx-spot::after, .fx-btn, .rechart-entrance, .rechart-shimmer::after { animation: none !important; transition: none !important; transform: none !important; }
+   .fx-spot, .fx-spot::before, .fx-spot::after, .fx-btn, .rechart-entrance, .rechart-shimmer::after, .card-3d { animation: none !important; transition: none !important; transform: none !important; }
   .chart-dot-halo, .chart-dot-core, .chart-peak-ring, .chart-peak-core, .chart-peak-label { animation: none !important; }
   .dash-scope .dash-bar,
   .dash-scope .dash-kpi {
@@ -2140,3 +2233,196 @@ html.dark .chart-peak-label { fill: #94a3b8; }
 .animate-chat-right { animation: chatSlideInRight 0.3s ease-out both; }
 .animate-chip       { animation: chipFadeIn 0.25s ease-out both; }
 .animate-panel      { animation: panelOpen 0.25s ease-out both; }
+
+/* ═══════════════════════════════════════════════════════════════
+   M-TAX AI — affichage 3D avec corps
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Keyframes 3D flottantes ── */
+@keyframes float3d-ai {
+  0%, 100% { transform: translateY(0) translateZ(0) rotateX(0deg) rotateY(0deg); }
+  25%      { transform: translateY(-8px) translateZ(10px) rotateX(5deg) rotateY(-5deg); }
+  50%      { transform: translateY(-4px) translateZ(15px) rotateX(3deg) rotateY(4deg); }
+  75%      { transform: translateY(-10px) translateZ(8px)  rotateX(-3deg) rotateY(-4deg); }
+}
+
+/* ── Corps connecteur 3D entre la tête et le panneau ── */
+.ai-connector {
+  position: absolute;
+  width: 6px;
+  height: 30px;
+  background: linear-gradient(to bottom, rgba(99 102 241 / 0.5), rgba(99 102 241 / 0.1));
+  transform: translateZ(-2px);
+  transform-style: preserve-3d;
+  pointer-events: none;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 2px 8px rgba(99 102 241 / 0.2);
+}
+.ai-connector::before {
+  content: "";
+  position: absolute;
+  inset: -2px 0;
+  background: linear-gradient(to bottom, transparent, rgba(99 102 241 / 0.15), transparent);
+  border-radius: inherit;
+}
+.ai-connector::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%) translateZ(-4px);
+  width: 12px;
+  height: 6px;
+  background: radial-gradient(circle, rgba(99 102 241 / 0.4), transparent);
+  border-radius: 50%;
+}
+
+/* ── Tête du bot 3D ── */
+.ai-bot-3d-wrap {
+  perspective: 800px;
+  perspective-origin: center center;
+}
+.ai-bot-3d {
+  transform-style: preserve-3d;
+  animation: float3d-ai 6s ease-in-out infinite;
+  will-change: transform;
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ai-bot-3d:hover {
+  animation: none;
+  transform: rotateX(10deg) rotateY(-12deg) translateZ(15px);
+}
+.ai-bot-3d-head {
+  position: relative;
+  transform: translateZ(20px);
+  transform-style: preserve-3d;
+}
+.ai-bot-3d-body {
+  position: relative;
+  width: 52px;
+  height: 20px;
+  background: linear-gradient(to bottom, rgba(99 102 241 / 0.6), rgba(99 102 241 / 0.15));
+  border-radius: 0 0 14px 14px;
+  transform: translateZ(5px) translateY(4px);
+  transform-style: preserve-3d;
+  box-shadow: 0 4px 12px rgba(99 102 241 / 0.2);
+}
+.ai-bot-3d-body::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  border: 1px solid rgba(99 102 241 / 0.3);
+  background: linear-gradient(to bottom, rgba(255 255 255 / 0.05), transparent);
+}
+.ai-bot-3d-glow {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99 102 241 / 0.3), transparent 70%);
+  transform: translateZ(-5px) translateY(-10px);
+  filter: blur(12px);
+  pointer-events: none;
+}
+
+/* ── Panneau de chat 3D ── */
+.ai-panel-3d {
+  perspective: 1200px;
+  transform-style: preserve-3d;
+  border: 1px solid rgba(99 102 241 / 0.2);
+  box-shadow:
+    0 1px 2px rgba(16 24 40 / 0.05),
+    0 4px 12px rgba(99 102 241 / 0.08),
+    0 12px 32px -8px rgba(99 102 241 / 0.12),
+    inset 0 1px 0 rgba(255 255 255 / 0.5);
+  transform: rotateX(1deg) rotateY(-1deg) translateZ(0);
+  transition:
+    transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.3s ease;
+}
+.ai-panel-3d:hover {
+  transform: rotateX(0deg) rotateY(0deg) translateZ(5px);
+  box-shadow:
+    0 8px 24px -6px rgba(99 102 241 / 0.15),
+    0 2px 8px rgba(16 24 40 / 0.1),
+    inset 0 1px 0 rgba(255 255 255 / 0.7);
+  border-color: rgba(99 102 241 / 0.35);
+}
+.ai-panel-3d::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transform: translateZ(-2px) translateY(4px);
+  border: 1px solid rgba(99 102 241 / 0.06);
+  box-shadow: 0 8px 24px -6px rgba(0 0 0 / 0.2);
+  z-index: -1;
+}
+.ai-panel-3d::after {
+  content: "";
+  position: absolute;
+  bottom: -3px;
+  left: 10%;
+  right: 10%;
+  height: 20px;
+  background: linear-gradient(to bottom, rgba(99 102 241 / 0.08), transparent);
+  border-radius: 0 0 inherit inherit;
+  transform: translateZ(-6px);
+  pointer-events: none;
+  filter: blur(4px);
+}
+
+/* ── Ombre portée 3D sous le panneau ── */
+.ai-panel-3d-shadow {
+  position: absolute;
+  bottom: -8px;
+  left: 5%;
+  right: 5%;
+  height: 12px;
+  background: radial-gradient(ellipse, rgba(99 102 241 / 0.15), transparent 70%);
+  filter: blur(8px);
+  transform: translateZ(-10px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── Mode sombre ── */
+.dark .ai-bot-3d-body {
+  background: linear-gradient(to bottom, rgba(99 102 241 / 0.4), rgba(99 102 241 / 0.1));
+}
+.dark .ai-bot-3d-body::before {
+  border-color: rgba(99 102 241 / 0.15);
+}
+.dark .ai-panel-3d {
+  border-color: rgba(99 102 241 / 0.1);
+  box-shadow:
+    0 1px 2px rgba(0 0 0 / 0.25),
+    0 4px 12px rgba(0 0 0 / 0.2),
+    0 12px 32px -8px rgba(0 0 0 / 0.3),
+    inset 0 1px 0 rgba(255 255 255 / 0.05);
+  transform: rotateX(1deg) rotateY(-1deg) translateZ(0);
+}
+.dark .ai-panel-3d:hover {
+  border-color: rgba(99 102 241 / 0.2);
+}
+.dark .ai-panel-3d::before {
+  border-color: rgba(99 102 241 / 0.04);
+  box-shadow: 0 8px 24px -6px rgba(0 0 0 / 0.4);
+}
+.dark .ai-panel-3d-shadow {
+  background: radial-gradient(ellipse, rgba(99 102 241 / 0.08), transparent 70%);
+}
+.dark .ai-connector {
+  background: linear-gradient(to bottom, rgba(99 102 241 / 0.3), rgba(99 102 241 / 0.05));
+}
+
+/* ── Réduction motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .ai-bot-3d { animation: none !important; }
+  .ai-bot-3d:hover { transform: none !important; }
+  .ai-panel-3d { transform: none !important; transition: none !important; }
+  .ai-panel-3d:hover { transform: none !important; }
+}

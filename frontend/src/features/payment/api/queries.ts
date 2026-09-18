@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiGet } from '../../../lib/api'
-import type { Page, Payment, PaymentStats, TaxDebt, TaxType } from '../../../types'
+import type { Page, Payment, PaymentReconcile, PaymentStats, TaxDebt, TaxType } from '../../../types'
 import { paymentKeys } from './keys'
 
 export function usePayments(params: string) {
@@ -30,6 +30,14 @@ export function useOpenDebts() {
     queryKey: paymentKeys.debts,
     queryFn: () => apiGet<Page<TaxDebt>>('/debts?size=200'),
     select: (d) => d.content.filter((x) => ['ISSUED', 'OVERDUE', 'IN_COLLECTION', 'PARTIALLY_PAID'].includes(x.status)),
+  })
+}
+
+export function usePaymentReconcile(id: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ['payments', 'reconcile', id ?? 0] as const,
+    queryFn: () => apiGet<PaymentReconcile>(`/payments/${id}/reconcile`),
+    enabled: enabled && id !== null,
   })
 }
 

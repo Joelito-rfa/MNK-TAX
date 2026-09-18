@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard'
 import Taxpayers from './pages/Taxpayers'
 import TaxpayerDetail from './pages/TaxpayerDetail'
 import Declarations from './pages/Declarations'
+import Assessments from './pages/Assessments'
 import Debts from './pages/Debts'
 import DebtDetail from './pages/DebtDetail'
 import Complaints from './pages/Complaints'
@@ -65,6 +66,9 @@ export default function App() {
                   <Route path="declarations" element={<ProtectedRoute permission="DECLARATION_READ" />}>
                     <Route index element={<Declarations />} />
                     <Route path=":id" element={<Declarations />} />
+                  </Route>
+                  <Route path="assessments" element={<ProtectedRoute permission="ASSESSMENT_READ" />}>
+                    <Route index element={<Assessments />} />
                   </Route>
                   <Route path="debts" element={<ProtectedRoute permission="DEBT_READ" />}>
                     <Route index element={<Debts />} />

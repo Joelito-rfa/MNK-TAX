@@ -116,7 +116,7 @@ export default function CollectionReminders() {
         </div>
         <div className="flex flex-wrap shrink-0 items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
-          <button onClick={() => openReminder()} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:bg-brand-500 active:scale-[0.98]">
+          <button onClick={() => openReminder()} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:bg-brand-500">
             <Plus className="h-4 w-4" /> {t('collection.modal.reminder.new')}
           </button>
         </div>

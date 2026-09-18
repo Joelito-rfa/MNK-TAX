@@ -49,6 +49,7 @@ export const navSections: NavSection[] = [
     items: [
       { to: '/taxpayers', labelKey: 'sidebar.taxpayers', icon: <Users className="h-4.5 w-4.5" />, permission: 'TAXPAYER_READ' },
       { to: '/declarations', labelKey: 'sidebar.declarations', icon: <FileText className="h-4.5 w-4.5" />, permission: 'DECLARATION_READ' },
+      { to: '/assessments', labelKey: 'sidebar.assessments', icon: <Calculator className="h-4.5 w-4.5" />, permission: 'ASSESSMENT_READ' },
       { to: '/debts', labelKey: 'sidebar.debts', icon: <TrendingDown className="h-4.5 w-4.5" />, permission: 'DEBT_READ' },
       { to: '/collection', labelKey: 'sidebar.collection', icon: <ScrollText className="h-4.5 w-4.5" />, permission: 'COLLECTION_READ', children: [
         { to: '/collection', labelKey: 'sidebar.collection.overview', icon: <ScrollText className="h-4 w-4" />, permission: 'COLLECTION_READ', end: true },

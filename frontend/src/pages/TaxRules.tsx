@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react'
-import { useDropdownList } from '../lib/useDropdown'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDownRight,
@@ -16,7 +15,6 @@ import {
   History,
   Info,
   Layers,
-  MoreHorizontal,
   Plus,
   Search,
   Shield,
@@ -34,6 +32,7 @@ import {
 import { apiErrorMessage, apiGet, apiPatch, apiPost, apiPut } from '../lib/api'
 import type { TaxRule, TaxRuleVersion } from '../types'
 import { Button, Card, EmptyState } from '../components/ui'
+import RowActionPortal from '../components/RowActionPortal'
 import { useToast } from '../components/Toast'
 
 /* ═══════════════════════════ Constantes ═══════════════════════════ */
@@ -171,7 +170,6 @@ export default function TaxRules() {
   const [filterMethod, setFilterMethod] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
   const [pageSize, setPageSize] = useState(25)
-  const { openId: showMenuId, close: closeMenu, getTriggerProps, getDropdownProps } = useDropdownList()
   const [deleteConfirm, setDeleteConfirm] = useState<TaxRule | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -415,10 +413,10 @@ export default function TaxRules() {
           </Button>
           <button
             onClick={openCreate}
-            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30 hover:scale-[1.02] active:scale-[0.98]"
+            className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30"
           >
             <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-            <Plus className="relative h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
+            <Plus className="relative h-4 w-4" />
             <span className="relative">Nouvelle regle</span>
           </button>
         </div>
@@ -628,32 +626,21 @@ export default function TaxRules() {
                     >
                       <Eye className="h-4 w-4" />
                     </button>
-                    <div className="relative">
-                      <button {...getTriggerProps(rule.id)}
-                        className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                      {showMenuId === rule.id && (
-                        <div {...getDropdownProps()} className="absolute right-0 z-50 mt-1 w-56 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200/80 bg-white p-1.5 shadow-lg shadow-slate-200/50 dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-slate-900/50">
-                          <div className="space-y-0.5">
-                            <MenuItem icon={<Eye className="h-4 w-4" />} label="Voir les details" onClick={() => { setSelected(rule); closeMenu() }} />
-                            <MenuItem icon={<Edit3 className="h-4 w-4" />} label="Modifier" onClick={() => { openEdit(rule); closeMenu() }} />
-                            <MenuItem icon={<Copy className="h-4 w-4" />} label="Dupliquer" onClick={() => { handleDuplicate(rule); closeMenu() }} />
-                            <MenuItem icon={<History className="h-4 w-4" />} label="Historique des versions" onClick={() => { setVersionsRule(rule); closeMenu() }} />
-                            <MenuItem icon={<Calculator className="h-4 w-4" />} label="Tester le calcul" onClick={() => { setTestRule(rule); closeMenu() }} />
-                            <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
-                            <MenuItem
-                              icon={rule.active ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                              label={rule.active ? 'Desactiver' : 'Activer'}
-                              onClick={() => { toggleActive.mutate(rule); closeMenu() }}
-                              danger={rule.active}
-                            />
-                            <MenuItem icon={<Trash2 className="h-4 w-4" />} label="Supprimer" onClick={() => { setDeleteConfirm(rule); closeMenu() }} danger />
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <RowActionPortal>
+                      <MenuItem icon={<Eye className="h-4 w-4" />} label="Voir les details" onClick={() => { setSelected(rule) }} />
+                      <MenuItem icon={<Edit3 className="h-4 w-4" />} label="Modifier" onClick={() => { openEdit(rule) }} />
+                      <MenuItem icon={<Copy className="h-4 w-4" />} label="Dupliquer" onClick={() => { handleDuplicate(rule) }} />
+                      <MenuItem icon={<History className="h-4 w-4" />} label="Historique des versions" onClick={() => { setVersionsRule(rule) }} />
+                      <MenuItem icon={<Calculator className="h-4 w-4" />} label="Tester le calcul" onClick={() => { setTestRule(rule) }} />
+                      <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                      <MenuItem
+                        icon={rule.active ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                        label={rule.active ? 'Desactiver' : 'Activer'}
+                        onClick={() => { toggleActive.mutate(rule) }}
+                        danger={rule.active}
+                      />
+                      <MenuItem icon={<Trash2 className="h-4 w-4" />} label="Supprimer" onClick={() => { setDeleteConfirm(rule) }} danger />
+                    </RowActionPortal>
                   </div>
                 </div>
               )
@@ -744,7 +731,7 @@ function StatCard({ icon, iconBg, iconColor, label, value, sub, delta, deltaTone
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</p>
           <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
         </div>
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor} transition-transform duration-200 group-hover:scale-110`}>{icon}</span>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconColor}`}>{icon}</span>
       </div>
       <div className="mt-3 flex items-center gap-2 text-xs">
         {delta && (
@@ -1282,7 +1269,7 @@ function TestCalculatorModal({ rule, onClose }: { rule: TaxRule | null; onClose:
 
           <button
             onClick={handleCalculate}
-            className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl hover:scale-[1.01] active:scale-[0.99]"
+            className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl"
           >
             Calculer
           </button>

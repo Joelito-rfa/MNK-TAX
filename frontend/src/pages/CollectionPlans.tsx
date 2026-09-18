@@ -138,6 +138,7 @@ function CreatePlanModal({
   const { fmtMGA } = useLocaleFormatters()
   const today = new Date().toISOString().slice(0, 10)
 
+  const [step, setStep] = useState(0)
   const [debtId, setDebtId] = useState(presetDebtId)
   const [label, setLabel] = useState('')
   const [notes, setNotes] = useState('')
@@ -147,6 +148,7 @@ function CreatePlanModal({
   /* Réinitialise le formulaire à chaque ouverture. */
   useEffect(() => {
     if (!open) return
+    setStep(0)
     setDebtId(presetDebtId)
     setLabel('')
     setNotes('')
@@ -227,8 +229,15 @@ function CreatePlanModal({
     plannedTotal <= (selectedDebt?.balance ?? 0)
 
   return (
-    <Modal open={open} onClose={onClose} title={t('collection.plans.create.title')} subtitle={t('collection.plans.create.subtitle')} wide>
+    <Modal open={open} onClose={onClose} title={`${t('collection.plans.create.title')} — Étape ${step + 1}/3`} subtitle={t('collection.plans.create.subtitle')} wide>
       <div className="space-y-5">
+        <div className="flex items-center gap-2">
+          {[0, 1, 2].map((s) => (
+            <div key={s} className={`h-1.5 flex-1 rounded-full transition ${s <= step ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+          ))}
+        </div>
+        {step === 0 && (
+        <div className="space-y-5 animate-fade-in">
         <Field label={t('collection.plans.create.debt')}>
           <Select value={debtId} onChange={(e) => setDebtId(e.target.value)}>
             <option value="">{t('collection.plans.create.chooseDebt')}</option>
@@ -316,15 +325,100 @@ function CreatePlanModal({
           </Button>
         </div>
 
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
-          {t('collection.plans.create.hint')}
         </div>
-
-        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
-          <Button variant="secondary" onClick={onClose}>{t('collection.plans.create.cancel')}</Button>
-          <Button onClick={() => createPlan.mutate()} loading={createPlan.isPending} disabled={!valid}>
-            {t('collection.plans.create.submit')}
+        )}
+        {step === 1 && (
+        <div className="animate-fade-in">
+        {/* ── Tranches ── */}
+        <div>
+          <div className="mb-2 flex flex-wrap items-end justify-between gap-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {t('collection.plans.create.installments', { count: rows.length, total: fmtMGA(plannedTotal) })}
+              {selectedDebt && (
+                <span className={`ml-2 ${diff >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {diff >= 0 ? t('collection.plans.create.left', { amount: fmtMGA(diff) }) : t('collection.plans.create.over', { amount: fmtMGA(-diff) })}
+                </span>
+              )}
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="2"
+                max="60"
+                value={scheduleCount}
+                onChange={(e) => setScheduleCount(e.target.value)}
+                placeholder={t('collection.plans.create.nInst')}
+                className="w-24"
+                aria-label={t('collection.plans.create.nInstAria')}
+              />
+              <Button type="button" size="sm" variant="secondary" onClick={splitEvenly} disabled={!scheduleCount || !selectedDebt}>
+                <CalendarDays className="h-3.5 w-3.5" /> {t('collection.plans.create.monthly')}
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {rows.map((r, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <div className="w-40">
+                  <Field label={t('collection.plans.create.instDate', { n: i + 1 })}>
+                    <Input type="date" min={today} value={r.dueDate} onChange={(e) => setRow(i, { dueDate: e.target.value })} />
+                  </Field>
+                </div>
+                <div className="flex-1">
+                  <Field label={t('collection.plans.create.amount')}>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={r.amount}
+                      onChange={(e) => setRow(i, { amount: e.target.value })}
+                      placeholder="0"
+                    />
+                  </Field>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  disabled={rows.length <= 1}
+                  className="mb-1 rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 disabled:opacity-30 dark:hover:bg-rose-900/20"
+                  aria-label={t('collection.plans.create.removeInst', { n: i + 1 })}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <Button type="button" variant="ghost" size="sm" className="mt-2" onClick={addRow}>
+            <Plus className="h-4 w-4" /> {t('collection.plans.create.addInst')}
           </Button>
+        </div>
+        </div>
+        )}
+        {step === 2 && (
+          <div className="space-y-3 animate-fade-in">
+            <h4 className="text-sm font-semibold">Récapitulatif</h4>
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+              <div className="flex justify-between"><span className="text-slate-500">Dette</span><span className="font-medium">{selectedDebt ? `${selectedDebt.reference} — ${fmtMGA(selectedDebt.balance)}` : '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Libellé</span><span className="font-medium">{label || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Tranches</span><span className="font-medium">{rows.length} — {fmtMGA(plannedTotal)}</span></div>
+            </div>
+            <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-xs text-slate-500 dark:text-slate-400">
+              {t('collection.plans.create.hint')}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
+          <div>{step > 0 && <Button variant="secondary" onClick={() => setStep(step - 1)}>← Précédent</Button>}</div>
+          <div className="flex gap-2">
+          <Button variant="secondary" onClick={onClose}>{t('collection.plans.create.cancel')}</Button>
+          {step < 2 ? (
+            <Button onClick={() => setStep(step + 1)} disabled={step === 0 ? !debtId || !label.trim() : rows.length === 0} className="bg-brand-600 text-white">Suivant →</Button>
+          ) : (
+            <Button onClick={() => createPlan.mutate()} loading={createPlan.isPending} disabled={!valid}>
+              {t('collection.plans.create.submit')}
+            </Button>
+          )}
+          </div>
         </div>
       </div>
     </Modal>
@@ -439,7 +533,7 @@ export default function CollectionPlans() {
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{c.label}</p>
                   <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{c.value}</p>
                 </div>
-                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg} ${c.iconColor} transition-transform duration-200 group-hover:scale-110`}>{c.icon}</span>
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg} ${c.iconColor}`}>{c.icon}</span>
               </div>
               {c.sub && <div className="mt-3 text-xs text-slate-400 dark:text-slate-500">{c.sub}</div>}
             </div>
