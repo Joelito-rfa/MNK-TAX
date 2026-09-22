@@ -134,13 +134,38 @@ public class CommunicationService {
     // ═══ Aperçu avant envoi (résumé UX) ═══════════════════════════
 
     @Transactional(readOnly = true)
+    public List<com.mnktax.communication.dto.CommunicationDtos.SenderDto> senders() {
+        List<com.mnktax.communication.dto.CommunicationDtos.SenderDto> list = new ArrayList<>();
+        String def = properties.getMail().getFromAddress();
+        String name = properties.getMail().getFromName();
+        if (!isBlank(def)) {
+            list.add(new com.mnktax.communication.dto.CommunicationDtos.SenderDto(def, name, true));
+        }
+        for (String extra : properties.getMail().getExtraSenders()) {
+            if (isBlank(extra) || list.stream().anyMatch(s -> s.email().equalsIgnoreCase(extra.trim()))) continue;
+            list.add(new com.mnktax.communication.dto.CommunicationDtos.SenderDto(extra.trim(), name, false));
+        }
+        return list;
+    }
+
+    @Transactional(readOnly = true)
     public ComposePreview preview(ComposeRequest request) {
         List<Target> targets = resolveTargets(request);
+        // Email vérifié côté UI : prioritaire pour un envoi SINGLE.
+        String override = normalizedEmail(request.emailOverride());
+        if (override != null && !isValidEmail(override)) {
+            throw new BusinessException("INVALID_EMAIL", "Adresse email destinataire invalide : " + override);
+        }
+        if (request.senderEmail() != null && !request.senderEmail().isBlank()
+                && !isValidEmail(request.senderEmail().trim())) {
+            throw new BusinessException("INVALID_SENDER_EMAIL", "Adresse email expéditrice invalide.");
+        }
         List<String> channels = resolveChannels(request.channels());
         int missingEmail = 0;
         int missingPhone = 0;
         for (Target target : targets) {
-            if (channels.contains("EMAIL") && isBlank(target.email)) missingEmail++;
+            String effectiveEmail = effectiveEmail(target, override, targets.size());
+            if (channels.contains("EMAIL") && isBlank(effectiveEmail)) missingEmail++;
             if (channels.contains("SMS") && isBlank(target.phoneNormalized)) missingPhone++;
         }
         List<String> warnings = new ArrayList<>();
@@ -168,6 +193,22 @@ public class CommunicationService {
         }
         if (request.content() == null || request.content().isBlank()) {
             throw new BusinessException("CONTENT_REQUIRED", "Le contenu du message est requis.");
+        }
+        String override = normalizedEmail(request.emailOverride());
+        if (override != null && !isValidEmail(override)) {
+            throw new BusinessException("INVALID_EMAIL", "Adresse email destinataire invalide : " + override);
+        }
+        String senderEmail = request.senderEmail() == null ? null : request.senderEmail().trim();
+        if (senderEmail != null && !senderEmail.isBlank() && !isValidEmail(senderEmail)) {
+            throw new BusinessException("INVALID_SENDER_EMAIL", "Adresse email expéditrice invalide.");
+        }
+        // Mise à jour optionnelle de la fiche contribuable (case cochée côté UI).
+        if (Boolean.TRUE.equals(request.updateContact()) && override != null && request.taxpayerId() != null) {
+            taxpayerRepository.findById(request.taxpayerId()).ifPresent(t -> {
+                t.setEmail(override);
+                taxpayerRepository.save(t);
+            });
+            targets = resolveTargets(request);
         }
         List<String> channels = resolveChannels(request.channels());
         boolean confirmed = Boolean.TRUE.equals(request.requireConfirmation());
@@ -199,17 +240,36 @@ public class CommunicationService {
             // Rendu template par langue — jamais de mélange de langues dans un envoi.
             if (template != null) {
                 Map<String, String> vars = baseVariables(target);
+                if (target.taxpayerId() == null && request.externalName() != null && !request.externalName().isBlank()) {
+                    vars = new java.util.HashMap<>(vars);
+                    vars.put("taxpayer_name", request.externalName().trim());
+                }
                 subject = renderVars(template.subjectFor(language), vars);
                 content = renderVars(template.bodyFor(language), vars);
             }
+            String effectiveEmail = effectiveEmail(target, override, targets.size());
             List<String> effectiveChannels = new ArrayList<>(channels);
-            if (effectiveChannels.contains("EMAIL") && isBlank(target.email)) effectiveChannels.remove("EMAIL");
+            if (effectiveChannels.contains("EMAIL") && isBlank(effectiveEmail)) effectiveChannels.remove("EMAIL");
             if (effectiveChannels.contains("SMS") && isBlank(target.phoneNormalized)) effectiveChannels.remove("SMS");
+            boolean external = target.userId() == null && target.taxpayerId() == null;
+            if (external) {
+                // Externe : email uniquement, pas de IN_APP/SMS ni de fiche à mettre à jour.
+                effectiveChannels.removeIf(c -> !c.equals("EMAIL"));
+                if (effectiveChannels.isEmpty()) {
+                    throw new BusinessException("EXTERNAL_EMAIL_REQUIRED",
+                            "Un destinataire externe exige le canal EMAIL avec une adresse valide.");
+                }
+            }
+            Target effectiveTarget = new Target(target.userId(), target.taxpayerId(),
+                    effectiveEmail, target.phoneNormalized(), target.language());
 
+            Long senderId = SecurityUtils.currentUserId();
             Message message = Message.builder()
-                    .senderId(SecurityUtils.currentUserId())
+                    .senderId(senderId)
                     .senderName(senderName)
-                    .recipientId(target.userId)
+                    .recipientId(external ? senderId : target.userId)
+                    .recipientEmail(external ? effectiveEmail : null)
+                    .recipientLabel(external ? blankToNull(request.externalName()) : null)
                     .subject(subject)
                     .content(content)
                     .read(false)
@@ -231,12 +291,14 @@ public class CommunicationService {
             }
             if (firstMessageId == null) firstMessageId = saved.getId();
 
-            createDeliveries(saved, target, effectiveChannels, scheduledAt);
+            createDeliveries(saved, effectiveTarget, effectiveChannels, scheduledAt);
             created++;
         }
 
         auditService.record("MESSAGE_CREATED", "MESSAGE", String.valueOf(firstMessageId),
-                null, "recipients=" + created + ", channels=" + channels, http);
+                null, "recipients=" + created + ", channels=" + channels
+                        + (senderEmail != null && !senderEmail.isBlank() ? ", sender=" + senderEmail : "")
+                        + (override != null ? ", emailOverride=" + override : ""), http);
 
         String warning = scheduledAt != null
                 ? "Message programmé — il sera traité automatiquement à l'échéance."
@@ -288,10 +350,17 @@ public class CommunicationService {
                     taxpayerNif = taxpayer.getNif();
                 }
             }
-            String recipientName = userRepository.findById(m.getRecipientId())
-                    .map(u -> (u.getFirstName() + " " + u.getLastName()).trim())
-                    .filter(s -> !s.isBlank())
-                    .orElse("#" + m.getRecipientId());
+            String recipientName;
+            if (m.getRecipientEmail() != null && !m.getRecipientEmail().isBlank()) {
+                recipientName = m.getRecipientLabel() != null && !m.getRecipientLabel().isBlank()
+                        ? m.getRecipientLabel() + " <" + m.getRecipientEmail() + ">"
+                        : m.getRecipientEmail();
+            } else {
+                recipientName = userRepository.findById(m.getRecipientId())
+                        .map(u -> (u.getFirstName() + " " + u.getLastName()).trim())
+                        .filter(s -> !s.isBlank())
+                        .orElse("#" + m.getRecipientId());
+            }
             dtos.add(SentMessageDto.from(m, recipientName, taxpayerName, taxpayerNif, deliveries));
         }
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
@@ -545,7 +614,8 @@ public class CommunicationService {
                     target.taxpayerId, target.userId, null, "SINGLE", null, null,
                     channels, request.subject(), request.content(), request.templateCode(),
                     null, request.priority(), "CAMPAIGN",
-                    scheduledAt == null ? null : scheduledAt.toString(), true);
+                    scheduledAt == null ? null : scheduledAt.toString(), true,
+                    null, null, null, null);
             try {
                 compose(compose, http);
                 dispatched++;
@@ -645,7 +715,23 @@ public class CommunicationService {
                     taxpayer == null ? null : taxpayer.getPhoneNormalized(),
                     taxpayer == null ? "FR" : taxpayer.getLanguage()));
         }
+        String externalEmail = normalizedEmail(request.emailOverride());
+        if (externalEmail != null) {
+            if (!isValidEmail(externalEmail)) {
+                throw new BusinessException("INVALID_EMAIL", "Adresse email destinataire invalide : " + externalEmail);
+            }
+            return List.of(new Target(null, null, externalEmail, null, "FR"));
+        }
         throw new BusinessException("NO_RECIPIENT", "Aucun destinataire spécifié.");
+    }
+
+    /** Destinataire externe : email libre sans fiche contribuable (userId/taxpayerId null). */
+    static boolean isExternalRequest(ComposeRequest request) {
+        return request.taxpayerId() == null && request.userId() == null
+                && (request.username() == null || request.username().isBlank())
+                && (request.taxpayerIds() == null || request.taxpayerIds().isEmpty())
+                && ("SINGLE".equalsIgnoreCase(request.audience()) || request.audience() == null)
+                && normalizedEmail(request.emailOverride()) != null;
     }
 
     private List<Target> resolveAudience(String audience, String taxTypeCode, List<Long> ids) {
@@ -756,6 +842,20 @@ public class CommunicationService {
             }
         }
         return Map.of("taxpayer_name", name, "nif", nif);
+    }
+
+    private static String effectiveEmail(Target target, String override, int targetCount) {
+        if (override != null && targetCount == 1) return override;
+        return target.email();
+    }
+
+    private static String normalizedEmail(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim();
+    }
+
+    private static boolean isValidEmail(String value) {
+        return value != null && value.matches("^[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}$");
     }
 
     private static boolean isBlank(String value) {

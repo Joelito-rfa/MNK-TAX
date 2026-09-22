@@ -442,7 +442,7 @@ function CreateRoleModal({
     : allPermissions
 
   return (
-    <Modal open onClose={onClose} title={initial ? `Dupliquer — ${initial.name}` : 'Nouveau rôle'} wide>
+    <Modal open onClose={onClose} title={initial ? `Dupliquer — ${initial.name}` : 'Nouveau rôle'} size="full">
       <form
         onSubmit={(e) => { e.preventDefault(); create.mutate() }}
         className="space-y-4"

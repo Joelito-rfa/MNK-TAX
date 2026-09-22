@@ -34,6 +34,8 @@ public class CommunicationProperties {
         private String fromAddress = "no-reply@mnk-tax.mg";
         private String fromName = "MNK-TAX — Administration fiscale";
         private String baseUrl = "http://localhost:5177";
+        /** Expéditeurs supplémentaires autorisés (sélecteur UI) — ex. COMM_EXTRA_SENDERS. */
+        private java.util.List<String> extraSenders = new java.util.ArrayList<>();
 
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
@@ -43,6 +45,10 @@ public class CommunicationProperties {
         public void setFromName(String fromName) { this.fromName = fromName; }
         public String getBaseUrl() { return baseUrl; }
         public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
+        public java.util.List<String> getExtraSenders() { return extraSenders; }
+        public void setExtraSenders(java.util.List<String> extraSenders) {
+            this.extraSenders = extraSenders == null ? new java.util.ArrayList<>() : extraSenders;
+        }
     }
 
     public static class Sms {

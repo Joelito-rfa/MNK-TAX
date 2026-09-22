@@ -82,7 +82,7 @@ export default function Refunds() {
   })
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       <PageHeader
         title="Remboursements"
         subtitle="Demandes de remboursement et suivi des versements"
@@ -376,7 +376,7 @@ export function CreateRefundModal({ onClose }: { onClose: () => void }) {
 
   const selectedTp = taxpayers?.content.find((t) => String(t.id) === taxpayerId) ?? null
   return (
-    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — Demande de remboursement`} wide>
+    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — Demande de remboursement`} size="full">
       <form onSubmit={(e) => { e.preventDefault(); if (step === 2) create.mutate() }} className="space-y-4">
         {create.isError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{apiErrorMessage(create.error)}</div>

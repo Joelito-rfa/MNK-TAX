@@ -1,7 +1,10 @@
 # MNK-TAX — Documentation des Données Fictives (Demo Data Seeder)
 
 > **Source** : `backend/src/main/java/com/mnktax/common/config/DemoDataSeeder.java` (2016 lignes)
-> **Activation** : `mnk-tax.seed-demo=true` (défaut) — désactivable via `SEED_DEMO=false` ou profil `test`
+> **Activation** : `mnk-tax.seed-demo=true` (défaut dev) — désactivable via `SEED_DEMO=false` ou profil `test`.
+> **Production** : désactivé par défaut (`application-prod.yml` → `SEED_DEMO:false`) — activer explicitement `SEED_DEMO=true` pour charger la démo.
+> **Compagnon JSON** : `docs/fake-data-seed.json` (mêmes données, format programmatique).
+> **Idempotence** : le seeder s'ignore si des utilisateurs existent déjà (`userRepository.count() > 0`).
 
 ---
 

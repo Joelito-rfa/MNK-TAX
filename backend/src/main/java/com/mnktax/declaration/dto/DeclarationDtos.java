@@ -116,6 +116,26 @@ public final class DeclarationDtos {
                     d.getHistory() == null ? 0 : d.getHistory().size()
             );
         }
+
+        public static DeclarationDto fromReport(Declaration d) {
+            return new DeclarationDto(
+                    d.getId(), d.getReference(),
+                    d.getTaxpayer().getId(), d.getTaxpayer().getNif(), d.getTaxpayer().getName(),
+                    d.getTaxType().getId(), d.getTaxType().getCode(), d.getTaxType().getName(),
+                    d.getPeriod(), d.getExercice(), d.getRegime(),
+                    d.getSubmissionDate(), d.getStatus(), d.getTaxBase(),
+                    d.getDeclaredAmount(), d.getTaux(), d.getCalculatedTax(),
+                    d.getPenalites(), d.getTotalAPayer(), d.getMontantPaye(), d.getResteAPayer(),
+                    d.getDateEcheance(), d.getDueDate(),
+                    d.isRectificative(), null, d.getMotifCorrection(),
+                    d.getTaxCenter() != null ? d.getTaxCenter().getId() : null,
+                    d.getTaxCenter() != null ? d.getTaxCenter().getName() : null,
+                    d.getSubmittedBy(), d.getSubmittedAt(),
+                    d.getValidatedBy(), d.getValidatedAt(),
+                    d.getValidationComment(), d.getCreatedAt(), d.getUpdatedAt(),
+                    List.of(), List.of(), 0
+            );
+        }
     }
 
     public record LineDto(Long id, int lineNumber, String label, BigDecimal amount) {

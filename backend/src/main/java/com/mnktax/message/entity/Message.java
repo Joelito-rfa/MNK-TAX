@@ -142,4 +142,10 @@ public class Message {
     /** Auteur réel de l'envoi (login), distinct de senderName. */
     @Column(name = "created_by", length = 100)
     private String createdBy;
+
+    @Column(name = "recipient_email", length = 255)
+    private String recipientEmail;
+
+    @Column(name = "recipient_label", length = 200)
+    private String recipientLabel;
 }

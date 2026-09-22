@@ -78,15 +78,15 @@ export default function Login() {
 
   return (
     <>
-        {/* Bouton retour à l'accueil — mobile */}
-        <a
-          href="/#hero"
+        {/* Bouton retour à l'accueil — mobile (navigation SPA, sans rechargement) */}
+        <Link
+          to="/#hero"
           className="group absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-400/40 hover:bg-white hover:text-brand-700 hover:shadow-lg hover:shadow-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 lg:hidden dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-brand-400/40 dark:hover:bg-white/10 dark:hover:text-brand-300"
           aria-label={t('login.backToHome')}
         >
           <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
           <span>{t('login.backToHome')}</span>
-        </a>
+        </Link>
 
         <div className="relative flex min-h-screen bg-slate-50 dark:bg-[#0f1117]">
       {/* Theme + language switchers at top right */}
@@ -147,15 +147,15 @@ export default function Login() {
         <div className="absolute inset-0 bg-white dark:bg-sidebar" aria-hidden="true" />
         <FiscalAnimation />
         <div className="absolute inset-0 bg-white/78 dark:bg-sidebar/65" aria-hidden="true" />
-        {/* Bouton retour à l'accueil — desktop, haut droit du panneau gauche */}
-        <a
-          href="/#hero"
+        {/* Bouton retour à l'accueil — desktop, haut droit du panneau gauche (SPA, sans rechargement) */}
+        <Link
+          to="/#hero"
           className="group absolute right-4 top-4 z-10 inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-400/40 hover:bg-white hover:text-brand-700 hover:shadow-lg hover:shadow-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-brand-400/40 dark:hover:bg-white/10 dark:hover:text-brand-300"
           aria-label={t('login.backToHome')}
         >
           <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
           <span>{t('login.backToHome')}</span>
-        </a>
+        </Link>
         <div className="absolute -right-32 -top-32 h-96 w-96 animate-float-slow rounded-full bg-brand-400/20 blur-3xl" />
         <div className="absolute -bottom-40 -left-24 h-96 w-96 animate-float rounded-full bg-brand-300/10 blur-3xl" />
 

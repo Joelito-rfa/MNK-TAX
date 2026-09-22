@@ -145,7 +145,7 @@ public final class AiMessages {
     }
 
     boolean isGreeting(String lower) {
-        return matchesAny(lower, greetingKw) || greetingKw.contains(lower);
+        return matchesAny(lower, greetingKw);
     }
 
     boolean matchesTaxpayers(String lower) { return matchesAny(lower, taxpayerKw); }
@@ -169,9 +169,10 @@ public final class AiMessages {
         return matchesAny(lower, taxpayerKw);
     }
 
-    private boolean matchesAny(String lower, List<String> keywords) {
+    private boolean matchesAny(String text, List<String> keywords) {
+        String normalized = AiTextMatcher.normalize(text);
         for (String kw : keywords) {
-            if (lower.contains(kw)) return true;
+            if (AiTextMatcher.contains(normalized, kw)) return true;
         }
         return false;
     }
@@ -402,14 +403,14 @@ public final class AiMessages {
 
     private static final List<String> FR_GREETING = List.of("bonjour", "salut", "coucou", "bonsoir", "hey", "hello", "yo", "bonne journ");
     private static final List<String> FR_HELP = List.of("aide", "help", "comment", "utiliser", "fonctionne", "que sais-tu", "que savez", "capacit", "guide");
-    private static final List<String> FR_TAXPAYER = List.of("contribuable", "contribuables", "taxpayer", "taxpayers", "entreprise", "entreprises", "societe", "sociéte", "sociétés", "nif", "registre");
-    private static final List<String> FR_DECLARATION = List.of("declar", "impôt", "impot", "impôts", "imposition fiscale");
-    private static final List<String> FR_DEBT = List.of("créance", "créances", "creance", "creances", "dette", "dettes", "impayé", "impaye", "non payé", "non paye", "restant", "encours", "dû");
-    private static final List<String> FR_PAYMENT = List.of("paiement", "paiements", "fixation", "payer", "encaiss", "reçu", "recu", "reçus", "recus", "quittance", "encaissement", "montant reçu", "montant recu");
-    private static final List<String> FR_COLLECTION = List.of("recouvrement", "taux", "collection", "recouvre", "recupér", "recuper", "perception");
+    private static final List<String> FR_TAXPAYER = List.of("contribuable", "contribuables", "taxpayer", "taxpayers", "entreprise", "entreprises", "societe", "sociéte", "sociétés", "nif", "registre", "assujetti", "assujettis", "usager fiscal");
+    private static final List<String> FR_DECLARATION = List.of("declar", "impôt", "impot", "impôts", "imposition fiscale", "cotisation", "cotisations", "liquidation");
+    private static final List<String> FR_DEBT = List.of("créance", "créances", "creance", "creances", "dette", "dettes", "impayé", "impaye", "non payé", "non paye", "restant", "encours", "reliquat", "arriere", "arrieres", "solde", "non-paye");
+    private static final List<String> FR_PAYMENT = List.of("paiement", "paiements", "fixation", "payer", "encaiss", "reçu", "recu", "reçus", "recus", "quittance", "encaissement", "montant reçu", "montant recu", "versement", "versements", "reglement", "reglements", "regler", "recette", "recettes");
+    private static final List<String> FR_COLLECTION = List.of("recouvrement", "taux", "collection", "recouvre", "recupér", "recuper", "perception", "contentieux", "poursuite", "poursuites", "relance", "relances");
     private static final List<String> FR_ASSESSMENT = List.of("imposition", "impositions", "assessment", "taxe", "taxes", "barème", "bareme", "grille");
     private static final List<String> FR_OVERDUE = List.of("retard", "retards", "overdue", "en retard", "échéance", "echeance", "échéancier", "echeancier", "défaillant", "defaillant", "en défaut", "en defaut");
-    private static final List<String> FR_SUMMARY = List.of("total", "somme", "montant", "chiffre", "bilan", "résumé", "resume", "synthèse", "synthese", "global", "vue d'ensemble", "aperçu", "apercu", "récapitulatif", "recapitulatif");
+    private static final List<String> FR_SUMMARY = List.of("total", "somme", "montant", "chiffre", "bilan", "résumé", "resume", "synthèse", "synthese", "global", "vue d'ensemble", "aperçu", "apercu", "récapitulatif", "recapitulatif", "statistique", "statistiques", "dashboard", "tableau de bord");
     private static final List<String> FR_RECENT = List.of("activit", "récent", "recent", "dernier", "dernière", "derniere", "nouveaux", "nouvelles", "ce mois", "aujourd'hui", "ajourd hui", "hier", "jour");
     private static final List<String> FR_NEXT = List.of("prochaine", "prochain", "action", "actions", "planifier", "plan", "échéance à venir", "echeance a venir", "à faire", "a faire", "todo");
     private static final List<String> FR_TOP = List.of("meilleur", "meilleurs", "top", "classement", "ranking", "plus gros", "plus grand", "principaux");
@@ -619,12 +620,12 @@ public final class AiMessages {
     private static final List<String> EN_HELP = List.of("help", "how do", "how to", "how can", "use", "usage", "what can you", "capabilities", "guide", "instructions");
     private static final List<String> EN_TAXPAYER = List.of("taxpayer", "taxpayers", "company", "companies", "business", "businesses", "corporation", "nif", "registry", "register", "firm", "contribuable");
     private static final List<String> EN_DECLARATION = List.of("declaration", "declare", "filing", "tax return", "returns", "submitted", "declar");
-    private static final List<String> EN_DEBT = List.of("debt", "debts", "unpaid", "outstanding", "owed", "arrears", "receivable", "money owed", "non-payment");
-    private static final List<String> EN_PAYMENT = List.of("payment", "payments", "paid", "pay", "revenue", "receipt", "receipts", "received", "income", "collections", "cashed");
+    private static final List<String> EN_DEBT = List.of("debt", "debts", "unpaid", "outstanding", "owed", "arrears", "receivable", "money owed", "non-payment", "balance", "balances", "dues");
+    private static final List<String> EN_PAYMENT = List.of("payment", "payments", "paid", "pay", "revenue", "receipt", "receipts", "received", "income", "collections", "cashed", "remittance", "remittances", "settlement");
     private static final List<String> EN_COLLECTION = List.of("collection", "rate", "recovery", "collect", "recouvr");
     private static final List<String> EN_ASSESSMENT = List.of("assessment", "assessments", "levy", "levies", "tax scale", "threshold", "taxe");
     private static final List<String> EN_OVERDUE = List.of("overdue", "late", "past due", "delay", "delays", "arrears", "missed", "deadline", "expired","lany andro");
-    private static final List<String> EN_SUMMARY = List.of("total", "sum", "amount", "summary", "overview", "global", "recap", "balance", "figures", "résumé","resume");
+    private static final List<String> EN_SUMMARY = List.of("total", "sum", "amount", "summary", "overview", "global", "recap", "balance", "figures", "résumé","resume", "statistics", "statistic", "dashboard");
     private static final List<String> EN_RECENT = List.of("recent", "activity", "latest", "new", "today", "yesterday", "this month", "updates", "last");
     private static final List<String> EN_NEXT = List.of("next", "action", "actions", "plan", "to do", "todo", "upcoming", "scheduled");
     private static final List<String> EN_TOP = List.of("best", "top", "ranking", "largest", "biggest", "leaders", "main", "highest");

@@ -32,8 +32,15 @@ public final class CommunicationDtos {
             String priority,          // LOW | NORMAL | HIGH | URGENT
             String messageType,       // TAX_DEADLINE | OVERDUE | PAYMENT | ...
             String scheduledAt,       // ISO instant → programmé
-            Boolean requireConfirmation
+            Boolean requireConfirmation,
+            String emailOverride,
+            String senderEmail,
+            Boolean updateContact,
+            String externalName
     ) {
+    }
+
+    public record SenderDto(String email, String name, boolean isDefault) {
     }
 
     /** Résultat avant envoi : résumé de conformité (destinataires, canaux, adresses manquantes). */

@@ -272,7 +272,7 @@ export default function Debts() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       {/* ── Header ── */}
       <PageHeader
         title="Créances fiscales"
@@ -693,8 +693,8 @@ export default function Debts() {
                 : 0
               const isOverdue = d.daysOverdue > 0
               return (
-                <Card key={d.id} className="group cursor-pointer transition hover:shadow-lg hover:border-violet-200 dark:hover:border-violet-800" onClick={() => window.location.href = `/debts/${d.id}`}>
-                  <div className="p-4 space-y-3">
+                <div key={d.id} className="group cursor-pointer rounded-2xl border border-slate-100 bg-white p-5 transition-all duration-200 hover:shadow-lg hover:shadow-slate-200/50 hover:border-violet-200 dark:border-slate-700/50 dark:bg-slate-800 dark:hover:border-violet-500/30 dark:hover:shadow-violet-900/20" onClick={() => window.location.href = `/debts/${d.id}`}>
+                  <div className="space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">
@@ -794,7 +794,7 @@ export default function Debts() {
                       </RowActionPortal>
                     </div>
                   </div>
-                </Card>
+                </div>
               )
             })}
           </div>
@@ -807,7 +807,7 @@ export default function Debts() {
         onClose={() => { setCreateOpen(false); setCreateStep(0); setTaxpayerSearch(''); setSelectedTaxpayer(null) }}
         title={`Étape ${createStep + 1}/3 — Ajouter une créance`}
         subtitle={createStep === 0 ? 'Sélection du contribuable' : createStep === 1 ? 'Détails fiscaux et montant' : 'Vérification et validation'}
-        wide
+        size="full"
       >
         <form
           onSubmit={handleSubmit((v) =>

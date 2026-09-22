@@ -60,7 +60,8 @@ const CHART_COLORS = [C.violet, C.blue, C.green, C.orange, C.yellow, C.red, C.in
 function ChartActiveDot({ cx, cy }: { cx?: number; cy?: number }) {
   return (
     <g>
-      <circle cx={cx} cy={cy} r={12} className="chart-dot-halo" />
+      <circle cx={cx} cy={cy} r={16} className="chart-dot-halo" />
+      <circle cx={cx} cy={cy} r={8} className="chart-dot-halo-sm" />
       <circle cx={cx} cy={cy} r={5.5} className="chart-dot-core" />
     </g>
   )
@@ -124,12 +125,7 @@ function useCountUp(target: number, duration = 900) {
 }
 
 /* ═══════════════════════════ Période ═══════════════════════════ */
-const CHART_RANGE_OPTIONS = [
-  { id: '7', labelKey: 'dashboard.range.7' },
-  { id: '30', labelKey: 'dashboard.range.30' },
-  { id: '12', labelKey: 'dashboard.range.12' },
-  { id: 'all', labelKey: 'dashboard.range.all' },
-]
+const CHART_RANGE_OPTIONS = PERIOD_PRESETS.map((p) => ({ id: p.id, labelKey: p.labelKey }))
 
 /* ═══════════════════════════ Activité ═══════════════════════ */
 const activityMeta: Record<DashboardActivity['type'], { icon: React.ReactNode; tone: IconTone }> = {
@@ -160,11 +156,11 @@ function statusName(status: string, t: (key: string) => string): string {
   return fallback[status] ?? status
 }
 
-/** Libellé d'activité : le backend envoie un libellé FR libre → on affiche la version traduite par type, avec fallback */
-function activityLabel(type: string, fallbackLabel: string, t: (key: string) => string): string {
+/** Libellé d'activité : le backend envoie un libellé FR libre → on affiche la version traduite par type, avec fallback.
+ *  `has` (sans fallback FR) est requis : t() seul retomberait en français et fausserait la détection. */
+function activityLabel(type: string, fallbackLabel: string, t: (key: string) => string, has: (key: string) => boolean): string {
   const key = `dashboard.activity.${type.toLowerCase()}`
-  const v = t(key)
-  return v !== key ? v : fallbackLabel
+  return has(key) ? t(key) : fallbackLabel
 }
 
 /** Noms FR connus (base de données) → code impôt, pour traduire les données backend */
@@ -180,18 +176,15 @@ const TAX_TYPE_NAME_TO_CODE: Record<string, string> = {
   'impôt foncier sur les propriétés bâties': 'IFPB',
 }
 
-/** Traduit un code ou nom d'impôt venant du backend (donut = code, échéances = nom FR) */
-function taxTypeLabel(codeOrName: string, t: (key: string) => string): string {
+/** Traduit un code ou nom d'impôt venant du backend (donut = code, échéances = nom FR).
+ *  Nom → code d'abord (insensible à la casse), puis clé `taxtype.CODE` vérifiée par
+ *  `has` (sans fallback FR) : un t() direct retomberait en français et fausserait la détection. */
+function taxTypeLabel(codeOrName: string, t: (key: string) => string, has: (key: string) => boolean): string {
   const raw = (codeOrName ?? '').trim()
   if (!raw) return raw
-  const upper = raw.toUpperCase()
-  const direct = t(`taxtype.${upper}`)
-  if (direct !== `taxtype.${upper}`) return direct
-  const code = TAX_TYPE_NAME_TO_CODE[raw.toLowerCase()]
-  if (code) {
-    const v = t(`taxtype.${code}`)
-    if (v !== `taxtype.${code}`) return v
-  }
+  const mapped = TAX_TYPE_NAME_TO_CODE[raw.toLowerCase()]
+  const code = mapped ?? (/^[a-z]{2,4}$/i.test(raw) ? raw.toUpperCase() : undefined)
+  if (code && has(`taxtype.${code}`)) return t(`taxtype.${code}`)
   return raw
 }
 
@@ -201,7 +194,7 @@ function toISODate(d: Date): string {
 }
 
 /** Génère un CSV à partir des données du dashboard */
-function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string, t: (key: string) => string) {
+function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string, t: (key: string) => string, has: (key: string) => boolean) {
   const lines: string[] = []
   lines.push(t('dashboard.csv.reportTitle'))
   lines.push(`${t('dashboard.csv.period')};${fromDate} ${t('dashboard.csv.to')} ${toDate}`)
@@ -222,7 +215,7 @@ function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string, t
   lines.push('')
   lines.push(`${t('dashboard.csv.byTaxType')};${t('dashboard.csv.amountMGA')}`)
   for (const r of (data.paymentsByTaxType ?? [])) {
-    lines.push(`${taxTypeLabel(r.taxType, t)};${r.amount}`)
+    lines.push(`${taxTypeLabel(r.taxType, t, has)};${r.amount}`)
   }
   lines.push('')
   lines.push(`${t('dashboard.csv.byMonth')};${t('dashboard.csv.amountMGA')}`)
@@ -247,7 +240,7 @@ function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string, t
 
 /* ═══════════════════════════ Main ═══════════════════════════ */
 export default function Dashboard() {
-  const { t } = useI18n()
+  const { t, has } = useI18n()
   const { fmtMGA, fmtNumber, fmtDate, shortMonthLabel, timeAgo } = useLocaleFormatters()
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -264,23 +257,12 @@ export default function Dashboard() {
      setRecoveryStep(step)
    }
 
-   // Période sélectionnée pour le bandeau
+   // Période sélectionnée — periodPreset est la source unique de vérité
   const selectedPreset = PERIOD_PRESETS.find((p) => p.id === periodPreset) ?? PERIOD_PRESETS[0]
   const months = selectedPreset.months
 
-  // Synchroniser chartRange <-> periodPreset
-  const [chartRange, setChartRange] = useState('12')
-  const chartToPreset: Record<string, string> = { '12': 'year', 'all': 'all' }
-  const presetToChart: Record<string, string> = { 'year': '12', 'quarter': '3', 'month': '1', '6months': '6', 'all': 'all' }
   function handlePeriodChange(id: string) {
     setPeriodPreset(id)
-    const chartKey = presetToChart[id]
-    if (chartKey) setChartRange(chartKey)
-  }
-  function handleChartRangeChange(id: string) {
-    setChartRange(id)
-    const presetKey = chartToPreset[id]
-    if (presetKey) setPeriodPreset(presetKey)
   }
 
   const { data, isLoading } = useQuery({
@@ -308,7 +290,7 @@ export default function Dashboard() {
     label: shortMonthLabel(r.month ?? ''),
     montant: r.amount ?? 0,
   }))
-  const rangeN = months === 0 ? revenueSeries.length : Math.min(Number(chartRange) || 12, revenueSeries.length)
+  const rangeN = months === 0 ? revenueSeries.length : Math.min(months, revenueSeries.length)
   const rangeData = revenueSeries.slice(-rangeN).map((r, i, arr) => ({
     ...r,
     delta: i > 0 ? r.montant - arr[i - 1].montant : 0,
@@ -356,7 +338,7 @@ export default function Dashboard() {
   }
 
   /* ── Répartition impôts ── */
-  const byTaxType = (data.paymentsByTaxType ?? []).map((r) => ({ name: taxTypeLabel(r.taxType, t), code: r.taxType, value: r.amount ?? 0 }))
+  const byTaxType = (data.paymentsByTaxType ?? []).map((r) => ({ name: taxTypeLabel(r.taxType, t, has), code: r.taxType, value: r.amount ?? 0 }))
   const byTaxTypeTotal = byTaxType.reduce((s, x) => s + x.value, 0)
   const topSlice = byTaxType.slice(0, 8)
 
@@ -371,7 +353,7 @@ export default function Dashboard() {
         onPeriodChange={handlePeriodChange}
         fromDate={periodFromDate}
         toDate={periodToDate}
-        onDownload={() => downloadCSV(data, periodFromDate, periodToDate, t)}
+        onDownload={() => downloadCSV(data, periodFromDate, periodToDate, t, has)}
         size={welcomeSize}
       />
 
@@ -389,7 +371,7 @@ export default function Dashboard() {
           to="/taxpayers"
           menuItems={[
             { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/taxpayers') },
-            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t, has) },
             { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
           ]}
         />
@@ -405,7 +387,7 @@ export default function Dashboard() {
           to="/payments"
           menuItems={[
             { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/payments') },
-            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t, has) },
             { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
           ]}
         />
@@ -421,7 +403,7 @@ export default function Dashboard() {
           to="/declarations"
           menuItems={[
             { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/declarations') },
-            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t, has) },
             { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
           ]}
         />
@@ -436,7 +418,7 @@ export default function Dashboard() {
           to="/debts"
           menuItems={[
             { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/debts') },
-            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t, has) },
             { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
           ]}
         />
@@ -451,7 +433,7 @@ export default function Dashboard() {
           to="/reports"
           menuItems={[
             { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/reports') },
-            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t, has) },
             { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
           ]}
         />
@@ -467,7 +449,7 @@ export default function Dashboard() {
           to="/receipts"
           menuItems={[
             { label: t('dashboard.kpi.menu.viewDetails'), icon: <ExternalLink className="h-4 w-4" />, onClick: () => navigate('/receipts') },
-            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t) },
+            { label: t('dashboard.kpi.menu.export'), icon: <Download className="h-4 w-4" />, onClick: () => downloadCSV(data, periodFromDate, periodToDate, t, has) },
             { label: t('dashboard.kpi.menu.refresh'), icon: <RefreshCw className="h-4 w-4" />, onClick: handleRefresh },
           ]}
         />
@@ -487,9 +469,9 @@ export default function Dashboard() {
                 {CHART_RANGE_OPTIONS.map((opt) => (
                   <button
                     key={opt.id}
-                    onClick={() => handleChartRangeChange(opt.id)}
+                    onClick={() => handlePeriodChange(opt.id)}
                     className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                      chartRange === opt.id ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                      periodPreset === opt.id ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                     }`}
                   >
                     {t(opt.labelKey)}
@@ -518,12 +500,37 @@ export default function Dashboard() {
               <EmptyState title={t('dashboard.chart.noData')} />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart key={chartRange} data={rangeData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <AreaChart key={periodPreset} data={rangeData} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
                   <defs>
+                    {/* Primary fill – surface principale */}
                     <linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#5B4BDB" stopOpacity={chart.dark ? 0.25 : 0.18} />
+                      <stop offset="0%" stopColor="#5B4BDB" stopOpacity={chart.dark ? 0.38 : 0.30} />
+                      <stop offset="55%" stopColor="#5B4BDB" stopOpacity={chart.dark ? 0.10 : 0.08} />
                       <stop offset="100%" stopColor="#5B4BDB" stopOpacity={0} />
                     </linearGradient>
+                    {/* 3D depth shadow layer */}
+                    <linearGradient id="revenueShadow" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3B30A8" stopOpacity={chart.dark ? 0.12 : 0.08} />
+                      <stop offset="100%" stopColor="#3B30A8" stopOpacity={0} />
+                    </linearGradient>
+                    {/* Glow for the stroke */}
+                    <filter id="strokeGlow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    {/* Subtle inner glow for peak marker */}
+                    <filter id="peakGlow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
+                      <feFlood floodColor="#5B4BDB" floodOpacity="0.35" result="color" />
+                      <feComposite in="color" in2="blur" operator="in" result="glow" />
+                      <feMerge>
+                        <feMergeNode in="glow" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 12, fill: chart.tick }} axisLine={false} tickLine={false} />
@@ -540,20 +547,44 @@ export default function Dashboard() {
                         [`${delta >= 0 ? '+' : '−'}${fmtMGA(Math.abs(delta))}`, t('dashboard.sub.vsPrevMonth')],
                       ] as [string, string][]
                     }}
-                    contentStyle={chart.tooltip}
+                    contentStyle={{
+                      ...chart.tooltip,
+                      backdropFilter: 'blur(12px)',
+                      WebkitBackdropFilter: 'blur(12px)',
+                      border: `1px solid ${chart.dark ? 'rgba(91,75,219,0.3)' : 'rgba(91,75,219,0.15)'}`,
+                      boxShadow: chart.dark
+                        ? '0 8px 32px rgba(91,75,219,0.25), 0 2px 8px rgba(0,0,0,0.4)'
+                        : '0 8px 32px rgba(91,75,219,0.12), 0 2px 8px rgba(0,0,0,0.08)',
+                    }}
                     itemStyle={chart.tooltipItem}
                     labelStyle={chart.tooltipLabel}
-                    cursor={{ stroke: chart.dark ? '#334155' : '#cbd5e1', strokeDasharray: '4 4', strokeWidth: 1.5 }}
+                    cursor={{ stroke: chart.dark ? 'rgba(91,75,219,0.3)' : 'rgba(91,75,219,0.15)', strokeDasharray: '4 4', strokeWidth: 1.5 }}
                   />
+                  {/* 3D depth shadow (offset downward) */}
+                  <Area
+                    type="monotone"
+                    dataKey="montant"
+                    stroke="none"
+                    fill="url(#revenueShadow)"
+                    isAnimationActive
+                    animationDuration={1400}
+                    animationBegin={100}
+                    animationEasing="cubic-bezier(0.22, 1, 0.36, 1)"
+                    dot={false}
+                    activeDot={false}
+                    transform="translate(2, 4)"
+                  />
+                  {/* Main area with glow stroke */}
                   <Area
                     type="monotone"
                     dataKey="montant"
                     stroke="#5B4BDB"
                     strokeWidth={2.5}
+                    filter="url(#strokeGlow)"
                     fill="url(#revenueFill)"
                     isAnimationActive
-                    animationDuration={1100}
-                    animationBegin={150}
+                    animationDuration={1200}
+                    animationBegin={200}
                     animationEasing="cubic-bezier(0.22, 1, 0.36, 1)"
                     dot={false}
                     activeDot={(props) => <ChartActiveDot cx={(props as { cx?: number })?.cx} cy={(props as { cy?: number })?.cy} />}
@@ -589,7 +620,15 @@ export default function Dashboard() {
                 <div className="rechart-entrance relative mx-auto h-52 w-52">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={topSlice} dataKey="value" nameKey="name" innerRadius={60} outerRadius={88} paddingAngle={3} strokeWidth={0} isAnimationActive animationDuration={1000} animationBegin={250} animationEasing="cubic-bezier(0.22, 1, 0.36, 1)">
+                      <defs>
+                        <filter id="donutShadow" x="-10%" y="-10%" width="120%" height="130%">
+                          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000" floodOpacity={chart.dark ? 0.4 : 0.15} />
+                        </filter>
+                      </defs>
+                      <Pie data={topSlice} dataKey="value" nameKey="name" innerRadius={60} outerRadius={88} paddingAngle={3} strokeWidth={0}
+                        filter="url(#donutShadow)"
+                        isAnimationActive animationDuration={1200} animationBegin={250} animationEasing="cubic-bezier(0.22, 1, 0.36, 1)"
+                      >
                         {topSlice.map((_, i) => (
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                         ))}
@@ -684,10 +723,16 @@ export default function Dashboard() {
                 <div className="rechart-entrance relative mx-auto h-44 w-44">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
+                      <defs>
+                        <filter id="donutShadow2" x="-10%" y="-10%" width="120%" height="130%">
+                          <feDropShadow dx="0" dy="3" stdDeviation="4" floodColor="#000" floodOpacity={chart.dark ? 0.4 : 0.15} />
+                        </filter>
+                      </defs>
                       <Pie
                         data={data.debtsByStatus.map((s) => ({ name: statusName(s.status, t), value: s.count }))}
                         dataKey="value" nameKey="name" innerRadius={50} outerRadius={75} paddingAngle={3} strokeWidth={0}
-                        isAnimationActive animationDuration={1000} animationBegin={350} animationEasing="cubic-bezier(0.22, 1, 0.36, 1)"
+                        filter="url(#donutShadow2)"
+                        isAnimationActive animationDuration={1200} animationBegin={350} animationEasing="cubic-bezier(0.22, 1, 0.36, 1)"
                       >
                         {data.debtsByStatus.map((_, i) => (
                           <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
@@ -750,7 +795,7 @@ export default function Dashboard() {
                           {meta.icon}
                         </div>
                         <div className="min-w-0 flex-1 pt-1">
-                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{activityLabel(a.type, a.label, t)}</p>
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{activityLabel(a.type, a.label, t, has)}</p>
                           <p className="truncate text-xs text-slate-400 dark:text-slate-500">
                             <Link to={`/taxpayers/${a.taxpayerId}`} className="font-medium text-slate-500 dark:text-slate-400 hover:text-brand-600 hover:underline">
                               {a.taxpayerName}
@@ -875,7 +920,7 @@ export default function Dashboard() {
             ) : (
               nextDeadlines.map((d) => (
                 <div key={d.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2.5">
-                  <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">{taxTypeLabel(d.taxTypeName, t)}</span>
+                  <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">{taxTypeLabel(d.taxTypeName, t, has)}</span>
                   <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">{fmtDate(d.declarationDeadline)}</span>
                 </div>
               ))
@@ -899,7 +944,7 @@ export default function Dashboard() {
                 <div key={a.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">
-                      {(() => { const k = `collection.type.${a.type}`; const v = t(k); return v !== k ? v : (collectionTypeLabels[a.type] ?? a.type) })()}
+                      {(() => { const k = `collection.type.${a.type}`; return has(k) ? t(k) : (collectionTypeLabels[a.type] ?? a.type) })()}
                     </p>
                     <p className="truncate text-xs text-slate-400 dark:text-slate-500">{a.taxpayerName}</p>
                   </div>
@@ -923,7 +968,8 @@ export default function Dashboard() {
 /* ── Mini sparkline SVG ── */
 let sparklineCounter = 0
 function Sparkline({ data, color, width = 80, height = 32 }: { data: number[]; color: string; width?: number; height?: number }) {
-  const gradId = useMemo(() => `spark-${++sparklineCounter}`, [])
+  const gradId = useMemo(() => `spark-grad-${++sparklineCounter}`, [])
+  const glowId = useMemo(() => `spark-glow-${sparklineCounter}`, [])
 
   if (!data || data.length < 2) return null
   const min = Math.min(...data)
@@ -946,12 +992,19 @@ function Sparkline({ data, color, width = 80, height = 32 }: { data: number[]; c
     <svg width={width} height={height} className="shrink-0" aria-hidden="true">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+          <stop offset="0%" stopColor={color} stopOpacity={0.30} />
           <stop offset="100%" stopColor={color} stopOpacity={0} />
         </linearGradient>
+        <filter id={glowId} x="-10%" y="-30%" width="120%" height="160%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
       <path d={areaD} fill={`url(#${gradId})`} />
-      <path d={pathD} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={pathD} fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" filter={`url(#${glowId})`} />
     </svg>
   )
 }

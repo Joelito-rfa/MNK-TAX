@@ -51,6 +51,7 @@ import {
   Th,
 } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { useI18n } from '../lib/i18n'
 
 /* ── Schemas ── */
 const createSchema = z.object({
@@ -71,18 +72,18 @@ const createSchema = z.object({
 
 type CreateForm = z.infer<typeof createSchema>
 
-const SORT_COLUMNS: { key: string; label: string; sort: string }[] = [
-  { key: 'nif', label: 'NIF', sort: 'nif' },
-  { key: 'name', label: 'Contribuable', sort: 'name' },
-  { key: 'type', label: 'Type', sort: 'type' },
-  { key: 'taxCenter', label: 'Centre fiscal', sort: 'taxCenter.name' },
-  { key: 'taxRegime', label: 'Régime', sort: 'taxRegime.name' },
-  { key: 'status', label: 'Statut', sort: 'status' },
+const SORT_COLUMNS: { key: string; labelKey: string; sort: string }[] = [
+  { key: 'nif', labelKey: 'tp.sort.nif', sort: 'nif' },
+  { key: 'name', labelKey: 'tp.sort.name', sort: 'name' },
+  { key: 'type', labelKey: 'tp.sort.type', sort: 'type' },
+  { key: 'taxCenter', labelKey: 'tp.sort.taxCenter', sort: 'taxCenter.name' },
+  { key: 'taxRegime', labelKey: 'tp.sort.taxRegime', sort: 'taxRegime.name' },
+  { key: 'status', labelKey: 'tp.sort.status', sort: 'status' },
 ]
 
 /* ── Helpers ── */
-function copyToClipboard(text: string, toast: ReturnType<typeof useToast>) {
-  navigator.clipboard.writeText(text).then(() => toast.success('Copié !'))
+function copyToClipboard(text: string, toast: ReturnType<typeof useToast>, t: (key: string) => string) {
+  navigator.clipboard.writeText(text).then(() => toast.success(t('tp.copied')))
 }
 
 function typeIcon(type: string) {
@@ -95,6 +96,10 @@ function typeBadgeTone(type: string): 'indigo' | 'slate' {
   return type === 'COMPANY' ? 'indigo' : 'slate'
 }
 
+function typeLabel(type: string, t: (key: string) => string) {
+  return t(type === 'COMPANY' ? 'tp.company' : 'tp.individual')
+}
+
 function statusTone(s: string): 'green' | 'amber' | 'red' | 'slate' {
   if (s === 'ACTIVE') return 'green'
   if (s === 'SUSPENDED' || s === 'CLOSED') return 'red'
@@ -102,14 +107,9 @@ function statusTone(s: string): 'green' | 'amber' | 'red' | 'slate' {
   return 'slate'
 }
 
-function statusLabel(s: string) {
-  const m: Record<string, string> = {
-    ACTIVE: 'Actif',
-    INACTIVE: 'Inactif',
-    SUSPENDED: 'Suspendu',
-    CLOSED: 'Clôturé',
-  }
-  return m[s] ?? s
+function statusLabel(s: string, t: (key: string) => string, has: (key: string) => boolean) {
+  const k = `status.${s}`
+  return has(k) ? t(k) : s
 }
 
 function getInitials(name: string) {
@@ -139,6 +139,7 @@ export default function Taxpayers() {
   const [showFilters, setShowFilters] = useState(false)
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { t: tr, has } = useI18n()
 
   const q = searchParams.get('q') ?? ''
 
@@ -237,20 +238,20 @@ export default function Taxpayers() {
     p.delete('sort')
     fetchTaxpayers(`${p.toString()}&size=9999`).then((rows) => {
       const csv = [
-        'NIF,Nom,Type,Contact,Email,Statut,Centre fiscal,Régime',
+        tr('tp.csv.header'),
         ...rows.content.map(
-          (t) =>
-            `${t.nif},"${t.name}",${t.type === 'COMPANY' ? 'Entreprise' : 'Particulier'},"${t.phone || ''}","${t.email || ''}",${t.status},${t.taxCenterCode ?? ''},${t.taxRegimeCode ?? ''}`
+          (row) =>
+            `${row.nif},"${row.name}",${typeLabel(row.type, tr)},"${row.phone || ''}","${row.email || ''}",${row.status},${row.taxCenterCode ?? ''},${row.taxRegimeCode ?? ''}`
         ),
       ].join('\n')
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `contribuables_${new Date().toISOString().slice(0, 10)}.csv`
+      a.download = tr('tp.csv.filename', { date: new Date().toISOString().slice(0, 10) })
       a.click()
       URL.revokeObjectURL(url)
-      toast.success('Export CSV terminé')
+      toast.success(tr('tp.csv.done'))
     })
   }
 
@@ -280,8 +281,8 @@ export default function Taxpayers() {
     <div className="fx-page space-y-6">
       {/* ── Header ── */}
       <PageHeader
-        title="Contribuables"
-        subtitle="Registre central des contribuables et entreprises assujettis."
+        title={tr('tp.title')}
+        subtitle={tr('tp.subtitle')}
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -289,13 +290,13 @@ export default function Taxpayers() {
               size="sm"
               onClick={() => queryClient.invalidateQueries({ queryKey: ['taxpayers'] })}
             >
-              <RefreshCw className="h-4 w-4" /> Actualiser
+              <RefreshCw className="h-4 w-4" /> {tr('tp.refresh')}
             </Button>
             <Button variant="secondary" size="sm" onClick={exportCsv}>
-              <Download className="h-4 w-4" /> Exporter
+              <Download className="h-4 w-4" /> {tr('tp.export')}
             </Button>
             <Button variant="ghost" size="sm">
-              <File className="h-4 w-4" /> Importer
+              <File className="h-4 w-4" /> {tr('tp.import')}
             </Button>
             <Button
               onClick={() => {
@@ -305,7 +306,7 @@ export default function Taxpayers() {
               }}
               className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 transition-all duration-200"
             >
-              <Plus className="h-4 w-4" /> Ajouter un contribuable
+              <Plus className="h-4 w-4" /> {tr('tp.add')}
             </Button>
           </div>
         }
@@ -317,7 +318,7 @@ export default function Taxpayers() {
           <SearchInput
             value={q}
             onChange={onSearch}
-            placeholder="Rechercher par NIF, nom, raison sociale, téléphone ou email..."
+            placeholder={tr('tp.searchPlaceholder')}
             className="min-w-56 flex-1"
           />
           <Button
@@ -326,7 +327,7 @@ export default function Taxpayers() {
             onClick={() => setShowFilters(!showFilters)}
             className={showFilters ? 'text-violet-600 dark:text-violet-400' : ''}
           >
-            <Filter className="h-4 w-4" /> Filtres
+            <Filter className="h-4 w-4" /> {tr('tp.filters')}
             {activeFilterCount > 0 && (
               <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
                 {activeFilterCount}
@@ -338,7 +339,7 @@ export default function Taxpayers() {
         {showFilters && (
           <div className="animate-fade-in border-b border-slate-100 dark:border-slate-700/50 px-5 py-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Field label="Type">
+              <Field label={tr('tp.sort.type')}>
                 <Select
                   value={type}
                   onChange={(e) => {
@@ -346,12 +347,12 @@ export default function Taxpayers() {
                     setPage(0)
                   }}
                 >
-                  <option value="">Tous les types</option>
-                  <option value="COMPANY">Entreprise</option>
-                  <option value="PERSON">Particulier</option>
+                  <option value="">{tr('tp.allTypes')}</option>
+                  <option value="COMPANY">{tr('tp.company')}</option>
+                  <option value="PERSON">{tr('tp.individual')}</option>
                 </Select>
               </Field>
-              <Field label="Statut">
+              <Field label={tr('tp.sort.status')}>
                 <Select
                   value={status}
                   onChange={(e) => {
@@ -359,14 +360,14 @@ export default function Taxpayers() {
                     setPage(0)
                   }}
                 >
-                  <option value="">Tous les statuts</option>
-                  <option value="ACTIVE">Actif</option>
-                  <option value="INACTIVE">Inactif</option>
-                  <option value="SUSPENDED">Suspendu</option>
-                  <option value="CLOSED">Clôturé</option>
+                  <option value="">{tr('tp.allStatuses')}</option>
+                  <option value="ACTIVE">{tr('status.ACTIVE')}</option>
+                  <option value="INACTIVE">{tr('status.INACTIVE')}</option>
+                  <option value="SUSPENDED">{tr('status.SUSPENDED')}</option>
+                  <option value="CLOSED">{tr('status.CLOSED')}</option>
                 </Select>
               </Field>
-              <Field label="Centre fiscal">
+              <Field label={tr('tp.taxCenter')}>
                 <Select
                   value={taxCenterFilter}
                   onChange={(e) => {
@@ -374,7 +375,7 @@ export default function Taxpayers() {
                     setPage(0)
                   }}
                 >
-                  <option value="">Tous les centres</option>
+                  <option value="">{tr('tp.allCenters')}</option>
                   {taxCenters?.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.code} — {c.name}
@@ -382,7 +383,7 @@ export default function Taxpayers() {
                   ))}
                 </Select>
               </Field>
-              <Field label="Régime fiscal">
+              <Field label={tr('tp.taxRegime')}>
                 <Select
                   value={taxRegimeFilter}
                   onChange={(e) => {
@@ -390,7 +391,7 @@ export default function Taxpayers() {
                     setPage(0)
                   }}
                 >
-                  <option value="">Tous les régimes</option>
+                  <option value="">{tr('tp.allRegimes')}</option>
                   {taxRegimes?.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.code} — {r.name}
@@ -402,7 +403,7 @@ export default function Taxpayers() {
             {hasFilters && (
               <div className="mt-3 flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={resetFilters}>
-                  <X className="h-3.5 w-3.5" /> Réinitialiser les filtres
+                  <X className="h-3.5 w-3.5" /> {tr('tp.resetFilters')}
                 </Button>
               </div>
             )}
@@ -412,13 +413,13 @@ export default function Taxpayers() {
         {/* ── Active filter chips ── */}
         {hasFilters && (
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 dark:border-slate-700/50 px-5 py-2.5">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Filtres actifs :</span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{tr('tp.activeFilters')}</span>
             {q && (
               <button
                 onClick={() => removeFilter('q')}
                 className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400 dark:hover:bg-violet-900/50"
               >
-                Recherche : {q} <X className="h-3 w-3" />
+                {tr('tp.searchChip', { q })} <X className="h-3 w-3" />
               </button>
             )}
             {type && (
@@ -426,7 +427,7 @@ export default function Taxpayers() {
                 onClick={() => removeFilter('type')}
                 className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400"
               >
-                Type : {type === 'COMPANY' ? 'Entreprise' : 'Particulier'} <X className="h-3 w-3" />
+                {tr('tp.typeChip', { label: typeLabel(type, tr) })} <X className="h-3 w-3" />
               </button>
             )}
             {status && (
@@ -434,7 +435,7 @@ export default function Taxpayers() {
                 onClick={() => removeFilter('status')}
                 className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400"
               >
-                Statut : {statusLabel(status)} <X className="h-3 w-3" />
+                {tr('tp.statusChip', { label: statusLabel(status, tr, has) })} <X className="h-3 w-3" />
               </button>
             )}
             {taxCenterFilter && (
@@ -442,7 +443,7 @@ export default function Taxpayers() {
                 onClick={() => removeFilter('center')}
                 className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400"
               >
-                Centre fiscal <X className="h-3 w-3" />
+                {tr('tp.taxCenter')} <X className="h-3 w-3" />
               </button>
             )}
             {taxRegimeFilter && (
@@ -450,14 +451,14 @@ export default function Taxpayers() {
                 onClick={() => removeFilter('regime')}
                 className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400"
               >
-                Régime fiscal <X className="h-3 w-3" />
+                {tr('tp.taxRegime')} <X className="h-3 w-3" />
               </button>
             )}
             <button
               onClick={resetFilters}
               className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
             >
-              Tout effacer
+              {tr('tp.clearAll')}
             </button>
           </div>
         )}
@@ -466,12 +467,11 @@ export default function Taxpayers() {
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/50 px-5 py-2.5">
           <p className="text-sm text-slate-500 dark:text-slate-400">
             {data?.totalElements != null ? (
-              <>
-                <span className="font-medium text-slate-700 dark:text-slate-300">{data.totalElements}</span>{' '}
-                contribuable{data.totalElements > 1 ? 's' : ''} trouvé{data.totalElements > 1 ? 's' : ''}
-              </>
+              data.totalElements > 1
+                ? tr('tp.count.plural', { count: data.totalElements })
+                : tr('tp.count.singular', { count: data.totalElements })
             ) : (
-              'Chargement...'
+              tr('tp.loading')
             )}
           </p>
           <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-700/50">
@@ -482,7 +482,7 @@ export default function Taxpayers() {
                   ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
-              aria-label="Vue liste"
+              aria-label={tr('tp.viewList')}
             >
               <LayoutList className="h-4 w-4" />
             </button>
@@ -493,7 +493,7 @@ export default function Taxpayers() {
                   ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
-              aria-label="Vue cartes"
+              aria-label={tr('tp.viewCards')}
             >
               <Grid3X3 className="h-4 w-4" />
             </button>
@@ -505,13 +505,13 @@ export default function Taxpayers() {
           <div className="py-14">
             <EmptyState
               icon={<Inbox className="h-10 w-10" />}
-              title="Aucun contribuable trouvé"
-              subtitle="Aucun contribuable ne correspond aux critères de recherche sélectionnés."
+              title={tr('tp.noResultTitle')}
+              subtitle={tr('tp.noResultSubtitle')}
             />
             <div className="mt-4 flex justify-center gap-3">
               {hasFilters && (
                 <Button variant="secondary" size="sm" onClick={resetFilters}>
-                  <X className="h-4 w-4" /> Réinitialiser les filtres
+                  <X className="h-4 w-4" /> {tr('tp.resetFilters')}
                 </Button>
               )}
               <Button
@@ -522,7 +522,7 @@ export default function Taxpayers() {
                   setCreateOpen(true)
                 }}
               >
-                <Plus className="h-4 w-4" /> Ajouter un contribuable
+                <Plus className="h-4 w-4" /> {tr('tp.add')}
               </Button>
             </div>
           </div>
@@ -539,7 +539,7 @@ export default function Taxpayers() {
                       className="cursor-pointer select-none hover:text-violet-600 transition-colors"
                     >
                       <span className="inline-flex items-center gap-1">
-                        {col.label}
+                        {tr(col.labelKey)}
                         {sortKey === col.sort &&
                           (sortDir === 'asc' ? (
                             <ArrowUp className="h-3 w-3" />
@@ -549,7 +549,7 @@ export default function Taxpayers() {
                       </span>
                     </Th>
                   ))}
-                  <Th>Contact</Th>
+                  <Th>{tr('tp.contact')}</Th>
                   <Th className="w-12"></Th>
                 </tr>
               </thead>
@@ -569,10 +569,10 @@ export default function Taxpayers() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            copyToClipboard(t.nif, toast)
+                            copyToClipboard(t.nif, toast, tr)
                           }}
                           className="opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                          aria-label="Copier le NIF"
+                          aria-label={tr('tp.copyNif')}
                         >
                           <Copy className="h-3.5 w-3.5" />
                         </button>
@@ -594,7 +594,7 @@ export default function Taxpayers() {
                         <div className="min-w-0">
                           <p className="truncate font-medium text-slate-900 dark:text-slate-100">{t.name}</p>
                           <p className="text-xs text-slate-400 dark:text-slate-500">
-                            {t.type === 'COMPANY' ? 'Entreprise' : 'Particulier'}
+                            {typeLabel(t.type, tr)}
                           </p>
                         </div>
                       </div>
@@ -603,13 +603,9 @@ export default function Taxpayers() {
                     {/* Type */}
                     <Td>
                       <Badge tone={typeBadgeTone(t.type)}>
-                        {t.type === 'COMPANY' ? (
-                          <Building2 className="h-3 w-3" />
-                        ) : (
-                          <User className="h-3 w-3" />
-                        )}
-                        {t.type === 'COMPANY' ? 'Entreprise' : 'Particulier'}
-                      </Badge>
+                          {typeIcon(t.type)}
+                          {typeLabel(t.type, tr)}
+                        </Badge>
                     </Td>
 
                     {/* Centre fiscal */}
@@ -636,7 +632,7 @@ export default function Taxpayers() {
                     <Td>
                       <div className={`flex items-center gap-1.5 text-xs font-medium ${statusTone(t.status) === 'green' ? 'text-emerald-600 dark:text-emerald-400' : statusTone(t.status) === 'red' ? 'text-rose-600 dark:text-rose-400' : statusTone(t.status) === 'amber' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
                         <span className={`h-2 w-2 rounded-full ${statusTone(t.status) === 'green' ? 'bg-emerald-500' : statusTone(t.status) === 'red' ? 'bg-rose-500' : statusTone(t.status) === 'amber' ? 'bg-amber-500' : 'bg-slate-400'}`} />
-                        {statusLabel(t.status)}
+{statusLabel(t.status, tr, has)}
                       </div>
                     </Td>
 
@@ -665,9 +661,9 @@ export default function Taxpayers() {
                         taxpayer={t}
                         onViewProfile={() => setSelectedTaxpayer(t.id)}
                         onViewDetails={() => { window.location.href = `/taxpayers/${t.id}` }}
-                        onCopyNif={() => copyToClipboard(t.nif, toast)}
+                        onCopyNif={() => copyToClipboard(t.nif, toast, tr)}
                         onSuspend={() => {
-                          if (confirm('Suspendre ce contribuable ?')) {
+                          if (confirm(tr('tp.confirmSuspend'))) {
                             statusMutation.mutate({ id: t.id, status: 'SUSPENDED' })
                           }
                         }}
@@ -722,13 +718,13 @@ export default function Taxpayers() {
                     </div>
                     <div className={`flex items-center gap-1.5 text-xs font-medium ${statusTone(t.status) === 'green' ? 'text-emerald-600 dark:text-emerald-400' : statusTone(t.status) === 'red' ? 'text-rose-600 dark:text-rose-400' : statusTone(t.status) === 'amber' ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'}`}>
                       <span className={`h-2 w-2 rounded-full ${statusTone(t.status) === 'green' ? 'bg-emerald-500' : statusTone(t.status) === 'red' ? 'bg-rose-500' : statusTone(t.status) === 'amber' ? 'bg-amber-500' : 'bg-slate-400'}`} />
-                      {statusLabel(t.status)}
+                      {statusLabel(t.status, tr, has)}
                     </div>
                   </div>
 
                   <div className="mt-4 space-y-2">
                     <div className="flex items-center gap-2">
-                      <Badge tone={typeBadgeTone(t.type)}>{t.type === 'COMPANY' ? 'Entreprise' : 'Particulier'}</Badge>
+                      <Badge tone={typeBadgeTone(t.type)}>{typeLabel(t.type, tr)}</Badge>
                       {t.taxCenterCode && <Badge tone="blue">{t.taxCenterCode}</Badge>}
                       {t.taxRegimeCode && <Badge tone="slate">{t.taxRegimeCode}</Badge>}
                     </div>
@@ -781,9 +777,13 @@ export default function Taxpayers() {
           setCreateOpen(false)
           setCreateStep(0)
         }}
-        title="Ajouter un contribuable"
-        subtitle={createStep === 0 ? 'Étape 1/3 — Identification' : createStep === 1 ? 'Étape 2/3 — Coordonnées' : 'Étape 3/3 — Informations fiscales'}
-        wide
+        title={tr('tp.modal.title')}
+        subtitle={tr('tp.modal.step', {
+          current: createStep + 1,
+          total: 3,
+          name: tr(createStep === 0 ? 'tp.step.id' : createStep === 1 ? 'tp.step.contact' : 'tp.step.fiscal'),
+        })}
+        size="full"
       >
         <form
           onSubmit={handleSubmit((v) =>
@@ -820,7 +820,7 @@ export default function Taxpayers() {
           {/* Step 0: Identification */}
           {createStep === 0 && (
             <div className="space-y-4 animate-fade-in">
-              <Field label="Type de contribuable">
+              <Field label={tr('tp.modal.type')}>
                 <div className="grid grid-cols-2 gap-3">
                   <label
                     className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition ${
@@ -840,8 +840,8 @@ export default function Taxpayers() {
                       <Building2 className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="font-medium text-slate-900 dark:text-slate-100">Entreprise</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Société ou organisation</p>
+                      <p className="font-medium text-slate-900 dark:text-slate-100">{tr('tp.company')}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{tr('tp.modal.companyDesc')}</p>
                     </div>
                   </label>
                   <label
@@ -862,16 +862,16 @@ export default function Taxpayers() {
                       <User className="h-5 w-5" />
                     </div>
                     <div>
-                      <p className="font-medium text-slate-900 dark:text-slate-100">Particulier</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Personne physique</p>
+                      <p className="font-medium text-slate-900 dark:text-slate-100">{tr('tp.individual')}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{tr('tp.modal.personDesc')}</p>
                     </div>
                   </label>
                 </div>
               </Field>
 
-              <Field label={taxpayerType === 'COMPANY' ? 'Raison sociale' : 'Nom complet'}>
+              <Field label={taxpayerType === 'COMPANY' ? tr('tp.modal.companyName') : tr('tp.modal.fullName')}>
                 <Input
-                  placeholder={taxpayerType === 'COMPANY' ? 'ex : SARL MADIAK' : 'ex : RAKOTO Jean'}
+                  placeholder={taxpayerType === 'COMPANY' ? tr('tp.modal.namePhCompany') : tr('tp.modal.namePhPerson')}
                   {...register('name')}
                 />
                 {errors.name && <p className="mt-1 text-xs text-rose-600">{errors.name.message}</p>}
@@ -879,19 +879,19 @@ export default function Taxpayers() {
 
               {taxpayerType === 'COMPANY' ? (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Nom commercial (facultatif)">
+                  <Field label={tr('tp.modal.businessNameOpt')}>
                     <Input {...register('businessName')} />
                   </Field>
-                  <Field label="Représentant légal (facultatif)">
+                  <Field label={tr('tp.modal.legalRepOpt')}>
                     <Input placeholder="ex : RAKOTO Jean" {...register('legalRepresentative')} />
                   </Field>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Prénom (facultatif)">
+                  <Field label={tr('tp.modal.firstNameOpt')}>
                     <Input {...register('firstName')} />
                   </Field>
-                  <Field label="Nom de famille (facultatif)">
+                  <Field label={tr('tp.modal.lastNameOpt')}>
                     <Input {...register('lastName')} />
                   </Field>
                 </div>
@@ -903,24 +903,24 @@ export default function Taxpayers() {
           {createStep === 1 && (
             <div className="space-y-4 animate-fade-in">
               {taxpayerType === 'PERSON' && (
-                <Field label="Date de naissance (facultatif)">
+                <Field label={tr('tp.modal.birthDateOpt')}>
                   <Input type="date" {...register('birthDate')} />
                 </Field>
               )}
-              <Field label="Date d'immatriculation (facultatif)">
+              <Field label={tr('tp.modal.registrationDateOpt')}>
                 <Input type="date" {...register('registrationDate')} />
               </Field>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Téléphone">
+                <Field label={tr('tp.modal.phone')}>
                   <Input placeholder="034 00 000 00" {...register('phone')} />
                 </Field>
-                <Field label="Email">
+                <Field label={tr('tp.modal.email')}>
                   <Input type="email" placeholder="contact@example.mg" {...register('email')} />
                   {errors.email && <p className="mt-1 text-xs text-rose-600">{errors.email.message}</p>}
                 </Field>
               </div>
-              <Field label="Adresse">
-                <Input placeholder="Adresse complète" {...register('address')} />
+              <Field label={tr('tp.modal.address')}>
+                <Input placeholder={tr('tp.modal.addressPh')} {...register('address')} />
               </Field>
             </div>
           )}
@@ -928,9 +928,9 @@ export default function Taxpayers() {
           {/* Step 2: Informations fiscales */}
           {createStep === 2 && (
             <div className="space-y-4 animate-fade-in">
-              <Field label="Centre fiscal">
+              <Field label={tr('tp.taxCenter')}>
                 <Select {...register('taxCenterId')}>
-                  <option value="">— Non assigné —</option>
+                  <option value="">{tr('tp.modal.notAssigned')}</option>
                   {taxCenters?.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.code} — {c.name}
@@ -938,9 +938,9 @@ export default function Taxpayers() {
                   ))}
                 </Select>
               </Field>
-              <Field label="Régime fiscal">
+              <Field label={tr('tp.taxRegime')}>
                 <Select {...register('taxRegimeId')}>
-                  <option value="">— Non assigné —</option>
+                  <option value="">{tr('tp.modal.notAssigned')}</option>
                   {taxRegimes?.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.code} — {r.name}
@@ -952,17 +952,17 @@ export default function Taxpayers() {
               {/* Summary */}
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Résumé
+                  {tr('tp.modal.summary')}
                 </p>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Type</span>
+                    <span className="text-slate-500 dark:text-slate-400">{tr('tp.sort.type')}</span>
                     <Badge tone={typeBadgeTone(watch('type'))}>
-                      {watch('type') === 'COMPANY' ? 'Entreprise' : 'Particulier'}
+                      {typeLabel(watch('type'), tr)}
                     </Badge>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500 dark:text-slate-400">Nom</span>
+                    <span className="text-slate-500 dark:text-slate-400">{tr('tp.modal.name')}</span>
                     <span className="font-medium text-slate-900 dark:text-slate-100">
                       {watch('name') || '—'}
                     </span>
@@ -977,7 +977,7 @@ export default function Taxpayers() {
             <div>
               {createStep > 0 && (
                 <Button type="button" variant="ghost" size="sm" onClick={() => setCreateStep(createStep - 1)}>
-                  <ChevronRight className="h-4 w-4 rotate-180" /> Précédent
+                  <ChevronRight className="h-4 w-4 rotate-180" /> {tr('tp.previous')}
                 </Button>
               )}
             </div>
@@ -991,7 +991,7 @@ export default function Taxpayers() {
                   setCreateStep(0)
                 }}
               >
-                Annuler
+                {tr('tp.cancel')}
               </Button>
               {createStep < 2 ? (
                 <Button
@@ -1000,7 +1000,7 @@ export default function Taxpayers() {
                   onClick={() => setCreateStep(createStep + 1)}
                   className="bg-brand-600 text-white"
                 >
-                  Suivant <ChevronRight className="h-4 w-4" />
+                  {tr('tp.next')} <ChevronRight className="h-4 w-4" />
                 </Button>
               ) : (
                 <Button
@@ -1008,7 +1008,7 @@ export default function Taxpayers() {
                   loading={createMutation.isPending}
                   className="bg-brand-600 text-white shadow-lg shadow-violet-500/25"
                 >
-                  <Check className="h-4 w-4" /> Créer le contribuable
+                  <Check className="h-4 w-4" /> {tr('tp.modal.create')}
                 </Button>
               )}
             </div>

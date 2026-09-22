@@ -110,7 +110,7 @@ const [showFilters, setShowFilters] = useState(false)
   }
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       <PageHeader
         title="Quittances"
         subtitle="Registre sécurisé des quittances fiscales — traçables et vérifiables"
@@ -535,7 +535,7 @@ function ReceiptDetailModal({ receipt, onClose }: { receipt: Receipt; onClose: (
 
       {/* Modal remboursement */}
       {refundOpen && (
-        <Modal open onClose={() => setRefundOpen(false)} title="Rembourser la quittance">
+        <Modal open onClose={() => setRefundOpen(false)} title="Rembourser la quittance" size="full">
           <div className="space-y-4">
             <p className="text-sm text-slate-600 dark:text-slate-400">
               La quittance <strong>{full.reference}</strong> ({fmtMGA(full.amount)}) sera marquée comme <strong>REMBOURSÉE</strong>.

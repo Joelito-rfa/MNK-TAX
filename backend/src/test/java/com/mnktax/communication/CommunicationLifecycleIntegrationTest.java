@@ -141,7 +141,8 @@ class CommunicationLifecycleIntegrationTest {
         ComposeResult result = communicationService.compose(new ComposeRequest(
                 taxpayer.getId(), null, null, "SINGLE", null, null,
                 List.of("IN_APP"), "Échéance TVA", "Votre déclaration arrive à échéance.",
-                null, null, "HIGH", "TAX_DEADLINE", null, true), null);
+                null, null, "HIGH", "TAX_DEADLINE", null, true,
+                null, null, null, null), null);
 
         assertEquals("QUEUED", result.status());
         assertEquals(1, result.recipients());
@@ -168,7 +169,8 @@ class CommunicationLifecycleIntegrationTest {
         ComposeResult result = communicationService.compose(new ComposeRequest(
                 taxpayer.getId(), null, null, "SINGLE", null, null,
                 List.of("IN_APP", "EMAIL", "SMS"), "Créance en retard", "Relance : créance impayée.",
-                null, null, "URGENT", "OVERDUE", null, true), null);
+                null, null, "URGENT", "OVERDUE", null, true,
+                null, null, null, null), null);
 
         Message message = messageRepository.findById(result.messageId()).orElseThrow();
         List<MessageDelivery> deliveries = deliveryRepository.findByMessageId(message.getId());
@@ -222,7 +224,8 @@ class CommunicationLifecycleIntegrationTest {
         ComposeResult result = communicationService.compose(new ComposeRequest(
                 taxpayer.getId(), null, null, "SINGLE", null, null,
                 List.of("IN_APP"), "Programmé", "Message futur.",
-                null, null, "NORMAL", "GENERAL", future.toString(), true), null);
+                null, null, "NORMAL", "GENERAL", future.toString(), true,
+                null, null, null, null), null);
 
         Message message = messageRepository.findById(result.messageId()).orElseThrow();
         assertEquals(com.mnktax.communication.entity.MessageStatus.SCHEDULED, message.getStatus());
@@ -246,7 +249,8 @@ class CommunicationLifecycleIntegrationTest {
         ComposeResult result = communicationService.compose(new ComposeRequest(
                 taxpayer.getId(), null, null, "SINGLE", null, null,
                 List.of("IN_APP"), "Lu/non lu", "Contenu.",
-                null, null, "NORMAL", "GENERAL", null, true), null);
+                null, null, "NORMAL", "GENERAL", null, true,
+                null, null, null, null), null);
 
         deliveryQueueService.selfProcess(
                 deliveryRepository.findByMessageId(result.messageId()).get(0).getId());
@@ -262,7 +266,8 @@ class CommunicationLifecycleIntegrationTest {
         ComposeResult result = communicationService.compose(new ComposeRequest(
                 taxpayer.getId(), taxpayerUser.getId(), null, "SINGLE", null, null,
                 List.of("IN_APP"), "Synchronisation lecture", "Contenu lu.",
-                null, null, "NORMAL", "GENERAL", null, true), null);
+                null, null, "NORMAL", "GENERAL", null, true,
+                null, null, null, null), null);
 
         deliveryQueueService.selfProcess(
                 deliveryRepository.findByMessageId(result.messageId()).get(0).getId());
@@ -291,7 +296,8 @@ class CommunicationLifecycleIntegrationTest {
         communicationService.compose(new ComposeRequest(
                 taxpayer.getId(), null, null, "SINGLE", null, null,
                 List.of("IN_APP"), "Rappel", "Contenu.",
-                null, null, "NORMAL", "DECLARATION_DUE_SOON", null, true), null);
+                null, null, "NORMAL", "DECLARATION_DUE_SOON", null, true,
+                null, null, null, null), null);
 
         var recent = communicationService.findRecentAutomatic(
                 taxpayer.getId(), "DECLARATION_DUE_SOON", Instant.now().minus(java.time.Duration.ofDays(3)));

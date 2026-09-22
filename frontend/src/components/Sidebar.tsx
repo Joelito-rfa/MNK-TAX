@@ -61,7 +61,6 @@ export const navSections: NavSection[] = [
       ]},
       { to: '/payments', labelKey: 'sidebar.payments', icon: <Wallet className="h-4.5 w-4.5" />, permission: 'PAYMENT_READ', children: [
         { to: '/payments', labelKey: 'sidebar.payments.list', icon: <Wallet className="h-4 w-4" />, permission: 'PAYMENT_READ', end: true },
-        { to: '/payments/new', labelKey: 'sidebar.payments.new', icon: <Receipt className="h-4 w-4" />, permission: 'PAYMENT_WRITE' },
         { to: '/receipts', labelKey: 'sidebar.payments.receipts', icon: <Receipt className="h-4 w-4" />, permission: 'RECEIPT_READ' },
         { to: '/payments/pending', labelKey: 'sidebar.payments.pending', icon: <CalendarDays className="h-4 w-4" />, permission: 'PAYMENT_READ' },
         { to: '/payments/stats', labelKey: 'sidebar.payments.stats', icon: <BarChart3 className="h-4 w-4" />, permission: 'PAYMENT_READ' },

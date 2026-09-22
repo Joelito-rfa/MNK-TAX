@@ -229,7 +229,7 @@ function CreatePlanModal({
     plannedTotal <= (selectedDebt?.balance ?? 0)
 
   return (
-    <Modal open={open} onClose={onClose} title={`${t('collection.plans.create.title')} — Étape ${step + 1}/3`} subtitle={t('collection.plans.create.subtitle')} wide>
+    <Modal open={open} onClose={onClose} title={`${t('collection.plans.create.title')} — Étape ${step + 1}/3`} subtitle={t('collection.plans.create.subtitle')} size="full">
       <div className="space-y-5">
         <div className="flex items-center gap-2">
           {[0, 1, 2].map((s) => (
@@ -496,7 +496,7 @@ export default function CollectionPlans() {
   const total = data?.totalElements ?? 0
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       {/* ── En-tête ── */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

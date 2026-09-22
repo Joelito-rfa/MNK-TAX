@@ -1,0 +1,182 @@
+{
+  "_meta": {
+    "source": "backend/src/main/java/com/mnktax/common/config/DemoDataSeeder.java (2016 lignes) + docs/FAKE_DATA_DOCUMENTATION.md",
+    "description": "Données fictives de démonstration MNK-TAX — montants en MGA, dates relatives transcrites (J-5, M-3, mois courant). Valeurs exactes issues du code ; fallback doc markdown si illisible.",
+    "relations": "contribuable(nif) → obligations/declarations → créances → paiements",
+    "currency": "MGA",
+    "dateConvention": "J-x = aujourd'hui moins x jours ; M-x = mois courant moins x mois ; J+20 = jour 20 du mois"
+  },
+  "users": [
+    {"username": "superadmin", "displayName": "Super Admin", "email": "superadmin@mnk-tax.mg", "password": "Admin@123", "role": "SUPER_ADMIN"},
+    {"username": "admin", "displayName": "Admin", "email": "admin@mnk-tax.mg", "password": "Admin@123", "role": "ADMIN"},
+    {"username": "agent.tax", "displayName": "Agent Fiscal", "email": "agent.tax@mnk-tax.mg", "password": "Agent@123", "role": "TAX_AGENT"},
+    {"username": "agent.collection", "displayName": "Agent Recouvrement", "email": "agent.collection@mnk-tax.mg", "password": "Agent@123", "role": "COLLECTION_AGENT"},
+    {"username": "accountant", "displayName": "Comptable", "email": "accountant@mnk-tax.mg", "password": "Agent@123", "role": "ACCOUNTANT"},
+    {"username": "taxpayer.demo", "displayName": "Contribuable", "email": "taxpayer@mnk-tax.mg", "password": "Taxpayer@123", "role": "TAXPAYER", "linkedNifs": ["1234567890", "1000000001"]}
+  ],
+  "taxCenters": [
+    {"code": "CEN-001", "name": "Centre fiscal Analakely", "address": "Antananarivo, Analakely"},
+    {"code": "CEN-002", "name": "Centre fiscal Antanimena", "address": "Antananarivo, Antanimena"},
+    {"code": "CEN-003", "name": "Centre fiscal Toamasina", "address": "Toamasina"}
+  ],
+  "taxRegimes": [
+    {"code": "REG-REEL", "name": "Régime réel", "category": "REEL", "vatApplicable": true, "periodicite": "MONTHLY", "applicableTaxTypes": "TVA,IS,IRSA"},
+    {"code": "REG-SIMP", "name": "Régime simplifié", "category": "SIMPLIFIE", "vatApplicable": true, "periodicite": "QUARTERLY", "applicableTaxTypes": "TVA,IRSA"},
+    {"code": "REG-FORF", "name": "Régime forfaitaire", "category": "FORFAITAIRE", "vatApplicable": false, "periodicite": "ANNUAL", "applicableTaxTypes": "IFT"}
+  ],
+  "taxTypes": [
+    {"code": "IR", "name": "Impôt sur les Revenus", "category": "IMPOSITION"},
+    {"code": "IS", "name": "Impôt sur les Sociétés", "category": "IMPOSITION"},
+    {"code": "IRSA", "name": "Impôt sur les Revenus Salariaux et Assimilés", "category": "IMPOSITION"},
+    {"code": "TVA", "name": "Taxe sur la Valeur Ajoutée", "category": "IMPOSITION"},
+    {"code": "IPVI", "name": "Impôt sur les Plus-Values Immobilières", "category": "IMPOSITION"},
+    {"code": "DE", "name": "Droit d'Enregistrement", "category": "IMPOSITION"},
+    {"code": "DA", "name": "Droit d'Accises", "category": "IMPOSITION"},
+    {"code": "IFT", "name": "Impôt Foncier sur les Terrains", "category": "IMPOSITION"},
+    {"code": "IFPB", "name": "Impôt Foncier sur les Propriétés Bâties", "category": "IMPOSITION"}
+  ],
+  "taxRules": [
+    {"code": "R-TVA-20", "name": "TVA taux unique", "taxType": "TVA", "method": "PERCENTAGE_OF_BASE", "rate": 20, "taxpayerType": "COMPANY", "regime": "REG-REEL", "legalRef": "Règle de calcul de référence", "demo": true, "effectiveFrom": "2024-01-01"},
+    {"code": "R-IS-25", "name": "IS taux", "taxType": "IS", "method": "PERCENTAGE_OF_BASE", "rate": 25, "taxpayerType": "COMPANY", "regime": "REG-REEL", "legalRef": "Règle de calcul de référence", "demo": true, "effectiveFrom": "2024-01-01"},
+    {"code": "R-IRSA-15", "name": "IRSA taux", "taxType": "IRSA", "method": "PERCENTAGE_OF_BASE", "rate": 15, "taxpayerType": "PERSON", "regime": null, "legalRef": "Règle de calcul de référence", "demo": true, "effectiveFrom": "2024-01-01"},
+    {"code": "R-IR-20", "name": "IR taux", "taxType": "IR", "method": "PROGRESSIVE", "rate": 20, "taxpayerType": null, "regime": null, "legalRef": "Règle de calcul de référence", "demo": true, "effectiveFrom": "2024-01-01"},
+    {"code": "R-IFT-2", "name": "IFT taux", "taxType": "IFT", "method": "PERCENTAGE_OF_BASE", "rate": 2, "taxpayerType": null, "regime": null, "legalRef": "Règle de calcul de référence", "demo": true, "effectiveFrom": "2024-01-01"}
+  ],
+  "penalties": [
+    {"code": "PEN_DEMO_5", "name": "Pénalité de retard 5%", "rate": 5, "description": "Pénalité de retard"},
+    {"code": "INT_DEMO_1", "name": "Intérêt de retard 1%/mois", "rate": 1, "periodicite": "MONTHLY", "description": "Intérêt de retard mensuel"}
+  ],
+  "taxpayers": [
+    {"nif": "0000409001", "name": "SOCIÉTÉ MALAGASY", "type": "COMPANY", "center": "CEN-001", "regime": "REG-REEL", "email": "contact@mnk-tax.mg", "phone": "036 00 000 01", "address": "Antananarivo, Lot II 123", "representative": "Rakotoarison Hery", "registrationDate": "année-2", "status": "ACTIVE", "activities": [{"code": "4771", "label": "Commerce de détail", "primary": true}, {"code": "4610", "label": "Intermédiaires du commerce", "primary": false}]},
+    {"nif": "1234567890", "name": "Jean RAKOTO", "type": "PERSON", "center": "CEN-001", "regime": "REG-SIMP", "email": "jean.rakoto@mnk-tax.mg", "phone": "033 00 000 02", "address": "Antananarivo", "birthDate": "1985-06-15", "linkedUser": "taxpayer.demo", "registrationDate": "année-2", "status": "ACTIVE", "activities": [{"code": "8510", "label": "Activités libérales", "primary": true}]},
+    {"nif": "9876543210", "name": "ENTREPRISE SARL", "type": "COMPANY", "center": "CEN-002", "regime": "REG-SIMP", "email": "contact@mnk-tax.mg", "phone": "034 00 000 03", "address": "Antananarivo, rue des Manguiers 45", "representative": "Andriamihaja Lova", "registrationDate": "année-2", "status": "ACTIVE", "activities": [{"code": "5610", "label": "Restauration", "primary": true}]},
+    {"nif": "0000412345", "name": "TRANSPORT SA", "type": "COMPANY", "center": "CEN-003", "regime": "REG-REEL", "email": "transport@mnk-tax.mg", "phone": "032 00 000 04", "address": "Toamasina", "representative": "Rasolofonirina Mamy", "registrationDate": "année-2", "status": "ACTIVE", "activities": [{"code": "4931", "label": "Transports urbains", "primary": true}]},
+    {"nif": "1000000001", "name": "Marie RANDRIANARISOA", "type": "PERSON", "center": "CEN-001", "regime": "REG-SIMP", "email": "marie.randrianarisoa@mnk-tax.mg", "phone": "038 00 000 05", "address": "Antananarivo", "birthDate": "1990-11-02", "linkedUser": "taxpayer.demo", "registrationDate": "année-2", "status": "ACTIVE", "activities": [{"code": "6810", "label": "Activités immobilières", "primary": true}]}
+  ],
+  "obligations": [
+    {"nif": "0000409001", "taxType": "TVA", "periodicite": "MONTHLY", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"},
+    {"nif": "0000409001", "taxType": "IS", "periodicite": "ANNUAL", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"},
+    {"nif": "0000409001", "taxType": "IFPB", "periodicite": "SEMI_ANNUAL", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"},
+    {"nif": "1234567890", "taxType": "IRSA", "periodicite": "MONTHLY", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"},
+    {"nif": "9876543210", "taxType": "TVA", "periodicite": "MONTHLY", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"},
+    {"nif": "9876543210", "taxType": "IFT", "periodicite": "SEMI_ANNUAL", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"},
+    {"nif": "0000412345", "taxType": "TVA", "periodicite": "MONTHLY", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"},
+    {"nif": "0000412345", "taxType": "IS", "periodicite": "ANNUAL", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"},
+    {"nif": "1000000001", "taxType": "IFPB", "periodicite": "ANNUAL", "start": "année-1", "declarationStatus": "NOT_SUBMITTED", "paymentStatus": "UNPAID"}
+  ],
+  "declarations": [
+    {"nif": "0000409001", "taxType": "TVA", "periode": "mois courant", "base": 1000000, "montantDeclare": 200000, "statut": "VALIDATED", "note": "Déclaration récente → assessment → créance"},
+    {"nif": "0000409001", "taxType": "TVA", "periode": "M-5", "base": 1500000, "montantDeclare": 300000, "statut": "VALIDATED", "note": "En retard → créance OVERDUE"},
+    {"nif": "1234567890", "taxType": "IRSA", "periode": "mois courant", "base": 400000, "montantDeclare": 60000, "statut": "SUBMITTED", "note": "En attente validation"},
+    {"nif": "9876543210", "taxType": "TVA", "periode": "M-1", "base": 750000, "montantDeclare": 150000, "statut": "DRAFT", "note": "Non soumise"}
+  ],
+  "payments": [
+    {"cas": 1, "nif": "0000409001", "creance": "TVA récente (PARTIALLY_PAID/ISSUED TP1)", "montant": 50000, "date": "J-3", "methode": "BANK_TRANSFER", "reference": "TXN-BANK-001", "statut": "Confirmé, alloué", "libelle": "Paiement TVA janvier"},
+    {"cas": 2, "nif": "0000409001", "creance": "TVA ancienne (PARTIALLY_PAID TP1)", "montant": 50000, "date": "J-2", "methode": "CASH", "reference": null, "statut": "Partiellement alloué", "libelle": "Paiement espèces partiel"},
+    {"cas": 3, "nif": "1234567890", "creance": "IRSA (ISSUED TP2)", "montant": 180000, "date": "J-1", "methode": "MOBILE_MONEY", "reference": "TXN-MOMO-002", "statut": "En attente", "libelle": "Mobile Money Orange"},
+    {"cas": 5, "nif": "0000412345", "creance": "IN_COLLECTION TP4", "montant": 500000, "date": "J-5", "methode": "CARD", "reference": "TXN-CARD-003", "statut": "Créé puis annulé", "libelle": "Paiement carte bancaire"},
+    {"cas": 9, "nif": null, "creance": "IN_COLLECTION (première trouvée)", "montant": 200000, "date": "aujourd'hui", "methode": "BANK_TRANSFER", "reference": "TXN-BANK-009", "statut": "Paiement en recouvrement", "libelle": "Paiement en recouvrement"},
+    {"actionsRecouvrement": [{"debt": "OVERDUE TP1 (première)", "type": "REMINDER", "date": "J-10", "outcome": "En attente de paiement", "responsibleUserId": 4, "status": "DONE", "description": "Relance amiable : demande de régularisation"}, {"debt": "OVERDUE TP1 (première)", "type": "PHONE_CONTACT", "date": "J-5", "outcome": "Promesse de paiement sous 15 jours", "responsibleUserId": 4, "status": "DONE", "description": "Contact téléphonique"}]}
+  ],
+  "debtScenarios": [
+    {"numero": 1, "nif": "0000409001", "taxType": "TVA", "emission": "existante (déclaration mois courant)", "principal": null, "paye": null, "statut": "PARTIALLY_PAID", "origine": "ASSESSMENT", "priorite": "NORMALE", "centre": "CEN-001", "observations": "Déjà partiellement payée — liée à la déclaration mensuelle"},
+    {"numero": 2, "nif": "0000409001", "taxType": "TVA", "emission": "existante (déclaration M-5)", "principal": null, "paye": null, "statut": "OVERDUE", "origine": "ASSESSMENT", "priorite": "HIGH", "centre": "CEN-001", "observations": "Retard plusieurs mois, relances multiples sans réponse"},
+    {"numero": 3, "nif": "0000412345", "taxType": "TVA", "emission": "M-3", "echeance": "M-3 + 30j", "principal": 2500000, "paye": 1000000, "solde": 1500000, "statut": "IN_COLLECTION", "origine": "DECLARATION", "priorite": "URGENT", "centre": "CEN-003", "observations": "Mise en demeure envoyée, risque contentieux"},
+    {"numero": 4, "nif": "9876543210", "taxType": "IFT", "emission": "M-6", "echeance": "M-6 + 30j", "principal": 450000, "paye": 0, "solde": 450000, "statut": "DISPUTED", "origine": "CONTROL", "priorite": "NORMALE", "centre": "CEN-002", "observations": "Contestation contribuable, vérification sur place en attente"},
+    {"numero": 5, "nif": "1000000001", "taxType": "IRSA", "emission": "M-2", "echeance": "M-2 + 30j", "principal": 780000, "paye": 0, "solde": 780000, "statut": "SUSPENDED", "origine": "OTHER", "priorite": "LOW", "centre": "CEN-001", "observations": "Réclamation en cours"},
+    {"numero": 6, "nif": "0000409001", "taxType": "TVA", "emission": "M-12", "echeance": "M-12 + 30j", "principal": 350000, "paye": 0, "solde": 350000, "statut": "CLOSED", "origine": "AUDIT", "priorite": "NORMALE", "centre": "CEN-001", "observations": "Irrécouvrable, radié, clôturée décision administrative"},
+    {"numero": 7, "nif": "1234567890", "taxType": "IRSA", "emission": "J-14", "echeance": "J-14 + 30j", "principal": 180000, "paye": 0, "solde": 180000, "statut": "ISSUED", "origine": "ASSESSMENT", "priorite": "NORMALE", "centre": "CEN-001", "observations": "Échéance dans 2 semaines"},
+    {"numero": 8, "nif": "9876543210", "taxType": "TVA", "emission": "M-1", "echeance": "M-1 + 30j", "principal": 850000, "paye": 300000, "solde": 550000, "statut": "PARTIALLY_PAID", "origine": "DECLARATION", "priorite": "HIGH", "centre": "CEN-002", "observations": "Solde 550 000, relance nécessaire"},
+    {"numero": 9, "nif": "0000412345", "taxType": "IS", "emission": "M-4", "echeance": "M-4 + 30j", "principal": 5000000, "paye": 1500000, "solde": 3500000, "statut": "OVERDUE", "origine": "RECOVERY", "priorite": "URGENT", "centre": "CEN-003", "observations": "Retard sévère, risque saisie administrative"}
+  ],
+  "collectionWorkflows": [
+    {"titre": "Litige documenté", "creance": "DISPUTED (scénario 4, IFT TP3)", "dispute": {"statut": "OPEN", "raison": "Contestation de la base d'imposition redressée — vérification sur pièces en cours", "montantConteste": "total créance", "dateContestation": "J-45", "referencePrefix": "LIT-"}},
+    {"titre": "Créance retard 5 jours (dashboard §54)", "nif": "1234567890", "taxType": "IRSA", "montant": 327000, "statut": "OVERDUE", "priorite": "HIGH", "emission": "J-35", "action": {"type": "REMINDER", "date": "J-1", "statut": "DONE", "description": "Relance amiable n°1"}},
+    {"titre": "Créance retard 35 jours (palier 30-60j)", "nif": "0000409001", "taxType": "TVA", "montant": 1250000, "statut": "OVERDUE", "priorite": "URGENT", "emission": "J-65", "penalite": 62500},
+    {"titre": "Échéancier de paiement (sur créance 35 jours)", "referencePrefix": "ECH-", "total": 1250000, "tranches": 4, "statut": "ACTIVE", "tranchesDetail": [{"numero": 1, "echeance": "J-5", "montant": "~312500", "paye": 0, "statut": "PENDING", "alerte": "ÉCHUE IMPAYÉE"}, {"numero": 2, "echeance": "M+1", "montant": "~312500", "paye": 0, "statut": "PENDING"}, {"numero": 3, "echeance": "M+2", "montant": "~312500", "paye": 0, "statut": "PENDING"}, {"numero": 4, "echeance": "M+3", "montant": "solde (~312500)", "paye": 0, "statut": "PENDING"}], "action": {"type": "PAYMENT_PLAN", "date": "aujourd'hui", "statut": "COMPLETED"}}
+  ],
+  "messages": [
+    {"id": 1, "from": "admin", "to": "agent.tax", "sujet": "Bienvenue sur la plateforme", "contexte": "GENERAL", "ref": null, "priorite": "NORMAL", "statut": "WAITING_RESPONSE", "lu": false},
+    {"id": 2, "from": "agent.tax", "to": "admin", "sujet": "Vérification déclaration TVA", "contexte": "DECLARATION", "ref": "DEC-2026-00001", "nif": "0000409001", "priorite": "NORMAL", "statut": "RESPONDED", "lu": true},
+    {"id": 3, "from": "admin", "to": "agent.tax", "sujet": "Re: Vérification déclaration TVA", "contexte": "DECLARATION", "ref": "DEC-2026-00001", "nif": "0000409001", "priorite": "NORMAL", "statut": "CLOSED", "lu": true, "note": "Réponse thread message 2"},
+    {"id": 4, "from": "agent.collection", "to": "accountant", "sujet": "Créance en retard — action requise", "contexte": "DEBT", "ref": "DET-2026-00001", "nif": "0000409001", "montant": 2500000, "priorite": "URGENT", "statut": "WAITING_RESPONSE", "lu": false},
+    {"id": 5, "from": "accountant", "to": "agent.tax", "sujet": "Paiement reçu — vérification", "contexte": "PAYMENT", "ref": "PAY-2026-00001", "nif": "0000409001", "montant": 100000, "priorite": "IMPORTANT", "statut": "WAITING_RESPONSE", "lu": false},
+    {"id": 6, "from": "agent.collection", "to": "admin", "sujet": "Action de recouvrement terminée", "contexte": "RECOVERY", "ref": "DET-2026-00002", "priorite": "NORMAL", "statut": "ARCHIVED", "lu": true},
+    {"id": 7, "from": "agent.tax", "to": "admin", "sujet": "Contrôle fiscal planifié", "contexte": "AUDIT", "ref": "CTRL-2026-001", "nif": "9876543210", "priorite": "IMPORTANT", "statut": "CLOSED", "lu": true},
+    {"id": 8, "from": "admin", "to": "agent.tax", "sujet": "Échéance TVA à venir", "contexte": "DEADLINE", "ref": "TVA-mois courant (J+5)", "priorite": "URGENT", "statut": "WAITING_RESPONSE", "lu": false},
+    {"id": 9, "from": "taxpayer.demo", "to": "agent.tax", "sujet": "Réclamation montant déclaré", "contexte": "COMPLAINT", "nif": "0000409001", "priorite": "NORMAL", "statut": "WAITING_RESPONSE", "lu": false}
+  ],
+  "controls": [
+    {"numero": 1, "nif": "0000409001", "type": "MIXED", "periode": "M-2 → aujourd'hui", "statut": "IN_PROGRESS", "agent": "agent.tax", "motif": "Vérification cohérence déclarations TVA et pièces comptables", "documents": [{"titre": "Grand livre comptable", "type": "COMPTABLE"}]},
+    {"numero": 2, "nif": "9876543210", "type": "ON_SITE", "periode": "M-8 → M-6", "statut": "REDRESSEMENT", "agent": "agent.tax", "motif": "Écarts déclarations IFT", "redressement": 450000, "penalite": 22500, "anomalies": "Sous-déclaration de la base IFT sur deux exercices", "documents": [{"titre": "Bilans et relevés fonciers", "type": "FONCIER"}]}
+  ],
+  "notifications": [
+    {"user": "agent.tax", "type": "DEADLINE_APPROACHING", "titre": "Échéance TVA à venir", "entite": "DEADLINE", "lu": false},
+    {"user": "admin", "type": "PAYMENT_RECEIVED", "titre": "Paiement reçu — 100 000 MGA", "entite": "PAYMENT", "lu": true},
+    {"user": "agent.collection", "type": "OVERDUE", "titre": "Créance en retard — TRANSPORT SA", "entite": "DEBT", "lu": false},
+    {"user": "admin", "type": "COLLECTION_NOTICE", "titre": "Mise en demeure envoyée", "entite": "COLLECTION", "lu": true},
+    {"user": "agent.tax", "type": "DOCUMENT_READY", "titre": "Quittance disponible", "entite": "RECEIPT", "lu": false},
+    {"user": "admin", "type": "MESSAGE_RECEIVED", "titre": "Nouveau message — Urgent", "entite": "MESSAGE", "lu": false},
+    {"user": "agent.tax", "type": "DEADLINE_TODAY", "titre": "Échéance IRSA aujourd'hui", "entite": "DEADLINE", "lu": false},
+    {"user": "admin", "type": "PAYMENT_REJECTED", "titre": "Paiement rejeté — CHQ-001", "entite": "PAYMENT", "lu": false, "detail": "Chèque 500 000 MGA rejeté, ENTREPRISE SARL"}
+  ],
+  "auditLogs": [
+    {"user": "admin", "action": "CREATE", "entite": "Taxpayer", "ancien": null, "nouveau": "NIF: 0000409001 — SOCIÉTÉ MALAGASY", "ip": "192.168.1.10"},
+    {"user": "agent.tax", "action": "VALIDATE", "entite": "Declaration", "ancien": "DRAFT", "nouveau": "VALIDATED", "ip": "192.168.1.15"},
+    {"user": "agent.collection", "action": "UPDATE", "entite": "Debt", "ancien": "OVERDUE", "nouveau": "IN_COLLECTION", "ip": "192.168.1.20"},
+    {"user": "admin", "action": "CREATE", "entite": "User", "ancien": null, "nouveau": "Utilisateur 'agent.tax' créé", "ip": "192.168.1.10"},
+    {"user": "agent.tax", "action": "VIEW", "entite": "Assessment", "ancien": null, "nouveau": null, "ip": "192.168.1.15"},
+    {"user": "agent.collection", "action": "COLLECTION_ACTION", "entite": "Debt", "ancien": null, "nouveau": "Action de relance enregistrée", "ip": "192.168.1.20"},
+    {"user": "admin", "action": "UPDATE", "entite": "SystemParameter", "ancien": "VAT_RATE=18", "nouveau": "VAT_RATE=20", "ip": "192.168.1.10"},
+    {"user": "agent.tax", "action": "CREATE", "entite": "Declaration", "ancien": null, "nouveau": "Déclaration TVA créée pour ENTREPRISE SARL", "ip": "192.168.1.15"},
+    {"user": "agent.collection", "action": "EXPORT", "entite": "Debt", "ancien": null, "nouveau": null, "ip": "192.168.1.20"},
+    {"user": "admin", "action": "LOGIN", "entite": "User", "ancien": null, "nouveau": "Connexion réussie", "ip": "192.168.1.10"},
+    {"user": "agent.tax", "action": "CONTROL", "entite": "TaxControl", "ancien": null, "nouveau": "Contrôle fiscal initié — mode mixte", "ip": "192.168.1.15"}
+  ],
+  "complaints": [
+    {"numero": 1, "nif": "0000409001", "sujet": "Contestation montant TVA déclaré", "contexte": "DECLARATION", "ref": "DEC-2026-00001", "statut": "UNDER_REVIEW", "assigne": "agent.tax", "periode": "mois courant", "reponses": 2},
+    {"numero": 2, "nif": "9876543210", "sujet": "Pénalité de retard contestée — IFT", "contexte": "DEBT", "ref": "DEB-2026-001", "statut": "ACCEPTED", "assigne": "agent.tax", "resolution": "Pénalité annulée — cas de force majeure confirmé", "reponses": 1},
+    {"numero": 3, "nif": "1000000001", "sujet": "Remboursement TVA refusé", "contexte": "REFUND", "statut": "REJECTED", "assigne": "agent.tax", "resolution": "Remboursement rejeté — crédit TVA non justifié", "montantReclame": 250000, "reponses": 1}
+  ],
+  "refunds": [
+    {"numero": 1, "nif": "0000409001", "motif": "VAT_CREDIT", "montant": 350000, "statut": "UNDER_REVIEW", "demandePar": "agent.tax", "revuPar": "agent.tax", "demande": "J-10"},
+    {"numero": 2, "nif": "0000412345", "motif": "OVERPAYMENT", "montant": 500000, "statut": "PAID", "demandePar": "agent.collection", "approuvePar": "admin", "payeLe": "J-5", "paymentRef": "VIR-2026-REM-001", "detail": "Payé 2 500 000 au lieu de 2 000 000 (IS)"},
+    {"numero": 3, "nif": "0000409001", "motif": "OTHER", "montant": 150000, "statut": "REJECTED", "demandePar": "agent.tax", "revuPar": "admin", "motifRejet": "Aucune preuve de double paiement", "demande": "J-12"}
+  ],
+  "notices": [
+    {"numero": 1, "creance": "IN_COLLECTION (1ère)", "noticeNumber": "MD-AAAA-0001 (année courante)", "date": "J-20", "type": "MISE_EN_DEMEURE", "statut": "SENT", "envoyeLe": "J-18"},
+    {"numero": 2, "creance": "IN_COLLECTION (1ère)", "noticeNumber": "REL-AAAA-0001 (année courante)", "date": "J-10", "type": "RELANCE", "statut": "SENT", "envoyeLe": "J-8"},
+    {"numero": 3, "creance": "IN_COLLECTION (2ème)", "noticeNumber": "AV-AAAA-0001 (année courante)", "date": "J-5", "type": "AVERTISSEMENT", "statut": "DRAFT", "envoyeLe": null}
+  ],
+  "documents": [
+    {"nif": "0000409001", "titre": "Kbis - SOCIÉTÉ MALAGASY", "type": "Kbis", "chemin": "/data/documents/kbis_tp1.pdf", "taille": 320000, "uploadePar": "agent.tax"},
+    {"nif": "0000409001", "titre": "Contrat social", "type": "CONTRAT", "chemin": "/data/documents/contrat_social_tp1.pdf", "taille": 180000, "uploadePar": "agent.tax"},
+    {"nif": "9876543210", "titre": "Patente ENTREPRISE SARL", "type": "PATENTE", "chemin": "/data/documents/patente_tp3.pdf", "taille": 210000, "uploadePar": "agent.tax"},
+    {"nif": "0000412345", "titre": "Autorisation transport TRANSPORT SA", "type": "AUTORISATION", "chemin": "/data/documents/autorisation_tp4.pdf", "taille": 150000, "uploadePar": "agent.tax"}
+  ],
+  "receipts": [
+    {"reference": "REC-DEMO-001", "statut": "ISSUED", "particularite": "Paiement complet"},
+    {"reference": "REC-DEMO-002", "statut": "ISSUED", "particularite": "Paiement partiel"},
+    {"reference": "REC-DEMO-003", "statut": "CANCELLED", "particularite": "Annulation test"},
+    {"reference": "REC-DEMO-004", "statut": "REPLACED", "particularite": "Remplacée par REC-DEMO-004-BIS"},
+    {"reference": "REC-DEMO-005", "statut": "REFUNDED", "particularite": "Remboursement REM-DEMO-001"},
+    {"reference": "REC-DEMO-006", "statut": "ISSUED", "particularite": "QR vérifiable"}
+  ],
+  "registrationRequests": [
+    {"ref": "REG-2026-000001", "type": "INDIVIDUAL", "nom": "RAKOTO Jean", "email": "rakoto.jean@example.mg", "nif": "0000100123", "role": "TAXPAYER", "statut": "PENDING"},
+    {"ref": "REG-2026-000002", "type": "COMPANY", "nom": "SOCIÉTÉ MALAGASY SA", "email": "contact@societe-malagasy.mg", "nif": "0000409001", "role": "TAXPAYER", "statut": "UNDER_REVIEW"},
+    {"ref": "REG-2026-000003", "type": "TAX_AGENT", "nom": "RAZAFY Marie", "email": "razafy.marie@dgi.mg", "nif": null, "role": "TAX_AGENT", "statut": "APPROVED"},
+    {"ref": "REG-2026-000004", "type": "INDIVIDUAL", "nom": "ANDRY Ralaivao", "email": "andry.r@example.mg", "nif": null, "role": "TAXPAYER", "statut": "REJECTED"},
+    {"ref": "REG-2026-000005", "type": "COMPANY", "nom": "GROUPE BEMANGA", "email": "admin@groupe-bemanga.mg", "nif": "0000501234", "role": "ACCOUNTANT", "statut": "PENDING"},
+    {"ref": "REG-2026-000006", "type": "COLLECTION_AGENT", "nom": "HERILALA Rajao", "email": "herilala.rajao@recouvrement.mg", "nif": null, "role": "COLLECTION_AGENT", "statut": "UNDER_REVIEW"},
+    {"ref": "REG-2026-000007", "type": "OTHER", "nom": "RAKOTONIAINA Paul", "email": "paul.r@example.mg", "nif": null, "role": "TAXPAYER", "statut": "PENDING"},
+    {"ref": "REG-2026-000008", "type": "INDIVIDUAL", "nom": "FANJANAHARY Lois", "email": "lois.f@example.mg", "nif": null, "role": "TAXPAYER", "statut": "APPROVED"},
+    {"ref": "REG-2026-000009", "type": "COMPANY", "nom": "MADA TRANS LOGISTICS", "email": "compta@madatrans.mg", "nif": "0000607890", "role": "ACCOUNTANT", "statut": "PENDING"},
+    {"ref": "REG-2026-000010", "type": "TAX_AGENT", "nom": "NOMENJANAHARY Priela", "email": "priela.n@dgi.mg", "nif": null, "role": "TAX_AGENT", "statut": "REJECTED"}
+  ],
+  "annexes": [
+    {"declaration": "1ère (TVA TP1 mois courant)", "fichier": "bilan_comptable_2026.pdf", "chemin": "/data/documents/bilan_comptable_2026.pdf", "mime": "application/pdf", "taille": 245000, "categorie": "COMPTABLE", "obligatoire": true, "uploadePar": "agent.tax"},
+    {"declaration": "1ère (TVA TP1 mois courant)", "fichier": "etat_resultat.xlsx", "chemin": "/data/documents/etat_resultat.xlsx", "mime": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "taille": 128000, "categorie": "COMPTABLE", "obligatoire": true, "uploadePar": "agent.tax"},
+    {"declaration": "1ère (TVA TP1 mois courant)", "fichier": "justificatif_domicile.pdf", "chemin": "/data/documents/justificatif_domicile.pdf", "mime": "application/pdf", "taille": 52000, "categorie": "GENERAL", "obligatoire": false, "uploadePar": "taxpayer.demo"}
+  ]
+}

@@ -57,7 +57,7 @@ export function CollectionFilters({
   activeTabLabel?: string
   onRemoveChip: (kind: keyof AdvancedFilters | 'q' | 'taxType' | 'period' | 'tab') => void
 }) {
-  const { t } = useI18n()
+  const { t, has } = useI18n()
   const { fmtMGA } = useLocaleFormatters()
   return (
     <>
@@ -82,10 +82,9 @@ export function CollectionFilters({
             <option value="">{t('collection.filters.allTaxes')}</option>
             {taxTypes?.map((tt) => {
               const k = `taxtype.${tt.code}`
-              const v = t(k)
               return (
                 <option key={tt.code} value={tt.code}>
-                  {tt.code} — {v !== k ? v : tt.name}
+                  {tt.code} — {has(k) ? t(k) : tt.name}
                 </option>
               )
             })}

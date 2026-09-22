@@ -312,4 +312,23 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
 
     @Query("SELECT DISTINCT d.period FROM TaxDebt d ORDER BY d.period DESC")
     List<String> findDistinctPeriods();
+
+    /**
+     * Agrégat des créances filtré par plage d'émission, période fiscale et type d'impôt
+     * (filtres facultatifs). Renvoie {@code [count, totalAmount, paidAmount, balance]}.
+     */
+    @Query("""
+            SELECT COUNT(d), COALESCE(SUM(d.totalAmount), 0),
+                   COALESCE(SUM(d.paidAmount), 0), COALESCE(SUM(d.balance), 0)
+            FROM TaxDebt d
+            WHERE d.status <> 'CANCELLED'
+              AND (:from IS NULL OR d.issueDate >= :from)
+              AND (:to IS NULL OR d.issueDate <= :to)
+              AND (:period IS NULL OR d.period = :period)
+              AND (:taxTypeCode IS NULL OR d.taxType.code = :taxTypeCode)
+            """)
+    Object[] debtAggregate(@Param("from") LocalDate from,
+                           @Param("to") LocalDate to,
+                           @Param("period") String period,
+                           @Param("taxTypeCode") String taxTypeCode);
 }

@@ -179,7 +179,7 @@ function CreateCampaignDialog({ open, onClose }: { open: boolean; onClose: () =>
   const needsConfirm = (preview?.recipientCount ?? 0) > 100
 
   return (
-    <Modal open={open} onClose={onClose} title={t('comm.campaign.new')} wide>
+    <Modal open={open} onClose={onClose} title={t('comm.campaign.new')} size="full">
       <div className="space-y-4 px-5 py-4">
         <Field label={t('comm.campaign.name')}>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Rappel déclaration mensuelle" />

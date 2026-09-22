@@ -54,7 +54,7 @@ export default function Assessments() {
   }, [data])
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       <PageHeader
         title="Impositions"
         subtitle="Impositions calculées automatiquement après validation des déclarations"

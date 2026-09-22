@@ -9,15 +9,27 @@
     <meta name="theme-color" content="#0f1117" />
     <title>MNK-TAX — Gestion fiscale numérique</title>
   </head>
-  <body>
+  <body style="background:#0f1117;margin:0">
     <script>
       (function() {
         var t = localStorage.getItem('mnk-theme');
         var dark = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme:dark)').matches);
         if (dark) document.documentElement.classList.add('dark');
+        // Fond clair si thème explicite light → évite le flash sombre.
+        if (t === 'light') document.body.style.background = '#f8fafc';
       })();
     </script>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Splash anti-blanc : affiché avant le montage React, remplacé ensuite -->
+      <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:#0f1117;color:#cbd5e1;font-family:system-ui,sans-serif">
+        <img src="/logo.webp" alt="" width="56" height="56" style="border-radius:14px" />
+        <div style="font-weight:700;letter-spacing:.02em">MNK-TAX</div>
+        <div style="width:120px;height:4px;border-radius:9999px;background:rgba(255,255,255,.08);overflow:hidden">
+          <div style="width:40%;height:100%;border-radius:9999px;background:#6366f1;animation:mnk-splash 1.1s ease-in-out infinite"></div>
+        </div>
+      </div>
+      <style>@keyframes mnk-splash{0%{transform:translateX(-120%)}100%{transform:translateX(320%)}}</style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

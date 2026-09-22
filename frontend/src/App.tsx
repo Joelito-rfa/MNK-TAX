@@ -24,9 +24,7 @@ import CollectionReminders from './pages/collection/Reminders'
 import CollectionNotices from './pages/collection/Notices'
 import CollectionHistory from './pages/CollectionHistory'
 import CollectionPlans from './pages/CollectionPlans'
-import PaymentsLayout from './pages/payments/Layout'
 import { PaymentsList } from './pages/payments/PaymentsList'
-import PaymentsNew from './pages/payments/PaymentsNew'
 import PaymentsPending from './pages/payments/PaymentsPending'
 import PaymentsStats from './pages/payments/PaymentsStats'
 import Receipts from './pages/Receipts'
@@ -83,14 +81,9 @@ export default function App() {
                     <Route path="history" element={<CollectionHistory />} />
                   </Route>
                   <Route path="payments" element={<ProtectedRoute permission="PAYMENT_READ" />}>
-                    <Route element={<PaymentsLayout />}>
-                      <Route index element={<PaymentsList />} />
-                      <Route path="pending" element={<PaymentsPending />} />
-                      <Route path="stats" element={<PaymentsStats />} />
-                      <Route path="new" element={<ProtectedRoute permission="PAYMENT_WRITE" />}>
-                        <Route index element={<PaymentsNew />} />
-                      </Route>
-                    </Route>
+                    <Route index element={<PaymentsList />} />
+                    <Route path="pending" element={<PaymentsPending />} />
+                    <Route path="stats" element={<PaymentsStats />} />
                   </Route>
                   <Route path="controls" element={<ProtectedRoute permission="CONTROL_READ" />}>
                     <Route index element={<Controls />} />

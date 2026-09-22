@@ -85,6 +85,23 @@ html {
   --animate-toast-out: toast-out 0.2s ease-in both;
   --animate-check-pop: check-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.06s both;
   --animate-ring-pulse: ring-pulse 0.6s ease-out 0.12s both;
+  --animate-wobble: wobble 0.6s ease-in-out;
+  --animate-spin-360: spin360 0.6s ease-in-out;
+}
+
+@keyframes wobble {
+  0% { transform: rotate(0deg) scale(1); }
+  15% { transform: rotate(-12deg) scale(1.1); }
+  30% { transform: rotate(10deg) scale(1.05); }
+  45% { transform: rotate(-8deg) scale(1.02); }
+  60% { transform: rotate(5deg) scale(1.01); }
+  75% { transform: rotate(-3deg) scale(1); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes spin360 {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes fade-in {
@@ -2093,15 +2110,24 @@ html:not(.dark) .notif-row {
   fill: rgb(91 75 219 / 0.22);
   animation: chart-halo 1.6s ease-in-out infinite;
 }
+.chart-dot-halo-sm {
+  fill: rgb(91 75 219 / 0.35);
+  animation: chart-halo-sm 1.2s ease-in-out infinite 0.2s;
+}
 .chart-dot-core {
   fill: #5B4BDB;
   stroke: #fff;
   stroke-width: 2;
+  filter: drop-shadow(0 0 6px rgba(91, 75, 219, 0.5));
   animation: chart-core-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 @keyframes chart-halo {
   0%, 100% { transform: scale(1); opacity: 0.9; }
   50% { transform: scale(1.45); opacity: 0.35; }
+}
+@keyframes chart-halo-sm {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.3); opacity: 0.3; }
 }
 @keyframes chart-core-in {
   from { transform: scale(0); }
@@ -2191,7 +2217,7 @@ html.dark .chart-peak-label { fill: #94a3b8; }
   .side-list > li, .header-in { animation: none !important; }
   .hbtn { transition: none !important; }
    .fx-spot, .fx-spot::before, .fx-spot::after, .fx-btn, .rechart-entrance, .rechart-shimmer::after, .card-3d { animation: none !important; transition: none !important; transform: none !important; }
-  .chart-dot-halo, .chart-dot-core, .chart-peak-ring, .chart-peak-core, .chart-peak-label { animation: none !important; }
+  .chart-dot-halo, .chart-dot-halo-sm, .chart-dot-core, .chart-peak-ring, .chart-peak-core, .chart-peak-label { animation: none !important; }
   .dash-scope .dash-bar,
   .dash-scope .dash-kpi {
     transform: none;

@@ -1,5 +1,6 @@
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import { useI18n } from '../../lib/i18n'
+import { PageHeader } from '../../components/ui'
 import { usePaymentStats } from '../../features/payment/api/queries'
 import { PaymentStatsCards } from '../../features/payment/components/PaymentStatsCards'
 
@@ -16,7 +17,8 @@ export default function PaymentsStats() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
+      <PageHeader title={t('payments.title') + ' — ' + t('sidebar.payments.stats')} subtitle={t('payments.stats.summarySub')} />
       {stats && <PaymentStatsCards stats={stats} />}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

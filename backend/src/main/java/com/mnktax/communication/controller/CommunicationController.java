@@ -12,6 +12,7 @@ import com.mnktax.communication.dto.CommunicationDtos.DeliveryDto;
 import com.mnktax.communication.dto.CommunicationDtos.EventRuleDto;
 import com.mnktax.communication.dto.CommunicationDtos.ProvidersStatusDto;
 import com.mnktax.communication.dto.CommunicationDtos.SaveTemplateRequest;
+import com.mnktax.communication.dto.CommunicationDtos.SenderDto;
 import com.mnktax.communication.dto.CommunicationDtos.SentMessageDto;
 import com.mnktax.communication.dto.CommunicationDtos.TemplateDto;
 import com.mnktax.communication.dto.CommunicationDtos.TemplateRenderRequest;
@@ -77,6 +78,13 @@ public class CommunicationController {
     public ResponseEntity<ComposeResult> send(@Valid @RequestBody ComposeRequest request,
                                               HttpServletRequest http) {
         return ResponseEntity.ok(communicationService.compose(request, http));
+    }
+
+    @GetMapping("/senders")
+    @PreAuthorize("hasAuthority('" + Permissions.MESSAGE_WRITE + "')")
+    @Operation(summary = "Expéditeurs email autorisés (sélecteur avant envoi)")
+    public ResponseEntity<List<SenderDto>> senders() {
+        return ResponseEntity.ok(communicationService.senders());
     }
 
     // ─── Suivi des envois (AGENT) ───────────────────────────────

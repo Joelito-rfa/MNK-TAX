@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Filter, Search } from 'lucide-react'
+import { Filter, PlusCircle, Search } from 'lucide-react'
 import { apiGet } from '../../lib/api'
 import type { Payment, TaxType } from '../../types'
-import { Button, Card, EmptyState, Input, Pagination, Select, Spinner } from '../../components/ui'
+import { Button, Card, EmptyState, Input, Modal, PageHeader, Pagination, Select, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../lib/i18n'
 import { usePaymentFilters } from '../../features/payment/hooks/usePaymentFilters'
@@ -11,6 +11,7 @@ import { usePayments } from '../../features/payment/api/queries'
 import { useConfirmPayment } from '../../features/payment/api/mutations'
 import { METHOD_CODES, methodLabel } from '../../features/payment/lib/methods'
 import { PaymentTable } from '../../features/payment/components/PaymentTable'
+import { PaymentForm } from '../../features/payment/components/PaymentForm'
 import { PaymentDetailModal } from '../../features/payment/components/modals/PaymentDetailModal'
 
 export interface PaymentsListProps {
@@ -20,9 +21,10 @@ export interface PaymentsListProps {
 }
 
 export function PaymentsList({ initialStatus = '', pendingMode = false }: PaymentsListProps) {
-  const { t } = useI18n()
+  const { t, has } = useI18n()
   const { can } = useAuth()
   const [detail, setDetail] = useState<Payment | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
   const confirmPayment = useConfirmPayment()
   const canConfirm = pendingMode && can('PAYMENT_CONFIRM')
 
@@ -32,7 +34,18 @@ export function PaymentsList({ initialStatus = '', pendingMode = false }: Paymen
   const { data: taxTypes } = useQuery({ queryKey: ['tax-types-ref'], queryFn: () => apiGet<TaxType[]>('/tax-types') })
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
+      <PageHeader
+        title={t('payments.title')}
+        subtitle={t('payments.subtitleLong')}
+        actions={
+          can('PAYMENT_WRITE') ? (
+            <Button onClick={() => setCreateOpen(true)}>
+              <PlusCircle className="h-4 w-4" /> {t('payments.new')}
+            </Button>
+          ) : undefined
+        }
+      />
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 dark:border-slate-700/50 px-5 py-4">
           <div className="relative flex-1 min-w-[200px]">
@@ -46,7 +59,7 @@ export function PaymentsList({ initialStatus = '', pendingMode = false }: Paymen
             <div className="w-44"><label className="text-xs text-slate-500 mb-1 block">{t('payments.filters.tax')}</label>
               <Select value={taxType} onChange={(e) => { setTaxType(e.target.value); setPage(0) }}>
                 <option value="">{t('payments.filters.all')}</option>
-                {taxTypes?.map((tt) => { const k = `taxtype.${tt.code}`; const v = t(k); return <option key={tt.code} value={tt.code}>{tt.code} — {v !== k ? v : tt.name}</option> })}
+                {taxTypes?.map((tt) => { const k = `taxtype.${tt.code}`; return <option key={tt.code} value={tt.code}>{tt.code} — {has(k) ? t(k) : tt.name}</option> })}
               </Select>
             </div>
             <div className="w-44"><label className="text-xs text-slate-500 mb-1 block">{t('payments.filters.status')}</label>
@@ -98,6 +111,11 @@ export function PaymentsList({ initialStatus = '', pendingMode = false }: Paymen
         )}
       </Card>
       {detail && <PaymentDetailModal payment={detail} onClose={() => setDetail(null)} />}
+      {createOpen && (
+        <Modal open={createOpen} onClose={() => setCreateOpen(false)} title={t('payments.create.title')} subtitle={t('payments.create.subtitle')} wide>
+          <PaymentForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
+        </Modal>
+      )}
     </div>
   )
 }

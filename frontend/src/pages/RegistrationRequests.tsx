@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowLeft,
   CheckCircle2,
   Clock,
   Eye,
@@ -14,6 +15,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react'
+import { useI18n } from '../lib/i18n'
 import { apiGet, apiPost, apiErrorMessage } from '../lib/api'
 import { useToast } from '../components/Toast'
 import { useDropdown } from '../lib/useDropdown'
@@ -181,6 +183,9 @@ function RequestRow({ request, onView, onAssign, onApprove, onReject, isMutating
           <span>·</span>
           <span>{request.organization}</span>
         </div>
+        {request.message && (
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate max-w-md italic">💬 {request.message}</p>
+        )}
       </div>
       <div className="hidden sm:flex shrink-0 items-center min-w-[130px] justify-end">
         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${sc.bg} ${sc.color}`}>
@@ -407,6 +412,7 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
 /* ── Main Page ── */
 
 export default function RegistrationRequests() {
+  const { t } = useI18n()
   const toast = useToast()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(0)
@@ -478,6 +484,16 @@ export default function RegistrationRequests() {
 
   return (
     <div className="fx-simple space-y-6">
+      {/* Bouton retour à l'accueil */}
+      <a
+        href="/#hero"
+        className="group absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/80 px-4 py-2 text-sm font-medium text-slate-600 shadow-sm backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-400/40 hover:bg-white hover:text-brand-700 hover:shadow-lg hover:shadow-brand-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 lg:hidden dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:border-brand-400/40 dark:hover:bg-white/10 dark:hover:text-brand-300"
+        aria-label={t('login.backToHome')}
+      >
+        <ArrowLeft className="h-4 w-4 transition-transform duration-300 group-hover:-translate-x-0.5" />
+        <span>{t('login.backToHome')}</span>
+      </a>
+
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>

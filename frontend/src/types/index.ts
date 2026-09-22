@@ -924,6 +924,16 @@ export interface CommComposeRequest {
   messageType?: string | null
   scheduledAt?: string | null
   requireConfirmation?: boolean | null
+  emailOverride?: string | null
+  senderEmail?: string | null
+  updateContact?: boolean | null
+  externalName?: string | null
+}
+
+export interface CommSender {
+  email: string
+  name: string
+  isDefault: boolean
 }
 
 export interface CommComposePreview {

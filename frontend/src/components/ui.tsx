@@ -373,6 +373,7 @@ export function Modal({
   subtitle,
   children,
   wide = false,
+  size,
   onBackdrop = true,
 }: {
   open: boolean
@@ -381,6 +382,7 @@ export function Modal({
   subtitle?: string
   children: ReactNode
   wide?: boolean
+  size?: 'sm' | 'wide' | 'full'
   onBackdrop?: boolean
 }) {
   const { t } = useI18n()
@@ -394,13 +396,15 @@ export function Modal({
   }, [open, onClose])
 
   if (!open) return null
+  const resolvedSize = size ?? (wide ? 'wide' : 'sm')
+  const isFull = resolvedSize === 'full'
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-8"
+      className={`fixed inset-0 z-50 flex items-end justify-center overflow-y-auto backdrop-blur-sm sm:items-center ${isFull ? 'bg-black/80 p-2 sm:p-4' : 'bg-black/60 p-3 sm:p-8'}`}
       onMouseDown={onBackdrop ? (e) => e.target === e.currentTarget && onClose() : undefined}
     >
       <div
-        className={`relative my-auto flex max-h-[calc(100vh-1.5rem)] w-full flex-col sm:max-h-[calc(100vh-4rem)] ${wide ? 'max-w-3xl' : 'max-w-lg'} animate-scale-in rounded-2xl bg-white border border-slate-200/70 shadow-popover dark:bg-slate-800 dark:border-slate-700/50`}
+        className={`relative my-auto flex w-full flex-col ${isFull ? 'max-h-[calc(100vh-1rem)] max-w-6xl sm:max-h-[calc(100vh-2rem)]' : `max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-4rem)] ${resolvedSize === 'wide' ? 'max-w-3xl' : 'max-w-lg'}`} animate-scale-in rounded-2xl bg-white border border-slate-200/70 shadow-popover dark:bg-slate-800 dark:border-slate-700/50`}
       >
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
           <div className="min-w-0">

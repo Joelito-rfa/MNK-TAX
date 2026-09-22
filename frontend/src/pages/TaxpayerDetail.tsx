@@ -354,7 +354,7 @@ function CreateCollectionActionModal({ taxpayerId, onClose }: { taxpayerId: numb
   })
   const openDebts = (debts?.content ?? []).filter((d) => d.balance > 0)
   return (
-    <Modal open onClose={onClose} title="Nouvelle action de recouvrement">
+    <Modal open onClose={onClose} title="Nouvelle action de recouvrement" size="full">
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -509,7 +509,7 @@ function SendMessageModal({ taxpayerId, taxpayerName, onClose }: {
     },
   })
   return (
-    <Modal open onClose={onClose} title={`Envoyer un message — ${taxpayerName}`}>
+    <Modal open onClose={onClose} title={`Envoyer un message — ${taxpayerName}`} size="full">
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -1013,7 +1013,7 @@ function ObligationFormModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={isUpdate ? 'Modifier l obligation fiscale' : 'Nouvelle obligation fiscale'} wide>
+    <Modal open onClose={onClose} title={isUpdate ? 'Modifier l obligation fiscale' : 'Nouvelle obligation fiscale'} size="full">
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Type d impôt">
@@ -1227,7 +1227,7 @@ function CreateDeclarationModal({ taxpayerId, onClose }: {
     },
   })
   return (
-    <Modal open onClose={onClose} title="Nouvelle déclaration">
+    <Modal open onClose={onClose} title="Nouvelle déclaration" size="full">
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -1397,7 +1397,7 @@ function CreatePaymentModal({ taxpayerId, onClose }: { taxpayerId: number; onClo
     },
   })
   return (
-    <Modal open onClose={onClose} title="Enregistrer un paiement">
+    <Modal open onClose={onClose} title="Enregistrer un paiement" size="full">
       <form
         onSubmit={(e) => {
           e.preventDefault()

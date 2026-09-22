@@ -52,4 +52,4 @@ mnk-tax:
     storage-dir: ${DOCUMENT_STORAGE_DIR:/app/data/documents}
   avatar:
     storage-dir: ${AVATAR_STORAGE_DIR:/app/data/avatars}
-  seed-demo: ${SEED_DEMO:true}
+  seed-demo: ${SEED_DEMO:false}

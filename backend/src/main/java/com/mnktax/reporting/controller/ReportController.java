@@ -24,6 +24,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -104,6 +105,7 @@ public class ReportController {
         return ResponseEntity.ok(paymentService.search(null, taxpayerId, null, from, to, null, null, null, null, null, pageable));
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/declarations")
     @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
     @Operation(summary = "Rapport des déclarations")
@@ -116,9 +118,10 @@ public class ReportController {
                 ? null : com.mnktax.declaration.entity.DeclarationStatus.valueOf(status);
         return ResponseEntity.ok(
                 declarationRepository.search(s, taxTypeCode, null, taxpayerId, null, null, null, pageable)
-                        .map(DeclarationDto::from));
+                        .map(DeclarationDto::fromReport));
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/taxpayers")
     @PreAuthorize("hasAuthority('" + Permissions.REPORT_READ + "')")
     @Operation(summary = "Rapport des contribuables")

@@ -733,7 +733,7 @@ export default function Deadlines() {
                             <button onClick={() => { navigate(`/declarations?taxType=${encodeURIComponent(d.taxTypeCode)}&period=${encodeURIComponent(d.period)}`) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                               <FileText className="h-4 w-4 shrink-0 text-blue-500" /> Creer la declaration
                             </button>
-                            <button onClick={() => { navigate('/payments/new') }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
+                            <button onClick={() => { navigate('/payments') }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                               <CalendarClock className="h-4 w-4 shrink-0 text-violet-500" /> Enregistrer paiement
                             </button>
                             <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
@@ -1139,7 +1139,7 @@ function CreateDeadlineModal({ onClose }: { onClose: () => void }) {
   })
 
   return (
-    <Modal open onClose={onClose} title={`${t("deadlines.newDeadline")} — Étape ${step + 1}/3`} subtitle="Date configurable, jamais codee en dur.">
+    <Modal open onClose={onClose} title={`${t("deadlines.newDeadline")} — Étape ${step + 1}/3`} subtitle="Date configurable, jamais codee en dur." size="full">
       <form onSubmit={(e) => { e.preventDefault(); if (step === 2) create.mutate() }} className="space-y-4">
         {create.isError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{apiErrorMessage(create.error)}</div>

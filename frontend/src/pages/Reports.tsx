@@ -30,16 +30,30 @@ import {
   RotateCcw,
   AlertTriangle,
 } from 'lucide-react'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import { apiErrorMessage, apiGet } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
 import type {
   Page, Payment, TaxDebt, Declaration, TaxpayerSummary,
   ReportStats, AuditLog, DeclarationReportStats, DebtReportStats,
 } from '../types'
-import { Button, Card, EmptyState, Modal, StatusBadge } from '../components/ui'
+import { Button, Card, EmptyState, Field, Modal, Select, StatusBadge } from '../components/ui'
+import { StepBar, StepLabels } from '../components/Stepper'
 import { useI18n } from '../lib/i18n'
 import { useLocaleFormatters } from '../lib/format'
 import { useToast } from '../components/Toast'
+import { useTheme } from '../lib/theme'
 
 /* ═══════════════════════════ Types ═══════════════════════════ */
 
@@ -53,6 +67,8 @@ interface ReportCardDef {
   header: string
   available: boolean
   formats: string[]
+  dataCount?: number
+  maxData?: number
 }
 
 interface RecentReport {
@@ -101,9 +117,65 @@ const methodLabels: Record<string, string> = {
   MOBILE_MONEY: 'Mobile Money',
 }
 
+/* ═══════════════════════════ Palette & Chart Colors ═══════════════════════════ */
+
+const C = {
+  violet: '#5B4BDB', indigo: '#6366F1', blue: '#3B82F6', sky: '#0EA5E9',
+  green: '#22C55E', emerald: '#10B981', orange: '#F59E0B', yellow: '#EAB308',
+  red: '#EF4444', rose: '#F43F5E', slate: '#94A3B8', teal: '#14B8A6', pink: '#EC4899',
+}
+const CHART_COLORS = [C.violet, C.blue, C.green, C.orange, C.yellow, C.red, C.indigo, C.sky, C.rose, C.teal, C.pink, C.slate]
+
+function useChartColors() {
+  const { resolved } = useTheme()
+  const dark = resolved === 'dark'
+  return useMemo(() => ({
+    dark,
+    grid: dark ? '#1e293b' : '#e2e8f0',
+    tick: dark ? '#475569' : '#94a3b8',
+    tooltip: {
+      borderRadius: 12,
+      border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
+      background: dark ? '#1e293b' : '#fff',
+      color: dark ? '#e2e8f0' : '#1e293b',
+      boxShadow: dark ? '0 4px 24px rgba(0,0,0,0.3)' : '0 4px 24px rgba(0,0,0,0.08)',
+    },
+  }), [dark])
+}
+
 
 
 /* ═══════════════════════════ Helpers ═══════════════════════════ */
+
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Plage de dates (YYYY-MM-DD) correspondant au sélecteur de période. */
+function getPeriodRange(periodId: string): { from: string | null; to: string | null } {
+  const now = new Date()
+  const today = toISODate(now)
+  switch (periodId) {
+    case 'year': {
+      return { from: `${now.getFullYear()}-01-01`, to: today }
+    }
+    case 'quarter': {
+      const from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
+      return { from: toISODate(from), to: today }
+    }
+    case 'month': {
+      const from = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
+      return { from: toISODate(from), to: today }
+    }
+    case '6months': {
+      const from = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate())
+      return { from: toISODate(from), to: today }
+    }
+    case 'all':
+    default:
+      return { from: null, to: null }
+  }
+}
 
 
 
@@ -224,12 +296,21 @@ export default function Reports() {
   const [activeCategory, setActiveCategory] = useState('all')
   const [formatFilter, setFormatFilter] = useState('all')
   const [generateModalOpen, setGenerateModalOpen] = useState(false)
+  const [genStep, setGenStep] = useState(0)
+  const [genReportType, setGenReportType] = useState<string | null>(null)
+  const [genFormat, setGenFormat] = useState('CSV')
+  const [genPeriod, setGenPeriod] = useState('year')
+  const [genStatusFilter, setGenStatusFilter] = useState('')
+  const [genMethodFilter, setGenMethodFilter] = useState('')
   const [previewData, setPreviewData] = useState<{ title: string; headers: string[]; rows: (string | number)[][] } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const periodRef = useRef<HTMLDivElement>(null)
+  const cc = useChartColors()
 
   const currentPeriod = PERIOD_OPTIONS.find((p) => p.id === selectedPeriod) ?? PERIOD_OPTIONS[0]
+  const genPeriodLabel = PERIOD_OPTIONS.find((p) => p.id === genPeriod)?.label ?? genPeriod
+  const selectedReport = useMemo(() => getReportCards().find((r) => r.id === genReportType) ?? null, [genReportType])
 
   /* -- Fermer period dropdown au clic exterieur -- */
   useEffect(() => {
@@ -320,9 +401,89 @@ export default function Reports() {
     }
   }, [reportStats, debts, payments])
 
+  /* -- Sparkline data -- */
+  const paymentSparkline = useMemo(() => {
+    if (!payments?.content) return []
+    const byMonth: Record<string, number> = {}
+    payments.content.forEach((p) => {
+      const key = (p.paymentDate ?? '').slice(0, 7)
+      if (key) byMonth[key] = (byMonth[key] || 0) + Number(p.amount || 0)
+    })
+    return Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v)
+  }, [payments])
+
+  const debtSparkline = useMemo(() => {
+    if (!debts?.content) return []
+    const byMonth: Record<string, number> = {}
+    debts.content.forEach((d) => {
+      const key = (d.dueDate ?? '').slice(0, 7)
+      if (key) byMonth[key] = (byMonth[key] || 0) + Number(d.totalAmount || 0)
+    })
+    return Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v)
+  }, [debts])
+
+  const declSparkline = useMemo(() => {
+    if (!declarations?.content) return []
+    const byMonth: Record<string, number> = {}
+    declarations.content.forEach((d) => {
+      const key = d.period?.slice(0, 7) ?? ''
+      if (key) byMonth[key] = (byMonth[key] || 0) + 1
+    })
+    return Object.entries(byMonth).sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v)
+  }, [declarations])
+
+  /* -- Chart data -- */
+  const debtByStatus = useMemo(() => {
+    if (!debts?.content) return []
+    const counts: Record<string, number> = {}
+    debts.content.forEach((d) => { counts[d.status] = (counts[d.status] || 0) + 1 })
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  }, [debts])
+
+  const declByStatus = useMemo(() => {
+    if (!declarations?.content) return []
+    const counts: Record<string, number> = {}
+    declarations.content.forEach((d) => { counts[d.status] = (counts[d.status] || 0) + 1 })
+    return Object.entries(counts).map(([name, value]) => ({ name, value }))
+  }, [declarations])
+
+  const paymentByMethod = useMemo(() => {
+    if (!payments?.content) return []
+    const counts: Record<string, number> = {}
+    payments.content.forEach((p) => { counts[p.method] = (counts[p.method] || 0) + Number(p.amount || 0) })
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name: methodLabels[name] ?? name, value }))
+      .sort((a, b) => b.value - a.value)
+  }, [payments])
+
+  const paymentMonthly = useMemo(() => {
+    if (!payments?.content) return []
+    const byMonth: Record<string, number> = {}
+    payments.content.forEach((p) => {
+      const key = (p.paymentDate ?? '').slice(0, 7)
+      if (key) byMonth[key] = (byMonth[key] || 0) + Number(p.amount || 0)
+    })
+    return Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, amount]) => ({ month: month.slice(5), amount }))
+  }, [payments])
+
   /* -- Rapports filtres -- */
   const reportCards = useMemo(() => {
-    let cards = getReportCards()
+    const dataCounts: Record<string, number> = {
+      recouvrement: debts?.totalElements ?? 0,
+      paiements: payments?.totalElements ?? 0,
+      quittances: receipts?.totalElements ?? 0,
+      declarations: declarations?.totalElements ?? 0,
+      contribuables: taxpayers?.totalElements ?? 0,
+      creances: debts?.totalElements ?? 0,
+      activite: activity?.totalElements ?? 0,
+    }
+    let cards = getReportCards().map((c) => ({
+      ...c,
+      dataCount: dataCounts[c.id] ?? 0,
+      maxData: Math.max(...Object.values(dataCounts), 1),
+    }))
     if (activeCategory !== 'all') {
       cards = cards.filter((c) => c.id === activeCategory)
     }
@@ -333,7 +494,7 @@ export default function Reports() {
       )
     }
     return cards
-  }, [activeCategory, search])
+  }, [activeCategory, search, debts, payments, receipts, declarations, taxpayers, activity])
 
   /* -- Rapports recents (donnees reelles) -- */
   const recentReports = useMemo(() => {
@@ -424,8 +585,10 @@ export default function Reports() {
 
   /* -- Mutations export -- */
   const exportDebts = useMutation({
-    mutationFn: async () => {
-      const rows = await apiGet<Page<TaxDebt>>('/reports/collection?size=9999')
+    mutationFn: async (opts?: { status?: string }) => {
+      const params = new URLSearchParams({ size: '9999' })
+      if (opts?.status) params.set('status', opts.status)
+      const rows = await apiGet<Page<TaxDebt>>(`/reports/collection?${params}`)
       downloadCsv(
         `rapport_recouvrement_${new Date().toISOString().slice(0, 10)}.csv`,
         ['Reference', 'NIF', 'Contribuable', 'Impot', 'Periode', 'Total', 'Paye', 'Solde', 'Echeance', 'Statut'],
@@ -440,8 +603,11 @@ export default function Reports() {
   })
 
   const exportPayments = useMutation({
-    mutationFn: async () => {
-      const rows = await apiGet<Page<Payment>>('/reports/payments?size=9999')
+    mutationFn: async (opts?: { from?: string; to?: string }) => {
+      const params = new URLSearchParams({ size: '9999' })
+      if (opts?.from) params.set('from', opts.from)
+      if (opts?.to) params.set('to', opts.to)
+      const rows = await apiGet<Page<Payment>>(`/reports/payments?${params}`)
       downloadCsv(
         `rapport_paiements_${new Date().toISOString().slice(0, 10)}.csv`,
         ['Reference', 'NIF', 'Contribuable', 'Date', 'Montant', 'Mode', 'Alloue', 'Quittance'],
@@ -456,8 +622,10 @@ export default function Reports() {
   })
 
   const exportDeclarations = useMutation({
-    mutationFn: async () => {
-      const rows = await apiGet<Page<Declaration>>('/reports/declarations?size=9999')
+    mutationFn: async (opts?: { status?: string }) => {
+      const params = new URLSearchParams({ size: '9999' })
+      if (opts?.status) params.set('status', opts.status)
+      const rows = await apiGet<Page<Declaration>>(`/reports/declarations?${params}`)
       downloadCsv(
         `rapport_declarations_${new Date().toISOString().slice(0, 10)}.csv`,
         ['Reference', 'NIF', 'Contribuable', 'Impot', 'Periode', 'Montant declare', 'Impot calcule', 'Paye', 'Reste', 'Statut'],
@@ -472,8 +640,10 @@ export default function Reports() {
   })
 
   const exportTaxpayers = useMutation({
-    mutationFn: async () => {
-      const rows = await apiGet<Page<TaxpayerSummary>>('/reports/taxpayers?size=9999')
+    mutationFn: async (opts?: { status?: string }) => {
+      const params = new URLSearchParams({ size: '9999' })
+      if (opts?.status) params.set('status', opts.status)
+      const rows = await apiGet<Page<TaxpayerSummary>>(`/reports/taxpayers?${params}`)
       downloadCsv(
         `rapport_contribuables_${new Date().toISOString().slice(0, 10)}.csv`,
         ['NIF', 'Nom', 'Raison sociale', 'Type', 'Telephone', 'Email', 'Statut', 'Centre fiscal', 'Regime', 'Date creation'],
@@ -519,14 +689,23 @@ export default function Reports() {
   })
 
   /* -- Handlers -- */
-  const handleExport = useCallback((reportId: string) => {
+  const periodToDateRange = useCallback((periodId: string): { from?: string; to?: string } => {
+    const now = new Date()
+    const to = now.toISOString().slice(0, 10)
+    if (periodId === 'all') return { to }
+    const months = periodId === 'month' ? 1 : periodId === 'quarter' ? 3 : periodId === 'year' ? 12 : periodId === '6months' ? 6 : 12
+    const from = new Date(now.getFullYear(), now.getMonth() - months, now.getDate()).toISOString().slice(0, 10)
+    return { from, to }
+  }, [])
+
+  const handleExport = useCallback((reportId: string, filters?: { status?: string; from?: string; to?: string }) => {
     switch (reportId) {
-      case 'recouvrement': exportDebts.mutate(); break
-      case 'paiements': exportPayments.mutate(); break
+      case 'recouvrement': exportDebts.mutate({ status: filters?.status }); break
+      case 'paiements': exportPayments.mutate({ from: filters?.from, to: filters?.to }); break
       case 'quittances': exportReceipts.mutate(); break
-      case 'declarations': exportDeclarations.mutate(); break
-      case 'contribuables': exportTaxpayers.mutate(); break
-      case 'creances': exportDebts.mutate(); break
+      case 'declarations': exportDeclarations.mutate({ status: filters?.status }); break
+      case 'contribuables': exportTaxpayers.mutate({ status: filters?.status }); break
+      case 'creances': exportDebts.mutate({ status: filters?.status }); break
       case 'activite': exportActivity.mutate(); break
       default: toast.error('Export indisponible pour ce rapport')
     }
@@ -538,6 +717,35 @@ export default function Reports() {
       handleExport(reportId)
     }, 500)
   }, [handleExport, toast])
+
+  /* -- Wizard handlers -- */
+  const resetWizard = useCallback(() => {
+    setGenerateModalOpen(false)
+    setGenStep(0)
+    setGenReportType(null)
+    setGenFormat('CSV')
+    setGenPeriod('year')
+    setGenStatusFilter('')
+    setGenMethodFilter('')
+  }, [])
+
+  const handleWizardSelectType = useCallback((reportId: string) => {
+    setGenReportType(reportId)
+    const card = getReportCards().find((r) => r.id === reportId)
+    setGenFormat(card?.formats.includes('CSV') ? 'CSV' : card?.formats[0] ?? 'CSV')
+    setGenStep(1)
+  }, [])
+
+  const handleWizardGenerate = useCallback(() => {
+    if (!genReportType) return
+    const { from, to } = periodToDateRange(genPeriod)
+    const filters: { status?: string; from?: string; to?: string } = { from, to }
+    if (genStatusFilter) filters.status = genStatusFilter
+    setGenerateModalOpen(false)
+    toast.success(t('toast.exportDone'))
+    handleExport(genReportType, filters)
+    resetWizard()
+  }, [genReportType, genPeriod, genStatusFilter, handleExport, periodToDateRange, resetWizard, toast, t])
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['report-stats'] })
@@ -646,8 +854,25 @@ export default function Reports() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {/* Selecteur de periode */}
-          <div className="relative" ref={periodRef}>
+          {/* Selecteur de periode - Segmented Control */}
+          <div className="hidden sm:inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-600 dark:bg-slate-800/50">
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setSelectedPeriod(opt.id)}
+                className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+                  selectedPeriod === opt.id
+                    ? 'bg-white text-violet-700 shadow-sm dark:bg-slate-700 dark:text-violet-400'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Mobile: dropdown */}
+          <div className="relative sm:hidden" ref={periodRef}>
             <button
               onClick={() => setPeriodOpen(!periodOpen)}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -658,9 +883,6 @@ export default function Reports() {
             </button>
             {periodOpen && (
               <div className="absolute right-0 z-[60] mt-2 w-56 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-800">
-                <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Periode</p>
-                </div>
                 <div className="p-1.5">
                   {PERIOD_OPTIONS.map((opt) => (
                     <button
@@ -708,6 +930,8 @@ export default function Reports() {
           label="RAPPORTS DISPONIBLES"
           value={stats.totalReports}
           sub="Types de rapports"
+          sparkline={[3, 5, 4, 7, 6, 8, 7]}
+          sparkColor={C.violet}
         />
         <StatCard
           icon={<FileText className="h-5 w-5" />}
@@ -718,6 +942,8 @@ export default function Reports() {
           sub={`${fmtNumber(stats.totalPayments)} paiements enregistres`}
           delta={stats.totalCollected > 0 ? `${fmtMGA(stats.totalCollected)} recouvre` : undefined}
           deltaTone="up"
+          sparkline={debtSparkline}
+          sparkColor={C.emerald}
         />
         <StatCard
           icon={<Users className="h-5 w-5" />}
@@ -726,6 +952,8 @@ export default function Reports() {
           label="CONTRIBUABLES"
           value={fmtNumber(stats.totalTaxpayers)}
           sub={`${fmtNumber(stats.totalDeclarations)} declarations`}
+          sparkline={declSparkline}
+          sparkColor={C.blue}
         />
         <StatCard
           icon={<BarChart3 className="h-5 w-5" />}
@@ -736,6 +964,8 @@ export default function Reports() {
           sub={`${fmtNumber(stats.validReceipts)} valides`}
           delta={stats.receiptTotalAmount > 0 ? `${fmtMGA(stats.receiptTotalAmount)} total` : undefined}
           deltaTone="up"
+          sparkline={[2, 4, 3, 5, 4, 6, 5]}
+          sparkColor={C.pink}
         />
         <StatCard
           icon={<Download className="h-5 w-5" />}
@@ -746,39 +976,175 @@ export default function Reports() {
           sub="Lignes exportables"
           delta="+ CSV / Excel"
           deltaTone="up"
+          sparkline={paymentSparkline}
+          sparkColor={C.orange}
         />
       </div>
 
+      {/* === 2.5. GRAPHIQUES ANALYTIQUES === */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 animate-fade-in" style={{ animationDelay: '0.12s' }}>
+        {/* Donut Créances par statut */}
+        <Card className="p-5">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Creances par statut</h3>
+          {debtByStatus.length > 0 ? (
+            <div className="flex items-center gap-4">
+              <div className="h-40 w-40 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={debtByStatus}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={38}
+                      outerRadius={65}
+                      paddingAngle={3}
+                      dataKey="value"
+                      strokeWidth={0}
+                    >
+                      {debtByStatus.map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ ...cc.tooltip, fontSize: 12 }}
+                      formatter={(v: number) => [fmtNumber(v), 'Creances']}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="min-w-0 space-y-1.5">
+                {debtByStatus.map((entry, i) => (
+                  <div key={entry.name} className="flex items-center gap-2 text-xs">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    <span className="truncate text-slate-600 dark:text-slate-400">{entry.name}</span>
+                    <span className="ml-auto font-semibold text-slate-800 dark:text-slate-200 tabular-nums">{fmtNumber(entry.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Aucune donnee</p>
+          )}
+        </Card>
+
+        {/* Donut Declarations par statut */}
+        <Card className="p-5">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Declarations par statut</h3>
+          {declByStatus.length > 0 ? (
+            <div className="flex items-center gap-4">
+              <div className="h-40 w-40 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={declByStatus}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={38}
+                      outerRadius={65}
+                      paddingAngle={3}
+                      dataKey="value"
+                      strokeWidth={0}
+                    >
+                      {declByStatus.map((_, i) => (
+                        <Cell key={i} fill={CHART_COLORS[(i + 3) % CHART_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{ ...cc.tooltip, fontSize: 12 }}
+                      formatter={(v: number) => [fmtNumber(v), 'Declarations']}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="min-w-0 space-y-1.5">
+                {declByStatus.map((entry, i) => (
+                  <div key={entry.name} className="flex items-center gap-2 text-xs">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CHART_COLORS[(i + 3) % CHART_COLORS.length] }} />
+                    <span className="truncate text-slate-600 dark:text-slate-400">{entry.name}</span>
+                    <span className="ml-auto font-semibold text-slate-800 dark:text-slate-200 tabular-nums">{fmtNumber(entry.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Aucune donnee</p>
+          )}
+        </Card>
+
+        {/* Area Chart Paiements mensuels */}
+        <Card className="p-5">
+          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Paiements mensuels</h3>
+          {paymentMonthly.length > 0 ? (
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={paymentMonthly} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="payGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={C.violet} stopOpacity={0.25} />
+                      <stop offset="100%" stopColor={C.violet} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke={cc.grid} strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 10, fill: cc.tick }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: cc.tick }} axisLine={false} tickLine={false} width={40} tickFormatter={(v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                  <Tooltip
+                    contentStyle={{ ...cc.tooltip, fontSize: 12 }}
+                    formatter={(v: number) => [fmtMGA(v), 'Montant']}
+                  />
+                  <Area type="monotone" dataKey="amount" stroke={C.violet} strokeWidth={2} fill="url(#payGrad)" dot={false} activeDot={{ r: 5, fill: C.violet, stroke: '#fff', strokeWidth: 2 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">Aucune donnee</p>
+          )}
+        </Card>
+      </div>
+
       {/* === 2bis. SYNTHESE DECLARATIONS & CREANCES === */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 animate-fade-in" style={{ animationDelay: '0.18s' }}>
         <Card className="p-5">
           <div className="mb-4 flex items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
               <ClipboardList className="h-4.5 w-4.5" />
             </span>
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rapport des déclarations</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Répartition par statut et montants déclarés</p>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rapport des declarations</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Repartition par statut et montants declares</p>
             </div>
           </div>
           {!declarationReport ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Chargement...</p>
           ) : (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <MiniStat label="Total" value={fmtNumber(declarationReport.total)} />
-                <MiniStat label="Brouillons" value={fmtNumber(declarationReport.draft)} tone="text-slate-500" />
-                <MiniStat label="Soumises" value={fmtNumber(declarationReport.submitted)} tone="text-blue-600" />
-                <MiniStat label="En contrôle" value={fmtNumber(declarationReport.underReview)} tone="text-amber-600" />
-                <MiniStat label="Validées" value={fmtNumber(declarationReport.validated)} tone="text-emerald-600" />
-                <MiniStat label="Rejetées" value={fmtNumber(declarationReport.rejected)} tone="text-rose-600" />
-                <MiniStat label="À corriger" value={fmtNumber(declarationReport.aCorriger)} tone="text-amber-600" />
-                <MiniStat label="Payées" value={fmtNumber(declarationReport.paid)} tone="text-emerald-600" />
+              {/* Barres horizontales animees par statut */}
+              <div className="space-y-2.5">
+                {[
+                  { label: 'Validées', count: declarationReport.validated, color: 'bg-emerald-500' },
+                  { label: 'Soumises', count: declarationReport.submitted, color: 'bg-blue-500' },
+                  { label: 'En contrôle', count: declarationReport.underReview, color: 'bg-amber-500' },
+                  { label: 'Rejetées', count: declarationReport.rejected, color: 'bg-rose-500' },
+                  { label: 'Brouillons', count: declarationReport.draft, color: 'bg-slate-400' },
+                  { label: 'À corriger', count: declarationReport.aCorriger, color: 'bg-orange-500' },
+                ].filter((s) => s.count > 0).map((s) => (
+                  <div key={s.label}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-600 dark:text-slate-400">{s.label}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 tabular-nums">{fmtNumber(s.count)}</span>
+                    </div>
+                    <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                      <div
+                        className={`h-full rounded-full ${s.color} transition-all duration-700 ease-out`}
+                        style={{ width: `${declarationReport.total > 0 ? (s.count / declarationReport.total) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
               <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700/50">
-                <MoneyRow label="Montant déclaré" value={fmtMGA(declarationReport.declaredAmount)} />
-                <MoneyRow label="Montant payé" value={fmtMGA(declarationReport.paidAmount)} tone="text-emerald-600" />
-                <MoneyRow label="Reste à payer" value={fmtMGA(declarationReport.remaining)} tone="text-rose-600" />
+                <MoneyRow label="Montant declare" value={fmtMGA(declarationReport.declaredAmount)} />
+                <MoneyRow label="Montant paye" value={fmtMGA(declarationReport.paidAmount)} tone="text-emerald-600" />
+                <MoneyRow label="Reste a payer" value={fmtMGA(declarationReport.remaining)} tone="text-rose-600" />
               </div>
               <RateBar
                 label="Taux de paiement"
@@ -799,23 +1165,38 @@ export default function Reports() {
               <TrendingUp className="h-4.5 w-4.5" />
             </span>
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rapport des créances</h3>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rapport des creances</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">Encours, retards et taux de recouvrement</p>
             </div>
           </div>
           {!debtReport ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Chargement…</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Chargement...</p>
           ) : (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <MiniStat label="Total" value={fmtNumber(debtReport.total)} />
-                <MiniStat label="En retard" value={fmtNumber(debtReport.overdue)} tone="text-rose-600" />
-                <MiniStat label="Recouvrement" value={fmtNumber(debtReport.inCollection)} tone="text-violet-600" />
-                <MiniStat label="Payées" value={fmtNumber(debtReport.paid)} tone="text-emerald-600" />
+              {/* Barres horizontales animees par statut */}
+              <div className="space-y-2.5">
+                {[
+                  { label: 'Payées', count: debtReport.paid, color: 'bg-emerald-500' },
+                  { label: 'En recouvrement', count: debtReport.inCollection, color: 'bg-violet-500' },
+                  { label: 'En retard', count: debtReport.overdue, color: 'bg-rose-500' },
+                ].filter((s) => s.count > 0).map((s) => (
+                  <div key={s.label}>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-600 dark:text-slate-400">{s.label}</span>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 tabular-nums">{fmtNumber(s.count)}</span>
+                    </div>
+                    <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+                      <div
+                        className={`h-full rounded-full ${s.color} transition-all duration-700 ease-out`}
+                        style={{ width: `${debtReport.total > 0 ? (s.count / debtReport.total) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
               <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700/50">
                 <MoneyRow label="Montant total" value={fmtMGA(debtReport.totalAmount)} />
-                <MoneyRow label="Recouvré" value={fmtMGA(debtReport.collected)} tone="text-emerald-600" />
+                <MoneyRow label="Recouvre" value={fmtMGA(debtReport.collected)} tone="text-emerald-600" />
                 <MoneyRow label="Encours" value={fmtMGA(debtReport.outstanding)} tone="text-rose-600" />
               </div>
               <RateBar
@@ -829,7 +1210,7 @@ export default function Reports() {
       </div>
 
       {/* === 3. RAPPORTS DISPONIBLES === */}
-      <div>
+      <div className="animate-fade-in" style={{ animationDelay: '0.24s' }}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -881,7 +1262,7 @@ export default function Reports() {
       </div>
 
       {/* === 4. RAPPORTS RECENTS === */}
-      <div>
+      <div className="animate-fade-in" style={{ animationDelay: '0.30s' }}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -969,43 +1350,262 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* === 5. MODAL GENERER RAPPORT === */}
+      {/* === 5. MODAL GENERER RAPPORT — Wizard 3 étapes === */}
       <Modal
         open={generateModalOpen}
-        onClose={() => setGenerateModalOpen(false)}
-        title="Generer un rapport"
-        subtitle="Selectionnez un type de rapport a generer"
+        onClose={resetWizard}
+        title={
+          genStep === 0 ? 'Generer un rapport'
+            : genStep === 1 ? `Etape 2/3 — Configuration`
+              : `Etape 3/3 — Generer`
+        }
+        subtitle={
+          genStep === 0 ? 'Selectionnez un type de rapport'
+            : genStep === 1 ? 'Choisissez le format, la periode et les filtres'
+              : 'Verifiez et validez la generation'
+        }
         wide
       >
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {getReportCards().map((report) => (
-            <button
-              key={report.id}
-              onClick={() => {
-                setGenerateModalOpen(false)
-                handleGenerate(report.id)
-              }}
-              className="group flex items-start gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all duration-200 hover:border-violet-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-violet-500"
-            >
-              <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${report.iconBg} ${report.iconColor}`}>
-                {report.icon}
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{report.title}</p>
-                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{report.description}</p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {report.formats.map((fmt) => (
+        <div className="space-y-5">
+          {/* StepBar */}
+          <div className="space-y-1.5">
+            <StepBar step={genStep} total={3} />
+            <StepLabels labels={['Type', 'Configuration', 'Generer']} step={genStep} />
+          </div>
+
+          {/* ── Etape 0 : Selection du type ── */}
+          {genStep === 0 && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 animate-fade-in">
+              {getReportCards().map((report) => (
+                <button
+                  key={report.id}
+                  onClick={() => handleWizardSelectType(report.id)}
+                  className={`group flex items-start gap-4 rounded-xl border p-4 text-left transition-all duration-200 hover:shadow-md ${
+                    genReportType === report.id
+                      ? 'border-violet-400 bg-violet-50 shadow-md shadow-violet-200/50 dark:border-violet-500 dark:bg-violet-900/20'
+                      : 'border-slate-200 bg-white hover:border-violet-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-violet-500'
+                  }`}
+                >
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${report.iconBg} ${report.iconColor}`}>
+                    {report.icon}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{report.title}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{report.description}</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {report.formats.map((fmt) => (
+                        <span
+                          key={fmt}
+                          className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${formatBadgeColor(fmt)}`}
+                        >
+                          {fmt}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Etape 1 : Configuration ── */}
+          {genStep === 1 && selectedReport && (
+            <div className="space-y-5 animate-fade-in">
+              {/* Format */}
+              <Field label="Format du fichier">
+                <div className="flex flex-wrap gap-2">
+                  {selectedReport.formats.map((fmt) => (
+                    <button
+                      key={fmt}
+                      onClick={() => setGenFormat(fmt)}
+                      className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+                        genFormat === fmt
+                          ? 'bg-brand-600 text-white shadow-md shadow-violet-500/20'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                      }`}
+                    >
+                      {formatIcon(fmt)}
+                      {fmt}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              {/* Periode */}
+              <Field label="Periode">
+                <div className="flex flex-wrap gap-2">
+                  {PERIOD_OPTIONS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setGenPeriod(p.id)}
+                      className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+                        genPeriod === p.id
+                          ? 'bg-brand-600 text-white shadow-md shadow-violet-500/20'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              {/* Filtres conditionnels selon le type de rapport */}
+              {(genReportType === 'recouvrement' || genReportType === 'creances') && (
+                <Field label="Statut">
+                  <Select value={genStatusFilter} onChange={(e) => setGenStatusFilter(e.target.value)}>
+                    <option value="">Tous les statuts</option>
+                    <option value="OVERDUE">En retard</option>
+                    <option value="IN_COLLECTION">Recouvrement</option>
+                    <option value="PARTIALLY_PAID">Partiellement payee</option>
+                    <option value="PAID">Payee</option>
+                    <option value="DISPUTED">Contestee</option>
+                    <option value="SUSPENDED">Suspendue</option>
+                    <option value="CLOSED">Cloturee</option>
+                  </Select>
+                </Field>
+              )}
+
+              {genReportType === 'paiements' && (
+                <Field label="Mode de paiement">
+                  <Select value={genMethodFilter} onChange={(e) => setGenMethodFilter(e.target.value)}>
+                    <option value="">Tous les modes</option>
+                    <option value="CASH">Especes</option>
+                    <option value="BANK_TRANSFER">Virement</option>
+                    <option value="CHECK">Cheque</option>
+                    <option value="MOBILE_MONEY">Mobile Money</option>
+                  </Select>
+                </Field>
+              )}
+
+              {genReportType === 'declarations' && (
+                <Field label="Statut">
+                  <Select value={genStatusFilter} onChange={(e) => setGenStatusFilter(e.target.value)}>
+                    <option value="">Tous les statuts</option>
+                    <option value="DRAFT">Brouillon</option>
+                    <option value="SUBMITTED">Soumise</option>
+                    <option value="UNDER_REVIEW">En cours d'examen</option>
+                    <option value="VALIDATED">Validee</option>
+                    <option value="REJECTED">Rejetee</option>
+                    <option value="PAID">Payee</option>
+                    <option value="A_CORRIGER">A corriger</option>
+                  </Select>
+                </Field>
+              )}
+
+              {genReportType === 'contribuables' && (
+                <Field label="Statut">
+                  <Select value={genStatusFilter} onChange={(e) => setGenStatusFilter(e.target.value)}>
+                    <option value="">Tous les statuts</option>
+                    <option value="ACTIVE">Actif</option>
+                    <option value="INACTIVE">Inactif</option>
+                    <option value="SUSPENDED">Suspendu</option>
+                  </Select>
+                </Field>
+              )}
+
+              {/* Recapitulatif rapide */}
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${selectedReport.iconBg} ${selectedReport.iconColor}`}>
+                  {selectedReport.icon}
+                </span>
+                <div className="min-w-0 text-sm">
+                  <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedReport.title}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {genFormat} &middot; {genPeriodLabel}
+                    {genStatusFilter && ` &middot; Statut: ${genStatusFilter}`}
+                    {genMethodFilter && ` &middot; Mode: ${genMethodFilter}`}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Etape 2 : Recapitulatif & Validation ── */}
+          {genStep === 2 && selectedReport && (
+            <div className="space-y-5 animate-fade-in">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
+                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Resume du rapport</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400">Type : </span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{selectedReport.title}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400">Format : </span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{genFormat}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 dark:text-slate-400">Periode : </span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{genPeriodLabel}</span>
+                  </div>
+                  {genStatusFilter && (
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Statut : </span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{genStatusFilter}</span>
+                    </div>
+                  )}
+                  {genMethodFilter && (
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Mode : </span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{genMethodFilter}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {selectedReport.formats.map((fmt) => (
                     <span
                       key={fmt}
-                      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${formatBadgeColor(fmt)}`}
+                      className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium ${genFormat === fmt ? 'bg-brand-100 text-brand-700 ring-2 ring-brand-500 dark:bg-brand-900/40 dark:text-brand-300' : formatBadgeColor(fmt)}`}
                     >
+                      {formatIcon(fmt)}
                       {fmt}
                     </span>
                   ))}
                 </div>
               </div>
-            </button>
-          ))}
+
+              <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20">
+                <Zap className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  Le fichier sera genere et automatiquement telecharge apres la validation.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Navigation ── */}
+          <div className="flex items-center justify-between border-t border-slate-200 pt-4 dark:border-slate-700">
+            <div>
+              {genStep > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setGenStep(genStep - 1)}>
+                  &larr; Precedent
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {genStep < 2 ? (
+                <Button
+                  size="sm"
+                  onClick={() => setGenStep(genStep + 1)}
+                  disabled={genStep === 0 && !genReportType}
+                >
+                  Suivant &rarr;
+                </Button>
+              ) : (
+                <>
+                  <Button variant="secondary" size="sm" onClick={() => genReportType && handlePreview(genReportType)}>
+                    <Eye className="h-4 w-4" />
+                    Apercu
+                  </Button>
+                  <Button size="sm" onClick={handleWizardGenerate}>
+                    <Zap className="h-4 w-4" />
+                    Generer et telecharger
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </Modal>
 
@@ -1082,11 +1682,13 @@ export default function Reports() {
 
 /* -- Carte KPI -- */
 function StatCard({
-  icon, iconBg, iconColor, label, value, sub, delta, deltaTone = 'neutral',
+  icon, iconBg, iconColor, label, value, sub, delta, deltaTone = 'neutral', sparkline, sparkColor,
 }: {
   icon: React.ReactNode; iconBg: string; iconColor: string; label: string
   value: React.ReactNode; sub: string; delta?: string; deltaTone?: 'up' | 'down' | 'neutral'
+  sparkline?: number[]; sparkColor?: string
 }) {
+  const cc = useChartColors()
   return (
     <Card hover className="group relative overflow-hidden p-5">
       <div className="flex items-start justify-between gap-3">
@@ -1100,6 +1702,30 @@ function StatCard({
           {icon}
         </span>
       </div>
+      {/* Sparkline */}
+      {sparkline && sparkline.length > 1 && (
+        <div className="mt-2 -mb-1 h-10 w-full opacity-60 transition-opacity group-hover:opacity-100">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={sparkline.map((v, i) => ({ v, i }))} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id={`spark-${label}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={sparkColor || C.violet} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={sparkColor || C.violet} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <Area
+                type="monotone"
+                dataKey="v"
+                stroke={sparkColor || C.violet}
+                strokeWidth={1.5}
+                fill={`url(#spark-${label})`}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       <div className="mt-3 flex items-center gap-2 text-xs">
         {delta && (
           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ${
@@ -1125,6 +1751,7 @@ function ReportCardComponent({
   report: ReportCardDef; onExport: () => void; onGenerate: () => void
   onPreview: () => void; onRegenerate: () => void
 }) {
+  const { fmtNumber } = useLocaleFormatters()
   const { isOpen: menuOpen, close: closeMenu, triggerProps, dropdownProps } = useDropdown()
 
   return (
@@ -1176,6 +1803,27 @@ function ReportCardComponent({
       {/* Contenu */}
       <div className="flex flex-1 flex-col px-5 py-4">
         <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{report.description}</p>
+
+        {/* Compteur de donnees + barre de progression */}
+        {report.dataCount !== undefined && report.dataCount > 0 && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 dark:text-slate-500">{fmtNumber(report.dataCount)} lignes disponibles</span>
+              <span className="font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
+                {report.maxData ? Math.round((report.dataCount / report.maxData) * 100) : 0}%
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+              <div
+                className="h-full rounded-full transition-all duration-700 ease-out"
+                style={{
+                  width: `${report.maxData ? (report.dataCount / report.maxData) * 100 : 0}%`,
+                  background: `linear-gradient(90deg, ${report.header.includes('violet') ? C.violet : report.header.includes('emerald') ? C.emerald : report.header.includes('rose') ? C.rose : report.header.includes('blue') ? C.blue : report.header.includes('amber') ? C.orange : report.header.includes('sky') ? C.sky : C.pink}, transparent)`,
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Formats */}
         <div className="mt-3 flex flex-wrap gap-1.5">

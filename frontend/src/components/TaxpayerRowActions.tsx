@@ -2,6 +2,7 @@ import { useRef, useState, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowUpRight, Copy, FileText, Shield, Check, MoreHorizontal } from 'lucide-react'
 import { useDropdown } from '../lib/useDropdown'
+import { useI18n } from '../lib/i18n'
 import type { TaxpayerSummary } from '../types'
 
 type Props = {
@@ -22,6 +23,7 @@ export default function TaxpayerRowActions({
   onReactivate,
 }: Props) {
   const { isOpen, close, triggerProps, dropdownProps } = useDropdown()
+  const { t } = useI18n()
   const btnRef = useRef<HTMLButtonElement>(null)
   const [pos, setPos] = useState({ top: 0, left: 0 })
 
@@ -55,7 +57,7 @@ export default function TaxpayerRowActions({
           ;(triggerProps as unknown as { onClick: () => void }).onClick()
         }}
         className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-        aria-label="Actions"
+        aria-label={t('tp.actions')}
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>

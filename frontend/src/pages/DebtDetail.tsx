@@ -594,7 +594,7 @@ export default function DebtDetail() {
       )}
 
       {/* Modal mise en demeure */}
-      <Modal open={noticeOpen} onClose={() => setNoticeOpen(false)} title="Émettre une mise en demeure" subtitle={`${debt.reference} — ${debt.taxpayerName}`}>
+      <Modal open={noticeOpen} onClose={() => setNoticeOpen(false)} title="Émettre une mise en demeure" subtitle={`${debt.reference} — ${debt.taxpayerName}`} size="full">
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -637,7 +637,7 @@ export default function DebtDetail() {
       </Modal>
 
       {/* Modal paiement */}
-      <Modal open={paymentOpen} onClose={() => setPaymentOpen(false)} title="Encaisser un paiement">
+      <Modal open={paymentOpen} onClose={() => setPaymentOpen(false)} title="Encaisser un paiement" size="full">
         <form
           onSubmit={(e) => {
             e.preventDefault()

@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -29,10 +31,17 @@ public class AiService {
 
     private static final Logger log = LoggerFactory.getLogger(AiService.class);
     private final DashboardService dashboardService;
+    private final AiDataService aiDataService;
 
-    /* ── Historique de contexte ── */
-    private static final int MAX_CONTEXT_HISTORY = 5;
-    private final Deque<String> recentIntents = new ArrayDeque<>();
+    /* ── Mémoire conversationnelle ──
+     * Le contexte est reconstruit à chaque requête depuis l'historique fourni par
+     * le client (List<ChatMessage>). La mémoire est donc PAR CONVERSATION, au lieu
+     * d'un Deque global partagé par tous les utilisateurs du singleton Spring. */
+    private static final int CONTEXT_HISTORY_LIMIT = 12;
+    /** Domaines « porteurs de sens » mémorisables comme sujet courant. L'ordre définit la priorité. */
+    private static final List<String> SUBSTANTIVE_TOPICS = List.of(
+            "taxpayer", "declaration", "debt", "overdue", "payment",
+            "collection", "assessment", "receipt", "top", "trend", "alert");
 
     /* ── Détection de langue ── */
     // Mots-clés signatures par langue (hors domaine fiscal)
@@ -52,21 +61,66 @@ public class AiService {
             "famintinana", "statistika", "trosa", "fandoavana"
     );
 
-    /* ── Patterns d'extraction d'entités ── */
+    /* ── Patterns d'extraction d'entités ──
+     * Tous opèrent sur le texte NORMALISÉ (sans accents, minuscules) produit par
+     * AiTextMatcher.normalize, afin de tolérer les variantes accentuées et la casse. */
     private static final Pattern NIF_PATTERN = Pattern.compile("\\b(\\d{10,15})\\b");
     private static final Pattern AMOUNT_PATTERN = Pattern.compile("(\\d[\\d\\s.,]*)\\s*(mga|ar|mg|francs?)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PERIOD_PATTERN = Pattern.compile("\\b(cette?\\s*(?:semaine|mois|ann[ée]e)|ce\\s*(?:trimestre|semestre)|mois\\s*(?:dernier|pass[ée])|ann[ée]e\\s*(?:derni[èe]re|pass[ée])|today|hier|this\\s*(?:week|month|year)|last\\s*(?:week|month|year))\\b", Pattern.CASE_INSENSITIVE);
-    private static final Pattern COMPARISON_PATTERN = Pattern.compile("(compare|compar|vs|contre|versus|plutot que|diff[ée]rence|écart)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern RANKING_PATTERN = Pattern.compile("(top|meilleur|classement|ranking|premier|dernier|plus\\s*(?:gros|grand|petit)|moins)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern TREND_PATTERN = Pattern.compile("(tendance|trend|[ée]volution|progression|hausse|baisse|croissance|d[ée]clin|diminue|augmente|stable|stagn)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern ALERT_PATTERN = Pattern.compile("(alerte|alert|critique|urgent|probl[èe]me|attention|risque|danger|rouge|vérif|check)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern WHY_PATTERN = Pattern.compile("(pourquoi|pour qu|comment|explique|raison|cause|origine|d[ée]termin)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern HOW_MANY_PATTERN = Pattern.compile("(combien|nombre|quantit|total|count|how\\s*many|firy)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern RECOMMEND_PATTERN = Pattern.compile("(recommand|conseil|suggestion|propos|devrait|faut|que faire|action|plan|strat[ée]gie)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern COMPARE_PERIOD_PATTERN = Pattern.compile("(mois dernier|mois pass|pr[ée]c[ée]dent|vs mois|compar.*mois|last month|previous month)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PERIOD_PATTERN = Pattern.compile("\\b(cette?\\s+(?:semaine|mois|annee)|ce\\s+(?:trimestre|semestre)|mois\\s+(?:dernier|passe)|annee\\s+(?:derniere|passe)|today|hier|this\\s+(?:week|month|year)|last\\s+(?:week|month|year))\\b");
+    private static final Pattern COMPARISON_PATTERN = Pattern.compile("\\b(compar\\w*|vs|contre|versus|difference|ecart)\\b");
+    private static final Pattern RANKING_PATTERN = Pattern.compile("\\b(top|meilleur\\w*|classement|ranking|premier\\w*|dernier\\w*|plus\\s+(?:gros|grand|petit)|moins)\\b");
+    private static final Pattern TREND_PATTERN = Pattern.compile("\\b(tendance|trend|evolution|progression|hausse|baisse|croissance|declin|diminue\\w*|augmente\\w*|stable|stagn\\w*)\\b");
+    private static final Pattern ALERT_PATTERN = Pattern.compile("\\b(alerte|alert|critique|urgent\\w*|probleme\\w*|attention|risque|danger|rouge|verif\\w*|check)\\b");
+    private static final Pattern WHY_PATTERN = Pattern.compile("\\b(pourquoi|pour\\s+qu\\w+|comment|explique\\w*|raison|cause|origine|determin\\w*)\\b");
+    private static final Pattern HOW_MANY_PATTERN = Pattern.compile("\\b(combien|nombre|quantit\\w*|total|count|how\\s*many|firy)\\b");
+    private static final Pattern RECOMMEND_PATTERN = Pattern.compile("\\b(recommand\\w*|conseil|suggestion|propos\\w*|devrait|faut|que\\s+faire|action|plan|strategie\\w*)\\b");
+    private static final Pattern COMPARE_PERIOD_PATTERN = Pattern.compile("\\b(mois\\s+dernier|mois\\s+passe|precedent\\w*|vs\\s+mois|last\\s+month|previous\\s+month)\\b");
 
-    public AiService(DashboardService dashboardService) {
+    /* ── Types d'impôt reconnus (comparés au niveau du mot, jamais en sous-chaîne) ── */
+    private static final Pattern TAX_TYPE_PATTERN = Pattern.compile(
+            "(?<![\\p{Alnum}])(patente|irsa|tva|irc|tps|tv|iuv|fip|tsv|th|tf)(?![\\p{Alnum}])");
+
+    /* ── Période relative -> fenêtre du résumé (en mois) ── */
+    private static final int DEFAULT_PERIOD_MONTHS = 6;
+
+    /* ── Filtres temporels explicites (extraits du texte BRUT, la ponctuation étant
+     *    supprimée par la normalisation) ── */
+    /** « 2026-03 » / « 2026/03 » — mais jamais à l'intérieur d'une date complète. */
+    private static final Pattern FISCAL_PERIOD_PATTERN =
+            Pattern.compile("\\b(20\\d{2})[-/.](0[1-9]|1[0-2])(?![-/.]\\d)");
+    /** « 202603 » (période fiscale compacte). */
+    private static final Pattern FISCAL_PERIOD_COMPACT_PATTERN =
+            Pattern.compile("\\b(20\\d{2})(0[1-9]|1[0-2])\\b");
+    /** Dates ISO « 2026-03-15 ». */
+    private static final Pattern DATE_ISO_PATTERN =
+            Pattern.compile("\\b(20\\d{2})-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])\\b");
+    /** Dates françaises « 15/03/2026 ». */
+    private static final Pattern DATE_FR_PATTERN =
+            Pattern.compile("\\b(0?[1-9]|[12]\\d|3[01])/(0?[1-9]|1[0-2])/(20\\d{2})\\b");
+
+    private static final DateTimeFormatter DAY_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    /** Filtres temporels explicites extraits d'un message. */
+    private record Temporal(String fiscalPeriod, LocalDate dateFrom, LocalDate dateTo) {
+        static Temporal none() {
+            return new Temporal(null, null, null);
+        }
+
+        boolean hasRange() {
+            return dateFrom != null && dateTo != null;
+        }
+
+        boolean active() {
+            return fiscalPeriod != null || hasRange();
+        }
+    }
+
+    /* ── Marqueurs de négation (au niveau du mot : « pas » ne doit pas matcher « passé ») ── */
+    private static final List<String> NEGATION_MARKERS = List.of("pas", "non", "aucun", "aucune", "jamais", "sans");
+
+    public AiService(DashboardService dashboardService, AiDataService aiDataService) {
         this.dashboardService = dashboardService;
+        this.aiDataService = aiDataService;
     }
 
     /**
@@ -75,98 +129,310 @@ public class AiService {
      */
     public String chat(String userMessage, List<ChatMessage> history) {
         try {
-            DashboardSummary s = dashboardService.summary(6);
-            String lower = userMessage.toLowerCase().trim();
+            // Texte normalisé (minuscules, sans accents, ponctuation -> espaces) :
+            // base commune du scoring d'intentions et de l'extraction d'entités.
+            String norm = AiTextMatcher.normalize(userMessage);
 
-            // 0. Détecter la langue de l'utilisateur
-            String locale = detectLanguage(lower);
+            // 0. Détecter la langue, avec continuité depuis l'historique
+            String locale = detectLanguage(norm, history);
             AiMessages msgs = AiMessages.of(locale);
 
             // 1. Extraire les entités du message
-            Entities entities = extractEntities(lower);
+            Entities entities = extractEntities(norm);
 
             // 2. Détecter les intentions par scoring (avec les mots-clés de la langue détectée)
-            IntentResult intents = detectIntents(lower, msgs);
+            IntentResult intents = detectIntents(norm, msgs);
 
-            // 3. Gérer les salutations (pas de contexte nécessaire)
-            if (intents.isGreeting()) {
-                String response = greetingResponse(entities);
-                trackIntent("greeting");
-                return response;
+            // 2bis. Reconstruire la mémoire de la conversation depuis l'historique.
+            ConversationContext ctx = buildContext(history, msgs);
+
+            // 3. Salutations — seulement si le message est une salutation pure
+            //    (on ne filtre pas une salutation).
+            if (intents.isGreeting() && intents.matchedIntents().size() <= 1) {
+                return greetingResponse(entities);
             }
 
-            // 4. Détecter les follow-ups et questions contextuelles
-            String followUpResponse = handleFollowUp(lower, entities, s);
-            if (followUpResponse != null) {
-                trackIntent(intents.primaryIntent());
-                return followUpResponse;
-            }
+            // 3bis. Résoudre les filtres (NIF, type d'impôt, période relative, période fiscale, plage de dates).
+            AiFilters filters = resolveFilters(ctx, entities, detectTemporal(userMessage.toLowerCase()));
 
-            // 5. Questions composées ("contribuables et paiements")
-            if (intents.isCompound()) {
-                String response = handleCompoundQuery(intents, entities, s);
-                trackIntent(intents.primaryIntent());
-                return response;
-            }
+            // 3ter. Le résumé est calculé sur la fenêtre de la période demandée.
+            DashboardSummary s = dashboardService.summary(filters.months());
 
-            // 6. Questions de comparaison
-            if (intents.isComparison() || entities.hasComparison()) {
-                String response = handleComparison(intents, entities, s);
-                trackIntent("comparison");
-                return response;
-            }
-
-            // 7. Questions de tendance
-            if (intents.isTrend() || entities.hasTrend()) {
-                String response = handleTrend(intents, entities, s);
-                trackIntent("trend");
-                return response;
-            }
-
-            // 8. Questions d'alerte
-            if (intents.isAlert() || entities.hasAlert()) {
-                String response = handleAlert(intents, entities, s);
-                trackIntent("alert");
-                return response;
-            }
-
-            // 9. Questions de recommandation
-            if (intents.isRecommend()) {
-                String response = handleRecommendation(intents, entities, s);
-                trackIntent("recommend");
-                return response;
-            }
-
-            // 10. Questions "pourquoi"
-            if (entities.hasWhy()) {
-                String response = handleWhy(intents, entities, s);
-                trackIntent("analysis");
-                return response;
-            }
-
-            // 11. Questions "combien" (extraction directe)
-            if (entities.hasHowMany()) {
-                String response = handleHowMany(intents, entities, s);
-                trackIntent(intents.primaryIntent());
-                return response;
-            }
-
-            // 12. Aide
-            if (intents.isHelp()) {
-                trackIntent("help");
-                return helpResponse(entities);
-            }
-
-            // 13. Réponses standard par intention principale
-            String response = generateResponse(intents, entities, s);
-            trackIntent(intents.primaryIntent());
-            return response;
+            String reply = route(norm, intents, entities, s, ctx, filters);
+            return applyFilters(reply, filters, intents, entities, s, ctx);
 
         } catch (Exception e) {
             log.error("Erreur M-TAX AI pour message: {}", userMessage, e);
             return "Désolé, une erreur est survenue : " + e.getMessage()
                     + "\n\nVeuillez réessayer ou posez une autre question.";
         }
+    }
+
+    /**
+     * Routage de la réponse selon l'intention, les entités et la mémoire.
+     * Les filtres mémorisés sont appliqués en amont (fiche contribuable) puis en aval
+     * (sections filtrées par type d'impôt / période) par {@link #applyFilters}.
+     */
+    private String route(String norm, IntentResult intents, Entities entities, DashboardSummary s,
+                         ConversationContext ctx, AiFilters filters) {
+        // Un NIF mémorisé ou cité permet de répondre sur CE contribuable précis.
+        if (filters.hasNif() && focusesTaxpayer(intents, entities)) {
+            Optional<AiDataService.TaxpayerSnapshot> snapshot = aiDataService.findByNif(filters.nif());
+            if (snapshot.isPresent()) {
+                return taxpayerCard(snapshot.get());
+            }
+        }
+
+        // 4. Mémoire conversationnelle : questions de suivi et messages vagues
+        String followUpResponse = handleFollowUp(norm, intents, entities, s, ctx);
+        if (followUpResponse != null) {
+            return followUpResponse;
+        }
+
+        // 5. Questions composées ("contribuables et paiements")
+        if (intents.isCompound()) {
+            return handleCompoundQuery(intents, entities, s);
+        }
+
+        // 6. Questions de comparaison
+        if (intents.isComparison() || entities.hasComparison()) {
+            return handleComparison(intents, entities, s);
+        }
+
+        // 7. Questions de tendance
+        if (intents.isTrend() || entities.hasTrend()) {
+            return handleTrend(intents, entities, s);
+        }
+
+        // 8. Questions d'alerte
+        if (intents.isAlert() || entities.hasAlert()) {
+            return handleAlert(intents, entities, s);
+        }
+
+        // 9. Questions de recommandation
+        if (intents.isRecommend()) {
+            return handleRecommendation(intents, entities, s);
+        }
+
+        // 10. Questions "pourquoi"
+        if (entities.hasWhy()) {
+            return handleWhy(intents, entities, s);
+        }
+
+        // 11. Questions "combien" (extraction directe)
+        if (entities.hasHowMany()) {
+            return handleHowMany(intents, entities, s);
+        }
+
+        // 12. Aide
+        if (intents.isHelp()) {
+            return helpResponse(entities);
+        }
+
+        // 13. Réponses standard par intention principale
+        return generateResponse(intents, entities, s);
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+     *  FILTRES PAR ENTITÉS MÉMORISÉES (NIF, TYPE D'IMPÔT, PÉRIODE)
+     * ══════════════════════════════════════════════════════════════════ */
+
+    /**
+     * Filtres appliqués aux réponses, issus du message courant puis, à défaut, de la
+     * mémoire de la conversation.
+     */
+    private record AiFilters(String nif, List<String> taxTypes, String periodLabel, int months,
+                             String fiscalPeriod, LocalDate dateFrom, LocalDate dateTo) {
+        boolean hasNif() {
+            return nif != null && !nif.isBlank();
+        }
+
+        boolean hasTaxTypes() {
+            return taxTypes != null && !taxTypes.isEmpty();
+        }
+
+        boolean hasRange() {
+            return dateFrom != null && dateTo != null;
+        }
+
+        boolean hasTemporal() {
+            return fiscalPeriod != null || hasRange();
+        }
+    }
+
+    /** Un filtre du message courant prime sur le filtre mémorisé. */
+    private AiFilters resolveFilters(ConversationContext ctx, Entities entities, Temporal temporal) {
+        String nif = !entities.nifs().isEmpty() ? entities.nifs().get(0)
+                : (!ctx.nifs().isEmpty() ? ctx.nifs().get(0) : null);
+
+        List<String> taxTypes = !entities.taxTypes().isEmpty() ? entities.taxTypes() : ctx.taxTypes();
+
+        String periodLabel = entities.period() != null ? entities.period() : ctx.period();
+
+        String fiscalPeriod = temporal != null && temporal.fiscalPeriod() != null
+                ? temporal.fiscalPeriod() : ctx.fiscalPeriod();
+        LocalDate dateFrom = temporal != null && temporal.dateFrom() != null
+                ? temporal.dateFrom() : ctx.dateFrom();
+        LocalDate dateTo = temporal != null && temporal.dateTo() != null
+                ? temporal.dateTo() : ctx.dateTo();
+
+        return new AiFilters(nif, taxTypes, periodLabel, monthsForPeriod(periodLabel),
+                fiscalPeriod, dateFrom, dateTo);
+    }
+
+    /** Traduit une période relative (« ce mois », « cette année »…) en fenêtre de mois. */
+    private int monthsForPeriod(String period) {
+        if (period == null) return DEFAULT_PERIOD_MONTHS;
+        String p = AiTextMatcher.normalize(period);
+        if (p.contains("semaine") || p.contains("week")) return 1;
+        if (p.contains("trimestre")) return 3;
+        if (p.contains("semestre")) return 6;
+        if (p.contains("annee") || p.contains("year")) return 12;
+        if (p.contains("mois") || p.contains("month")) return 1;
+        return DEFAULT_PERIOD_MONTHS;
+    }
+
+    /** Le sujet porte-t-il sur un contribuable (donc un NIF est pertinent) ? */
+    private boolean focusesTaxpayer(IntentResult intents, Entities entities) {
+        if (!entities.nifs().isEmpty()) return true;
+        return intents.matchedIntents().stream()
+                .anyMatch(t -> List.of("taxpayer", "debt", "overdue", "payment", "receipt").contains(t));
+    }
+
+    /**
+     * Enrichit la réponse avec les filtres réellement appliqués :
+     * section détaillée par type d'impôt (données filtrées) et rappel des filtres actifs.
+     */
+    private String applyFilters(String reply, AiFilters filters, IntentResult intents,
+                                Entities entities, DashboardSummary s, ConversationContext ctx) {
+        StringBuilder sb = new StringBuilder(reply);
+
+        List<String> taxTopics = List.of("payment", "debt", "overdue", "collection", "assessment", "receipt", "top");
+        boolean taxTypeSectionRelevant = !entities.taxTypes().isEmpty()
+                || intents.matchedIntents().stream().anyMatch(taxTopics::contains)
+                || (ctx.lastTopic() != null && taxTopics.contains(ctx.lastTopic()));
+        if (filters.hasTaxTypes() && taxTypeSectionRelevant) {
+            sb.append(taxTypeSection(filters.taxTypes(), s));
+        }
+
+        if (filters.hasTemporal()) {
+            sb.append(temporalSection(filters));
+        }
+
+        String header = filterHeader(filters);
+        if (!header.isEmpty()) sb.append(header);
+
+        return sb.toString();
+    }
+
+    /**
+     * Section filtrée par période fiscale et/ou plage de dates, calculée sur les
+     * créances réelles (agrégat) et les paiements de la plage.
+     */
+    private String temporalSection(AiFilters filters) {
+        String label = filters.fiscalPeriod() != null
+                ? "période fiscale " + filters.fiscalPeriod()
+                : "plage " + DAY_FORMAT.format(filters.dateFrom()) + " → " + DAY_FORMAT.format(filters.dateTo());
+
+        StringBuilder sb = new StringBuilder("\n\n### 🔎 Filtré — " + label + "\n");
+
+        String taxTypeFilter = filters.taxTypes() != null && filters.taxTypes().size() == 1
+                ? filters.taxTypes().get(0) : null;
+
+        AiDataService.DebtAggregate debts = aiDataService.debtAggregate(
+                taxTypeFilter, filters.fiscalPeriod(), filters.dateFrom(), filters.dateTo());
+        if (debts != null) {
+            sb.append("- Créances : **").append(debts.debtCount()).append("**\n")
+              .append("- Total dû : **").append(fmt(debts.totalAmount())).append(" MGA**\n")
+              .append("- Encaissé : **").append(fmt(debts.collectedAmount())).append(" MGA**\n")
+              .append("- Restant : **").append(fmt(debts.balance())).append(" MGA**\n");
+        }
+
+        if (filters.hasRange()) {
+            AiDataService.PaymentAggregate payments = aiDataService.paymentsBetween(filters.dateFrom(), filters.dateTo());
+            if (payments != null) {
+                sb.append("- Paiements encaissés : **").append(payments.paymentCount())
+                  .append("** — **").append(fmt(payments.amount())).append(" MGA**\n");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private String filterHeader(AiFilters filters) {
+        List<String> parts = new ArrayList<>();
+        if (filters.hasNif()) parts.add("NIF " + filters.nif());
+        if (filters.hasTaxTypes()) parts.add("impôts " + String.join(", ", filters.taxTypes()));
+        if (filters.periodLabel() != null) parts.add("période « " + filters.periodLabel() + " »");
+        if (filters.fiscalPeriod() != null) parts.add("période fiscale " + filters.fiscalPeriod());
+        if (filters.hasRange()) {
+            parts.add("du " + DAY_FORMAT.format(filters.dateFrom()) + " au " + DAY_FORMAT.format(filters.dateTo()));
+        }
+        if (parts.isEmpty()) return "";
+        return "\n\n🧠 _Filtres actifs : " + String.join(" · ", parts) + "._";
+    }
+
+    /** Détail par type d'impôt, filtré sur les types demandés. */
+    private String taxTypeSection(List<String> taxTypes, DashboardSummary s) {
+        StringBuilder sb = new StringBuilder();
+        boolean any = appendTaxRows(sb, "💰 Paiements", s.paymentsByTaxType(), taxTypes, "amount")
+                | appendTaxRows(sb, "📉 Créances en retard", s.overdueByTaxType(), taxTypes, "amount")
+                | appendTaxRows(sb, "📈 Recouvrement", s.collectionByTaxType(), taxTypes, "amount");
+
+        String title = "\n\n### 🔎 Filtré — type d'impôt : " + String.join(", ", taxTypes) + "\n";
+        if (!any) {
+            return title + "Aucune donnée pour ce type d'impôt sur la période.\n";
+        }
+        return title + sb;
+    }
+
+    private boolean appendTaxRows(StringBuilder sb, String title, List<Map<String, Object>> rows,
+                                  List<String> taxTypes, String amountKey) {
+        if (rows == null || rows.isEmpty()) return false;
+        List<Map<String, Object>> filtered = rows.stream()
+                .filter(r -> matchesTaxType(String.valueOf(r.get("taxType")), taxTypes))
+                .toList();
+        if (filtered.isEmpty()) return false;
+
+        sb.append("- **").append(title).append("** :\n");
+        for (Map<String, Object> row : filtered) {
+            Object amount = row.get(amountKey);
+            sb.append("  • ").append(row.get("taxType")).append(" : ")
+              .append(amount instanceof BigDecimal bd ? fmt(bd) : String.valueOf(amount)).append(" MGA\n");
+        }
+        return true;
+    }
+
+    /** Rapproche un code de donnée (ex. « TVA ») d'un code demandé (ex. « TV »). */
+    private boolean matchesTaxType(String code, List<String> requested) {
+        if (code == null) return false;
+        String c = code.toUpperCase();
+        for (String requested0 : requested) {
+            String u = requested0.toUpperCase();
+            if (c.equals(u) || c.startsWith(u) || u.startsWith(c)) return true;
+        }
+        return false;
+    }
+
+    /** Fiche d'un contribuable identifié par son NIF (données réelles). */
+    private String taxpayerCard(AiDataService.TaxpayerSnapshot t) {
+        return "## 👤 " + t.name() + " — NIF " + t.nif() + "\n\n"
+                + "- Type : **" + t.type() + "** · Statut : **" + t.status() + "**\n"
+                + "- Créances actives : **" + t.debtCount() + "** dont **" + t.overdueCount() + "** en retard\n"
+                + "- Montant total dû : **" + fmt(t.totalAmount()) + " MGA**\n"
+                + "- Déjà payé : **" + fmt(t.paidAmount()) + " MGA**\n"
+                + "- Solde restant : **" + fmt(t.balance()) + " MGA**\n\n"
+                + "💡 **Insight** : " + taxpayerCardInsight(t);
+    }
+
+    private String taxpayerCardInsight(AiDataService.TaxpayerSnapshot t) {
+        if (t.debtCount() == 0) {
+            return "Aucune créance active pour ce contribuable.";
+        }
+        if (t.overdueCount() > 0) {
+            return "**" + t.overdueCount() + "** créance(s) en retard — priorisez une relance.";
+        }
+        return "Situation à jour, aucun retard constaté.";
     }
 
     /* ══════════════════════════════════════════════════════════════════
@@ -187,13 +453,13 @@ public class AiService {
             List<String> taxTypes
     ) {}
 
-    private Entities extractEntities(String lower) {
+    private Entities extractEntities(String norm) {
         List<String> nifs = new ArrayList<>();
-        Matcher nifM = NIF_PATTERN.matcher(lower);
+        Matcher nifM = NIF_PATTERN.matcher(norm);
         while (nifM.find()) nifs.add(nifM.group(1));
 
         List<BigDecimal> amounts = new ArrayList<>();
-        Matcher amtM = AMOUNT_PATTERN.matcher(lower);
+        Matcher amtM = AMOUNT_PATTERN.matcher(norm);
         while (amtM.find()) {
             try {
                 String raw = amtM.group(1).replaceAll("[\\s,]", "");
@@ -202,24 +468,26 @@ public class AiService {
         }
 
         String period = null;
-        Matcher perM = PERIOD_PATTERN.matcher(lower);
+        Matcher perM = PERIOD_PATTERN.matcher(norm);
         if (perM.find()) period = perM.group(1);
 
+        // Types d'impôt : comparaison au niveau du mot uniquement. L'ancien
+        // contains("th") matchait n'importe quel mot (« the », « thème »…).
         List<String> taxTypes = new ArrayList<>();
-        String[] taxKeywords = {"patente", "irc", "irsa", "tps", "tv", "iuv", "fip", "tsv", "th", "tf"};
-        for (String kw : taxKeywords) {
-            if (lower.contains(kw)) taxTypes.add(kw.toUpperCase());
-        }
+        Matcher taxM = TAX_TYPE_PATTERN.matcher(norm);
+        while (taxM.find()) taxTypes.add(taxM.group(1).toUpperCase());
+
+        boolean negative = NEGATION_MARKERS.stream().anyMatch(m -> AiTextMatcher.contains(norm, m));
 
         return new Entities(
                 nifs, amounts, period,
-                COMPARISON_PATTERN.matcher(lower).find(),
-                TREND_PATTERN.matcher(lower).find(),
-                ALERT_PATTERN.matcher(lower).find(),
-                WHY_PATTERN.matcher(lower).find(),
-                HOW_MANY_PATTERN.matcher(lower).find(),
-                RANKING_PATTERN.matcher(lower).find(),
-                lower.contains("pas") || lower.contains("non") || lower.contains("aucun") || lower.contains("jamais"),
+                COMPARISON_PATTERN.matcher(norm).find(),
+                TREND_PATTERN.matcher(norm).find(),
+                ALERT_PATTERN.matcher(norm).find(),
+                WHY_PATTERN.matcher(norm).find(),
+                HOW_MANY_PATTERN.matcher(norm).find(),
+                RANKING_PATTERN.matcher(norm).find(),
+                negative,
                 taxTypes
         );
     }
@@ -241,26 +509,26 @@ public class AiService {
             List<String> matchedIntents
     ) {}
 
-    private IntentResult detectIntents(String lower, AiMessages msgs) {
+    private IntentResult detectIntents(String norm, AiMessages msgs) {
         Map<String, Double> scores = new LinkedHashMap<>();
 
         // Scoring par intention (avec les mots-clés de la langue détectée)
-        scores.put("greeting", scoreIntent(lower, msgs.greetingKeywords(), 1.0));
-        scores.put("help", scoreIntent(lower, msgs.helpKeywords(), 1.0));
-        scores.put("taxpayer", scoreIntent(lower, msgs.taxpayerKeywords(), 1.0));
-        scores.put("declaration", scoreIntent(lower, msgs.declarationKeywords(), 1.0));
-        scores.put("debt", scoreIntent(lower, msgs.debtKeywords(), 1.0));
-        scores.put("payment", scoreIntent(lower, msgs.paymentKeywords(), 1.0));
-        scores.put("collection", scoreIntent(lower, msgs.collectionKeywords(), 1.0));
-        scores.put("assessment", scoreIntent(lower, msgs.assessmentKeywords(), 1.0));
-        scores.put("overdue", scoreIntent(lower, msgs.overdueKeywords(), 1.0));
-        scores.put("summary", scoreIntent(lower, msgs.summaryKeywords(), 1.0));
-        scores.put("receipt", scoreIntent(lower, msgs.receiptKeywords(), 1.0));
-        scores.put("recent", scoreIntent(lower, msgs.recentKeywords(), 1.0));
-        scores.put("top", scoreIntent(lower, msgs.topKeywords(), 1.2)); // Boost ranking
-        scores.put("trend", scoreIntent(lower, msgs.trendKeywords(), 1.1));
-        scores.put("alert", scoreIntent(lower, msgs.alertKeywords(), 1.1));
-        scores.put("next", scoreIntent(lower, msgs.nextKeywords(), 1.0));
+        scores.put("greeting", scoreIntent(norm, msgs.greetingKeywords(), 1.0));
+        scores.put("help", scoreIntent(norm, msgs.helpKeywords(), 1.0));
+        scores.put("taxpayer", scoreIntent(norm, msgs.taxpayerKeywords(), 1.0));
+        scores.put("declaration", scoreIntent(norm, msgs.declarationKeywords(), 1.0));
+        scores.put("debt", scoreIntent(norm, msgs.debtKeywords(), 1.0));
+        scores.put("payment", scoreIntent(norm, msgs.paymentKeywords(), 1.0));
+        scores.put("collection", scoreIntent(norm, msgs.collectionKeywords(), 1.0));
+        scores.put("assessment", scoreIntent(norm, msgs.assessmentKeywords(), 1.0));
+        scores.put("overdue", scoreIntent(norm, msgs.overdueKeywords(), 1.0));
+        scores.put("summary", scoreIntent(norm, msgs.summaryKeywords(), 1.0));
+        scores.put("receipt", scoreIntent(norm, msgs.receiptKeywords(), 1.0));
+        scores.put("recent", scoreIntent(norm, msgs.recentKeywords(), 1.0));
+        scores.put("top", scoreIntent(norm, msgs.topKeywords(), 1.2)); // Boost ranking
+        scores.put("trend", scoreIntent(norm, msgs.trendKeywords(), 1.1));
+        scores.put("alert", scoreIntent(norm, msgs.alertKeywords(), 1.1));
+        scores.put("next", scoreIntent(norm, msgs.nextKeywords(), 1.0));
 
         // Trouver l'intention principale
         String primary = "summary"; // défaut
@@ -288,10 +556,10 @@ public class AiService {
                 scores.get("greeting") > 0,
                 scores.get("help") > 0,
                 isCompound,
-                COMPARISON_PATTERN.matcher(lower).find() || scores.getOrDefault("trend", 0.0) > 0.5,
-                scores.get("trend") > 0 || TREND_PATTERN.matcher(lower).find(),
-                scores.get("alert") > 0 || ALERT_PATTERN.matcher(lower).find(),
-                RECOMMEND_PATTERN.matcher(lower).find(),
+                COMPARISON_PATTERN.matcher(norm).find() || scores.getOrDefault("trend", 0.0) > 0.5,
+                scores.get("trend") > 0 || TREND_PATTERN.matcher(norm).find(),
+                scores.get("alert") > 0 || ALERT_PATTERN.matcher(norm).find(),
+                RECOMMEND_PATTERN.matcher(norm).find(),
                 matched
         );
     }
@@ -300,16 +568,16 @@ public class AiService {
      * Détecte la langue du message utilisateur en comptant les marqueurs linguistiques.
      * Par défaut : français.
      */
-    private String detectLanguage(String lower) {
+    private String detectLanguage(String norm) {
         int fr = 0, en = 0, mg = 0;
-        for (String m : FRENCH_MARKERS)   { if (lower.contains(m)) fr++; }
-        for (String m : ENGLISH_MARKERS)  { if (lower.contains(m)) en++; }
-        for (String m : MALAGASY_MARKERS) { if (lower.contains(m)) mg++; }
+        for (String m : FRENCH_MARKERS)   { if (AiTextMatcher.contains(norm, m)) fr++; }
+        for (String m : ENGLISH_MARKERS)  { if (AiTextMatcher.contains(norm, m)) en++; }
+        for (String m : MALAGASY_MARKERS) { if (AiTextMatcher.contains(norm, m)) mg++; }
 
         // Si aucun marqueur trouvé, essayer la détection par structure
         if (fr == 0 && en == 0 && mg == 0) {
-            if (Pattern.compile("\b(how many|what is|could you|please|thank)\b").matcher(lower).find()) return "en";
-            if (Pattern.compile("\b(firy|manao ahoana|azafady|misaotra)\b").matcher(lower).find()) return "mg";
+            if (Pattern.compile("\b(how many|what is|could you|please|thank)\b").matcher(norm).find()) return "en";
+            if (Pattern.compile("\b(firy|manao ahoana|azafady|misaotra)\b").matcher(norm).find()) return "mg";
             return "fr"; // défaut
         }
 
@@ -318,18 +586,18 @@ public class AiService {
         return "fr";
     }
 
-    private double scoreIntent(String lower, List<String> keywords, double baseWeight) {
+    private double scoreIntent(String norm, List<String> keywords, double baseWeight) {
         double score = 0;
         for (String kw : keywords) {
-            if (lower.contains(kw)) {
+            if (AiTextMatcher.contains(norm, kw)) {
                 score += baseWeight;
                 // Bonus pour les mots-clés plus longs (plus spécifiques)
-                if (kw.length() > 5) score += 0.3;
+                if (AiTextMatcher.normalize(kw).length() > 5) score += 0.3;
             }
         }
         // Bonus si le mot-clé est en début de phrase
         for (String kw : keywords) {
-            if (lower.startsWith(kw)) {
+            if (AiTextMatcher.startsWith(norm, kw)) {
                 score += 0.5;
                 break;
             }
@@ -345,64 +613,257 @@ public class AiService {
      *  SUIVI DE CONTEXTE & FOLLOW-UPS
      * ══════════════════════════════════════════════════════════════════ */
 
-    private void trackIntent(String intent) {
-        recentIntents.addFirst(intent);
-        while (recentIntents.size() > MAX_CONTEXT_HISTORY) recentIntents.pollLast();
+    /**
+     * Mémoire de la conversation, reconstruite à chaque requête depuis l'historique
+     * transmis par le client (aucun état partagé entre utilisateurs).
+     */
+    private record ConversationContext(
+            String lastTopic,
+            List<String> recentTopics,
+            List<String> nifs,
+            List<String> taxTypes,
+            String period,
+            String fiscalPeriod,
+            LocalDate dateFrom,
+            LocalDate dateTo
+    ) {
+        static ConversationContext empty() {
+            return new ConversationContext(null, List.of(), List.of(), List.of(), null, null, null, null);
+        }
     }
 
     /**
-     * Détecte les questions de suivi qui référencent le contexte précédent
-     * ("et les paiements ?", "et l'autre ?", "combien pour celui-ci ?").
+     * Remonte l'historique du message le plus récent au plus ancien (borné à
+     * {@link #CONTEXT_HISTORY_LIMIT}) et mémorise :
+     * <ul>
+     *   <li>le dernier sujet « porteur de sens » (contribuables, créances, paiements…) ;</li>
+     *   <li>les sujets récents, pour désambiguïser « et l'autre ? » ;</li>
+     *   <li>les entités déjà citées (NIF, types d'impôt, période) ;</li>
+     *   <li>la langue du dernier message qui en contenait une.</li>
+     * </ul>
      */
-    private String handleFollowUp(String lower, Entities entities, DashboardSummary s) {
-        if (recentIntents.isEmpty()) return null;
+    private ConversationContext buildContext(List<ChatMessage> history, AiMessages msgs) {
+        if (history == null || history.isEmpty()) return ConversationContext.empty();
 
-        String lastIntent = recentIntents.peekFirst();
+        String lastTopic = null;
+        List<String> recentTopics = new ArrayList<>();
+        LinkedHashSet<String> nifs = new LinkedHashSet<>();
+        LinkedHashSet<String> taxTypes = new LinkedHashSet<>();
+        String period = null;
+        String fiscalPeriod = null;
+        LocalDate dateFrom = null;
+        LocalDate dateTo = null;
 
-        // Patterns de follow-up
-        boolean isFollowUp = lower.startsWith("et ") || lower.startsWith("mais ")
-                || lower.contains("aussi") || lower.contains("ensuite")
-                || lower.contains("et vous") || lower.contains("et les")
-                || lower.contains("par contre") || lower.contains("ensuite")
-                || lower.matches("^\\s*(et|mais|aussi|ensuite|ok|d'accord|bon|super|merci).*");
+        int examined = 0;
+        for (int i = history.size() - 1; i >= 0 && examined < CONTEXT_HISTORY_LIMIT; i--, examined++) {
+            ChatMessage m = history.get(i);
+            if (m == null || m.content() == null || m.content().isBlank()) continue;
+            if (!"user".equalsIgnoreCase(m.role())) continue;
 
-        if (!isFollowUp) return null;
+            String norm = AiTextMatcher.normalize(m.content());
+            Entities e = extractEntities(norm);
+            nifs.addAll(e.nifs());
+            taxTypes.addAll(e.taxTypes());
+            if (period == null) period = e.period();
 
-        // Répondre en fonction du contexte précédent avec des informations complémentaires
-        return switch (lastIntent) {
-            case "taxpayer" -> {
-                yield "Voici les détails complémentaires sur les **contribuables** :\n"
-                        + "- Total : **" + s.taxpayerCount() + "** contribuables\n"
-                        + "- Nouveaux ce mois : **" + s.newTaxpayers() + "**\n"
-                        + "- Déclarations liées : **" + s.periodDeclarationCount() + "**\n"
-                        + "- Top payeurs : " + formatTopTaxpayers(s.topTaxpayersByCollected(), 3) + "\n\n"
-                        + "💡 **Insight** : " + generateTaxpayerInsight(s);
+            Temporal temporal = detectTemporal(m.content().toLowerCase());
+            if (fiscalPeriod == null && temporal.fiscalPeriod() != null) fiscalPeriod = temporal.fiscalPeriod();
+            if (dateFrom == null && temporal.dateFrom() != null) {
+                dateFrom = temporal.dateFrom();
+                dateTo = temporal.dateTo();
             }
-            case "declaration" -> {
-                yield "Détails sur les **déclarations** :\n"
-                        + "- Total : **" + s.declarationCount() + "**\n"
-                        + "- À traiter : **" + s.declarationsToProcess() + "**\n"
-                        + "- Nouvelles ce mois : **" + s.newDeclarations() + "**\n\n"
-                        + "💡 **Insight** : " + generateDeclarationInsight(s);
+
+            String topic = topicOf(norm, msgs);
+            if (topic != null) {
+                if (lastTopic == null) lastTopic = topic;
+                if (recentTopics.size() < 3 && !recentTopics.contains(topic)) recentTopics.add(topic);
             }
-            case "debt" -> {
-                yield "Plus de détails sur les **créances** :\n"
-                        + "- Total : **" + s.debtCount() + "** créances\n"
-                        + "- Montant total : **" + fmt(s.totalDebts()) + " MGA**\n"
-                        + "- En retard : **" + s.overdueCount() + "** pour **" + fmt(s.overdueBalance()) + " MGA**\n"
-                        + "- Répartition : " + formatDebtsByStatus(s.debtsByStatus()) + "\n\n"
-                        + "💡 **Insight** : " + generateDebtInsight(s);
+        }
+
+        return new ConversationContext(lastTopic, List.copyOf(recentTopics),
+                List.copyOf(nifs), List.copyOf(taxTypes), period, fiscalPeriod, dateFrom, dateTo);
+    }
+
+    /**
+     * Extrait une période fiscale (« 2026-03 » / « 202603 ») et/ou une plage de dates
+     * (dates ISO ou françaises) du texte brut. Plusieurs dates → la plus ancienne et la
+     * plus récente forment la plage ; une seule date → plage d'un jour.
+     */
+    private Temporal detectTemporal(String rawLower) {
+        if (rawLower == null || rawLower.isBlank()) return Temporal.none();
+
+        List<LocalDate> dates = new ArrayList<>();
+        Matcher iso = DATE_ISO_PATTERN.matcher(rawLower);
+        while (iso.find()) {
+            try {
+                dates.add(LocalDate.of(Integer.parseInt(iso.group(1)),
+                        Integer.parseInt(iso.group(2)), Integer.parseInt(iso.group(3))));
+            } catch (java.time.DateTimeException ignored) { /* date invalide */ }
+        }
+        Matcher fr = DATE_FR_PATTERN.matcher(rawLower);
+        while (fr.find()) {
+            try {
+                dates.add(LocalDate.of(Integer.parseInt(fr.group(3)),
+                        Integer.parseInt(fr.group(2)), Integer.parseInt(fr.group(1))));
+            } catch (java.time.DateTimeException ignored) { /* date invalide */ }
+        }
+
+        LocalDate from = null;
+        LocalDate to = null;
+        if (!dates.isEmpty()) {
+            from = dates.stream().min(LocalDate::compareTo).orElse(null);
+            to = dates.stream().max(LocalDate::compareTo).orElse(null);
+        }
+
+        String fiscalPeriod = null;
+        Matcher period = FISCAL_PERIOD_PATTERN.matcher(rawLower);
+        if (period.find()) {
+            fiscalPeriod = period.group(1) + "-" + period.group(2);
+        } else {
+            Matcher compact = FISCAL_PERIOD_COMPACT_PATTERN.matcher(rawLower);
+            if (compact.find()) fiscalPeriod = compact.group(1) + "-" + compact.group(2);
+        }
+
+        return new Temporal(fiscalPeriod, from, to);
+    }
+
+    /** Sujet principal d'un message : premier domaine porteur de sens détecté. */
+    private String topicOf(String norm, AiMessages msgs) {
+        IntentResult result = detectIntents(norm, msgs);
+        for (String topic : SUBSTANTIVE_TOPICS) {
+            if (result.matchedIntents().contains(topic)) return topic;
+        }
+        return null;
+    }
+
+    private boolean hasLanguageMarkers(String norm) {
+        for (String m : FRENCH_MARKERS)   { if (AiTextMatcher.contains(norm, m)) return true; }
+        for (String m : ENGLISH_MARKERS)  { if (AiTextMatcher.contains(norm, m)) return true; }
+        for (String m : MALAGASY_MARKERS) { if (AiTextMatcher.contains(norm, m)) return true; }
+        return false;
+    }
+
+    /**
+     * Détecte la langue du message courant. Si celui-ci ne contient aucun marqueur
+     * explicite, on réutilise la langue du dernier message utilisateur de
+     * l'historique (continuité conversationnelle).
+     */
+    private String detectLanguage(String norm, List<ChatMessage> history) {
+        if (hasLanguageMarkers(norm)) return detectLanguage(norm);
+        if (history != null) {
+            for (int i = history.size() - 1; i >= 0; i--) {
+                ChatMessage m = history.get(i);
+                if (m == null || m.content() == null) continue;
+                if (!"user".equalsIgnoreCase(m.role())) continue;
+                String prior = AiTextMatcher.normalize(m.content());
+                if (hasLanguageMarkers(prior)) return detectLanguage(prior);
             }
-            case "payment" -> {
-                yield "Détails sur les **paiements** :\n"
-                        + "- Total : **" + s.paymentCount() + "** paiements\n"
-                        + "- Montant encaissé : **" + fmt(s.totalCollected()) + " MGA**\n"
-                        + "- Ce mois-ci : **" + fmt(s.currentMonthPayments()) + " MGA**\n"
-                        + "- Par type : " + formatPaymentsByType(s.paymentsByTaxType()) + "\n\n"
-                        + "💡 **Insight** : " + generatePaymentInsight(s);
-            }
-            default -> null;
+        }
+        return detectLanguage(norm);
+    }
+
+    /**
+     * Répond aux questions de suivi en s'appuyant sur la mémoire de la conversation.
+     * Le message doit être sans sujet propre (sinon on y répond directement) et soit
+     * enchaîner explicitement (« et ensuite ? », « ok », « merci »), soit être trop
+     * vague pour être interprété seul (« montre-moi plus »).
+     */
+    private String handleFollowUp(String norm, IntentResult intents, Entities entities,
+                                  DashboardSummary s, ConversationContext ctx) {
+        if (ctx.lastTopic() == null) return null;
+
+        // Si le message porte son propre sujet, on ne détourne pas vers la mémoire.
+        if (intents.matchedIntents().stream().anyMatch(SUBSTANTIVE_TOPICS::contains)) return null;
+
+        boolean explicitContinuation = AiTextMatcher.startsWith(norm, "et")
+                || AiTextMatcher.startsWith(norm, "mais")
+                || AiTextMatcher.contains(norm, "aussi")
+                || AiTextMatcher.contains(norm, "ensuite")
+                || AiTextMatcher.contains(norm, "et vous")
+                || AiTextMatcher.contains(norm, "et les")
+                || AiTextMatcher.contains(norm, "par contre")
+                || AiTextMatcher.startsWith(norm, "ok")
+                || AiTextMatcher.startsWith(norm, "d'accord")
+                || AiTextMatcher.startsWith(norm, "bon")
+                || AiTextMatcher.startsWith(norm, "super")
+                || AiTextMatcher.startsWith(norm, "merci");
+
+        boolean vague = intents.matchedIntents().isEmpty()
+                || intents.matchedIntents().equals(List.of("default"));
+
+        if (!explicitContinuation && !vague) return null;
+
+        return followUpBody(ctx.lastTopic(), s) + memoryHint(ctx, entities);
+    }
+
+    /** Corps de réponse pour le sujet mémorisé. */
+    private String followUpBody(String topic, DashboardSummary s) {
+        return switch (topic) {
+            case "taxpayer" -> "Voici les détails complémentaires sur les **contribuables** :\n"
+                    + "- Total : **" + s.taxpayerCount() + "** contribuables\n"
+                    + "- Nouveaux ce mois : **" + s.newTaxpayers() + "**\n"
+                    + "- Déclarations liées : **" + s.periodDeclarationCount() + "**\n"
+                    + "- Top payeurs : " + formatTopTaxpayers(s.topTaxpayersByCollected(), 3) + "\n\n"
+                    + "💡 **Insight** : " + generateTaxpayerInsight(s);
+            case "declaration" -> "Détails sur les **déclarations** :\n"
+                    + "- Total : **" + s.declarationCount() + "**\n"
+                    + "- À traiter : **" + s.declarationsToProcess() + "**\n"
+                    + "- Nouvelles ce mois : **" + s.newDeclarations() + "**\n\n"
+                    + "💡 **Insight** : " + generateDeclarationInsight(s);
+            case "debt", "overdue" -> "Plus de détails sur les **créances** :\n"
+                    + "- Total : **" + s.debtCount() + "** créances\n"
+                    + "- Montant total : **" + fmt(s.totalDebts()) + " MGA**\n"
+                    + "- En retard : **" + s.overdueCount() + "** pour **" + fmt(s.overdueBalance()) + " MGA**\n"
+                    + "- Répartition : " + formatDebtsByStatus(s.debtsByStatus()) + "\n\n"
+                    + "💡 **Insight** : " + generateDebtInsight(s);
+            case "payment" -> "Détails sur les **paiements** :\n"
+                    + "- Total : **" + s.paymentCount() + "** paiements\n"
+                    + "- Montant encaissé : **" + fmt(s.totalCollected()) + " MGA**\n"
+                    + "- Ce mois-ci : **" + fmt(s.currentMonthPayments()) + " MGA**\n"
+                    + "- Par type : " + formatPaymentsByType(s.paymentsByTaxType()) + "\n\n"
+                    + "💡 **Insight** : " + generatePaymentInsight(s);
+            case "receipt" -> "Détails sur les **reçus** :\n"
+                    + "- Total : **" + s.receiptCount() + "** reçus\n"
+                    + (s.receiptTotalAmount() != null ? "- Montant : **" + fmt(s.receiptTotalAmount()) + " MGA**\n" : "")
+                    + "- Aujourd'hui : **" + s.todayReceiptCount() + "**\n";
+            case "collection" -> "Détails sur le **recouvrement** :\n"
+                    + "- Taux : **" + pct(s.collectionRate()) + " %**\n"
+                    + "- Encaissé : **" + fmt(s.totalCollected()) + " MGA**\n"
+                    + "- Restant : **" + fmt(s.totalOutstanding()) + " MGA**\n\n"
+                    + "💡 **Insight** : " + generateGlobalInsight(s);
+            case "assessment" -> "Détails sur les **impositions** :\n"
+                    + "- Total : **" + s.assessmentCount() + "** impositions enregistrées\n\n"
+                    + "Consultez la page Impositions pour gérer les barèmes.";
+            default -> "Voici où nous en étions :\n"
+                    + "- Contribuables : **" + s.taxpayerCount() + "**\n"
+                    + "- Déclarations : **" + s.declarationCount() + "** (" + s.declarationsToProcess() + " à traiter)\n"
+                    + "- Créances : **" + s.debtCount() + "** dont **" + s.overdueCount() + "** en retard\n"
+                    + "- Paiements : **" + s.paymentCount() + "** — " + fmt(s.totalCollected()) + " MGA encaissés\n"
+                    + "- Taux de recouvrement : **" + pct(s.collectionRate()) + " %**\n\n"
+                    + "Précisez votre question pour un détail ciblé.";
         };
+    }
+
+    /**
+     * Rappelle discrètement les entités retenues de la conversation (NIF, types
+     * d'impôt, période) et fusionne celles du message courant.
+     */
+    private String memoryHint(ConversationContext ctx, Entities entities) {
+        List<String> held = new ArrayList<>();
+
+        LinkedHashSet<String> nifs = new LinkedHashSet<>(ctx.nifs());
+        nifs.addAll(entities.nifs());
+        if (!nifs.isEmpty()) held.add("NIF " + String.join(", ", nifs));
+
+        LinkedHashSet<String> types = new LinkedHashSet<>(ctx.taxTypes());
+        types.addAll(entities.taxTypes());
+        if (!types.isEmpty()) held.add("impôts " + String.join(", ", types));
+
+        String period = ctx.period() != null ? ctx.period() : entities.period();
+        if (period != null) held.add("période « " + period + " »");
+
+        if (held.isEmpty()) return "";
+        return "\n\n🧠 _Contexte retenu de nos échanges : " + String.join(" · ", held) + "._";
     }
 
     /* ══════════════════════════════════════════════════════════════════

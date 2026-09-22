@@ -75,7 +75,7 @@ public class CommunicationEventEngine {
                         rule.getPriority(),
                         eventType.name(),
                         null,
-                        true);
+                        true, null, null, null, null);
                 ComposeResult result = communicationService.compose(request, http);
                 log.info("Événement {} : communication {} canaux={} destinataire={}",
                         eventType, rule.getTemplateCode(), rule.getChannels(), taxpayer.getNif());

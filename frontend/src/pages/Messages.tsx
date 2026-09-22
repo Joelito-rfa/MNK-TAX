@@ -110,21 +110,21 @@ const emptyKey: Record<MessageFolder, string> = {
 export default function Messages() {
   const { user } = useAuth()
   const { t } = useI18n()
-  const permissions = user?.permissions ?? []
+  const permissions = user?.permissions
 
   const [tab, setTab] = useState<Tab>('inbox')
   const [composeOpen, setComposeOpen] = useState(false)
 
-  const canManage = permissions.includes('MESSAGE_MANAGE')
-  const canWrite = permissions.includes('MESSAGE_WRITE')
+  const canManage = permissions?.includes('MESSAGE_MANAGE') ?? false
+  const canWrite = permissions?.includes('MESSAGE_WRITE') ?? false
 
   const visibleTabs = useMemo(
-    () => TABS.filter((tb) => !tb.permission || permissions.includes(tb.permission)),
+    () => TABS.filter((tb) => !tb.permission || permissions?.includes(tb.permission)),
     [permissions],
   )
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       <PageHeader
         title={t('comm.title')}
         subtitle={t('comm.subtitle')}

@@ -87,7 +87,7 @@ export default function Complaints() {
   const { data: stats } = useComplaintStats()
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       <PageHeader
         title="Réclamations"
         subtitle="Réclamations des contribuables et suivi des décisions"
@@ -265,7 +265,7 @@ export function CreateComplaintModal({ onClose }: { onClose: () => void }) {
     { onSuccess: onClose },
   )
   return (
-    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — Nouvelle réclamation`} wide>
+    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — Nouvelle réclamation`} size="full">
       <form onSubmit={(e) => { e.preventDefault(); if (step === 2) submit() }} className="space-y-4">
         {create.isError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{apiErrorMessage(create.error)}</div>

@@ -105,7 +105,7 @@ export default function CollectionNotices() {
   if (isLoading && !data) return <CollectionSkeleton />
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -left-20 top-1/4 h-96 w-96 rounded-full bg-orange-500/[0.03] blur-[100px]" />
       </div>

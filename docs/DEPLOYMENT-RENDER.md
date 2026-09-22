@@ -114,7 +114,7 @@ Dans Render → service **mnk-tax** → **Environment**, ajouter et enregistrer 
 | `JWT_SECRET` | secret aléatoire (voir ci-dessous) | **oui** |
 | `CORS_ALLOWED_ORIGINS` | `https://mnk-tax.onrender.com` *(ou votre URL finale)* | non |
 | `RECEIPT_BASE_URL` | `https://mnk-tax.onrender.com` *(URL publique affichée dans les QR codes)* | non |
-| `SEED_DEMO` | `true` | non |
+| `SEED_DEMO` | `false` (aucun seed fictif en prod par défaut) | non |
 | `RATE_LIMIT_ENABLED` | `true` | non |
 | `RATE_LIMIT_PER_MINUTE` | `120` | non |
 | `DB_POOL_SIZE` | `5` | non |
@@ -138,9 +138,11 @@ $b = New-Object byte[] 48
   par Render). Pour un domaine personnel : onglet **Settings → Custom Domain** (2 domaines inclus).
 - **Migrations** : exécutées **automatiquement par Flyway au démarrage** de l'application.
   Rien à faire : `V1__…` à `V28__…` dans `backend/src/main/resources/db/migration`.
-- **Seed** : `SEED_DEMO=true` charge à la **première** exécution les comptes de démonstration :
+- **Seed** : désactivé en prod par défaut (`SEED_DEMO` vaut `false` via `application-prod.yml`).
+  Pour charger les comptes de démonstration à la **première** exécution, mettre `SEED_DEMO=true` :
   - `admin` / `Admin@123` (super admin) — **changez ce mot de passe après le 1er accès.**
   - `agent.tax`, `agent.collection`, `accountant`, `taxpayer.demo` (voir README).
+  - Détail des données fictives : `docs/FAKE_DATA_DOCUMENTATION.md` + `docs/fake-data-seed.json`.
 - **CORS** : profil `prod`, même domaine → traitée par le proxy nginx, et la liste blanche
   `CORS_ALLOWED_ORIGINS` limite les origines externes.
 - **Équivalent de `APP_DEBUG=false`** (Spring Boot) : activé par le profil `prod` —
@@ -164,7 +166,7 @@ cd deploy\render
 
 ### b) Test manuel fonctionnel (chemin complet)
 
-1. Vérifier le seed : `Seed de démonstration appliqué` dans les logs (Onglet **Logs**).
+1. Vérifier le seed : `Seed de démonstration appliqué` dans les logs (Onglet **Logs**) — uniquement si `SEED_DEMO=true` a été activé ; sinon `Seed de démonstration désactivé`.
 2. Se connecter : https://mnk-tax.onrender.com avec `admin` / `Admin@123`.
 3. Tester dans cet ordre :
    - **Tableau de bord** (indicateurs) ;

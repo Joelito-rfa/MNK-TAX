@@ -32,6 +32,7 @@ import {
 import { apiErrorMessage, apiGet, apiDelete, apiPatch, apiPost, apiPut } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
 import { fmtDateTime } from '../lib/format'
+import { UserAvatar } from '../components/UserAvatar'
 import type { Page, Role, User as UserType } from '../types'
 import { Button, Card, EmptyState } from '../components/ui'
 import RowActionPortal from '../components/RowActionPortal'
@@ -78,15 +79,6 @@ function timeAgo(iso: string | null | undefined): string {
   const days = Math.floor(hours / 24)
   if (days < 7) return `Il y a ${days}j`
   return fmtDateTime(iso)
-}
-
-function initials(firstName: string, lastName: string): string {
-  const f = (firstName || '').trim()
-  const l = (lastName || '').trim()
-  if (f && l) return (f[0] + l[0]).toUpperCase()
-  if (f) return f.slice(0, 2).toUpperCase()
-  if (l) return l.slice(0, 2).toUpperCase()
-  return '??'
 }
 
 function getStatusInfo(u: UserType): { label: string; color: string; bg: string; icon: React.ReactNode } {
@@ -363,9 +355,7 @@ export default function Users() {
                   {/* Avatar + Nom */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white">
-                        {initials(user.firstName, user.lastName)}
-                      </div>
+                       <UserAvatar userId={user.id} name={`${user.firstName} ${user.lastName}`} hasAvatar={user.hasAvatar} size="md" />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
                           {user.firstName} {user.lastName}
@@ -611,9 +601,7 @@ function UserProfilePanel({ user, onClose, onEdit, onManageAccess }: {
       <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-600 text-lg font-bold text-white">
-              {initials(user.firstName, user.lastName)}
-            </div>
+               <UserAvatar userId={user.id} name={`${user.firstName} ${user.lastName}`} hasAvatar={user.hasAvatar} size="lg" />
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{user.firstName} {user.lastName}</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">@{user.username}</p>
@@ -743,8 +731,8 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-2 backdrop-blur-sm sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="relative w-full max-w-6xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Nouvel utilisateur</h3>

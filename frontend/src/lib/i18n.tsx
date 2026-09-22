@@ -26,6 +26,8 @@ interface I18nContextValue {
   locale: Locale
   setLocale: (l: Locale) => void
   t: (key: string, vars?: TVars) => string
+  /** true si la clé existe dans la locale active (sans fallback FR). */
+  has: (key: string) => boolean
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null)
@@ -63,7 +65,12 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     return interpolate(raw, vars)
   }, [locale])
 
-  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t])
+  const has = useCallback((key: string): boolean => {
+    const dict = translations[locale] ?? translations.fr
+    return dict[key] !== undefined
+  }, [locale])
+
+  const value = useMemo(() => ({ locale, setLocale, t, has }), [locale, setLocale, t, has])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }

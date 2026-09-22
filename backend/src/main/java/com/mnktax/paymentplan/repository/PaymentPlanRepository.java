@@ -1,6 +1,7 @@
 package com.mnktax.paymentplan.repository;
 
 import com.mnktax.paymentplan.entity.PaymentPlan;
+import com.mnktax.paymentplan.entity.PaymentPlanInstallment;
 import com.mnktax.paymentplan.entity.PaymentPlanStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -93,4 +94,22 @@ public interface PaymentPlanRepository extends JpaRepository<PaymentPlan, Long> 
             """)
     long countActiveWithOverdueInstallments(@Param("status") PaymentPlanStatus status,
                                             @Param("today") LocalDate today);
+
+    /**
+     * Tranches échues non soldées des plans actifs, avec fetch eager du debt/taxpayer
+     * pour le moteur de communication automatique.
+     */
+    @Query("""
+            SELECT i FROM PaymentPlanInstallment i
+            JOIN FETCH i.plan p
+            JOIN FETCH p.debt d
+            LEFT JOIN FETCH d.taxpayer t
+            WHERE p.status = :status
+              AND i.status IN (com.mnktax.paymentplan.entity.InstallmentStatus.PENDING,
+                               com.mnktax.paymentplan.entity.InstallmentStatus.PARTIALLY_PAID)
+              AND i.dueDate < :today
+            """)
+    List<PaymentPlanInstallment> findOverdueInstallmentsForNotification(
+            @Param("status") PaymentPlanStatus status,
+            @Param("today") LocalDate today);
 }

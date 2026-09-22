@@ -118,7 +118,9 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
            "LOWER(m.content) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
            "LOWER(m.senderName) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
            "LOWER(tp.name) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
-           "LOWER(tp.nif) LIKE LOWER(CONCAT('%',:search,'%'))) " +
+           "LOWER(tp.nif) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(m.recipientEmail) LIKE LOWER(CONCAT('%',:search,'%')) OR " +
+           "LOWER(m.recipientLabel) LIKE LOWER(CONCAT('%',:search,'%'))) " +
            "ORDER BY m.createdAt DESC")
     Page<Message> findSentCommunication(@Param("status") com.mnktax.communication.entity.MessageStatus status,
                                         @Param("search") String search, Pageable pageable);
