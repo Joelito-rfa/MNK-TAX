@@ -573,6 +573,95 @@ public class DebtService {
                 .orElseThrow(() -> new ResourceNotFoundException("Créance", id));
     }
 
+    /**
+     * Rectificative en delta : ajuste la créance de l'imposition d'origine.
+     * Delta positif → augmentation du principal ; delta négatif → réduction
+     * (tracée comme ajustement, sans inventer de remboursement automatique).
+     */
+    @Transactional
+    public void adjustForRectificative(Assessment parent, Assessment rectificative, BigDecimal delta) {
+        if (delta == null || delta.signum() == 0) {
+            return;
+        }
+        TaxDebt debt = debtRepository.findByAssessmentId(parent.getId()).orElse(null);
+        if (debt == null) {
+            // Pas de créance d'origine : on en crée une pour la rectificative.
+            createFromAssessment(rectificative);
+            return;
+        }
+        if (debt.getStatus() == DebtStatus.PAID || debt.getStatus() == DebtStatus.CANCELLED
+                || debt.getStatus() == DebtStatus.CLOSED) {
+            // Créance figée : la rectificative génère sa propre créance.
+            createFromAssessment(rectificative);
+            return;
+        }
+        if (delta.signum() > 0) {
+            debt.setPrincipalAmount(debt.getPrincipalAmount().add(delta));
+            addItem(debt, DebtItem.Kind.PRINCIPAL,
+                    "Complément rectificatif " + rectificative.getReference(), delta);
+            addHistory(debt, "RECTIFICATIVE_UP", "Complément suite à " + rectificative.getReference(),
+                    null, delta + " MGA");
+        } else {
+            BigDecimal reduction = delta.abs();
+            debt.setAdjustmentsAmount(debt.getAdjustmentsAmount().add(reduction));
+            addItem(debt, DebtItem.Kind.ADJUSTMENT,
+                    "Réduction rectificative " + rectificative.getReference(), reduction);
+            addHistory(debt, "RECTIFICATIVE_DOWN", "Réduction suite à " + rectificative.getReference(),
+                    null, reduction + " MGA");
+        }
+        recalculate(debt);
+        debt.setUpdatedAt(Instant.now());
+        debtRepository.save(debt);
+    }
+
+    /** Resynchronise la créance après un ajustement manuel de l'imposition. */
+    @Transactional
+    public void adjustForAssessment(Assessment assessment) {
+        TaxDebt debt = debtRepository.findByAssessmentId(assessment.getId()).orElse(null);
+        if (debt == null || debt.getStatus() == DebtStatus.PAID
+                || debt.getStatus() == DebtStatus.CANCELLED || debt.getStatus() == DebtStatus.CLOSED) {
+            return;
+        }
+        BigDecimal diff = assessment.getNetTax().subtract(debt.getPrincipalAmount());
+        if (diff.signum() == 0) {
+            return;
+        }
+        if (diff.signum() > 0) {
+            debt.setPrincipalAmount(debt.getPrincipalAmount().add(diff));
+            addItem(debt, DebtItem.Kind.PRINCIPAL, "Ajustement imposition " + assessment.getReference(), diff);
+        } else {
+            BigDecimal reduction = diff.abs();
+            debt.setAdjustmentsAmount(debt.getAdjustmentsAmount().add(reduction));
+            addItem(debt, DebtItem.Kind.ADJUSTMENT, "Ajustement imposition " + assessment.getReference(), reduction);
+        }
+        recalculate(debt);
+        debt.setUpdatedAt(Instant.now());
+        debtRepository.save(debt);
+        addHistory(debt, "ASSESSMENT_ADJUSTED", "Créance resynchronisée sur " + assessment.getReference(),
+                null, assessment.getNetTax() + " MGA");
+    }
+
+    /** Annule la créance liée quand l'imposition est annulée (si aucun paiement). */
+    @Transactional
+    public void cancelForAssessment(Assessment assessment) {
+        TaxDebt debt = debtRepository.findByAssessmentId(assessment.getId()).orElse(null);
+        if (debt == null) {
+            return;
+        }
+        if (debt.getPaidAmount() != null && debt.getPaidAmount().signum() > 0) {
+            addHistory(debt, "ASSESSMENT_CANCELLED", "Imposition " + assessment.getReference() + " annulée — créance conservée (paiements existants)",
+                    debt.getStatus().name(), debt.getStatus().name());
+            return;
+        }
+        DebtStatus oldStatus = debt.getStatus();
+        debt.setStatus(DebtStatus.CANCELLED);
+        debt.setClosedAt(Instant.now());
+        debt.setUpdatedAt(Instant.now());
+        debtRepository.save(debt);
+        addHistory(debt, "CANCELLED", "Créance annulée suite à l'annulation de " + assessment.getReference(),
+                oldStatus.name(), DebtStatus.CANCELLED.name());
+    }
+
     private void addHistory(TaxDebt debt, String eventType, String description,
                             String oldValue, String newValue) {
         historyRepository.save(DebtHistory.builder()

@@ -1056,7 +1056,7 @@ export default function Taxpayers() {
                             NIF : {detail.nif}
                           </span>
                           <button
-                            onClick={() => copyToClipboard(detail.nif, toast)}
+                            onClick={() => copyToClipboard(detail.nif, toast, tr)}
                             className="rounded p-0.5 text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-300"
                             aria-label="Copier le NIF"
                           >
@@ -1073,7 +1073,7 @@ export default function Taxpayers() {
                           </Badge>
                           <div className={`flex items-center gap-1.5 text-xs font-medium ${statusTone(detail.status) === 'green' ? 'text-emerald-600 dark:text-emerald-400' : statusTone(detail.status) === 'red' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'}`}>
                             <span className={`h-2 w-2 rounded-full ${statusTone(detail.status) === 'green' ? 'bg-emerald-500' : statusTone(detail.status) === 'red' ? 'bg-rose-500' : 'bg-amber-500'}`} />
-                            {statusLabel(detail.status)}
+                            {statusLabel(detail.status, tr, has)}
                           </div>
                         </div>
                       </div>

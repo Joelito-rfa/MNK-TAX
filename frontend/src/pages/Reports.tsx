@@ -43,7 +43,7 @@ import {
   YAxis,
 } from 'recharts'
 import { apiErrorMessage, apiGet } from '../lib/api'
-import { downloadCsv } from '../lib/csv'
+import { exportTable, type ReportFormat } from '../lib/exporters'
 import type {
   Page, Payment, TaxDebt, Declaration, TaxpayerSummary,
   ReportStats, AuditLog, DeclarationReportStats, DebtReportStats,
@@ -147,40 +147,6 @@ function useChartColors() {
 
 /* ═══════════════════════════ Helpers ═══════════════════════════ */
 
-function toISODate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-/** Plage de dates (YYYY-MM-DD) correspondant au sélecteur de période. */
-function getPeriodRange(periodId: string): { from: string | null; to: string | null } {
-  const now = new Date()
-  const today = toISODate(now)
-  switch (periodId) {
-    case 'year': {
-      return { from: `${now.getFullYear()}-01-01`, to: today }
-    }
-    case 'quarter': {
-      const from = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
-      return { from: toISODate(from), to: today }
-    }
-    case 'month': {
-      const from = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
-      return { from: toISODate(from), to: today }
-    }
-    case '6months': {
-      const from = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate())
-      return { from: toISODate(from), to: today }
-    }
-    case 'all':
-    default:
-      return { from: null, to: null }
-  }
-}
-
-
-
-
-
 function formatIcon(fmt: string) {
   switch (fmt) {
     case 'PDF': return <FileText className="h-3.5 w-3.5" />
@@ -283,6 +249,13 @@ function getReportCards(): ReportCardDef[] {
   ]
 }
 
+/* Format proposé par défaut selon les formats affichés sur la carte du rapport. */
+function defaultFormatFor(reportId: string): ReportFormat {
+  const card = getReportCards().find((r) => r.id === reportId)
+  if (!card) return 'CSV'
+  return (card.formats.includes('CSV') ? 'CSV' : card.formats[0] ?? 'CSV') as ReportFormat
+}
+
 /* ═══════════════════════════ Main Component ═══════════════════════════ */
 
 export default function Reports() {
@@ -304,7 +277,16 @@ export default function Reports() {
   const [genMethodFilter, setGenMethodFilter] = useState('')
   const [previewData, setPreviewData] = useState<{ title: string; headers: string[]; rows: (string | number)[][] } | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => {
+    // La suppression d'un rapport récent est persistée : elle survit au rechargement.
+    try {
+      const raw = localStorage.getItem('mnk_reports_deleted')
+      const ids: unknown = raw ? JSON.parse(raw) : []
+      return new Set(Array.isArray(ids) ? ids.filter((v): v is string => typeof v === 'string') : [])
+    } catch {
+      return new Set<string>()
+    }
+  })
   const periodRef = useRef<HTMLDivElement>(null)
   const cc = useChartColors()
 
@@ -447,15 +429,6 @@ export default function Reports() {
     return Object.entries(counts).map(([name, value]) => ({ name, value }))
   }, [declarations])
 
-  const paymentByMethod = useMemo(() => {
-    if (!payments?.content) return []
-    const counts: Record<string, number> = {}
-    payments.content.forEach((p) => { counts[p.method] = (counts[p.method] || 0) + Number(p.amount || 0) })
-    return Object.entries(counts)
-      .map(([name, value]) => ({ name: methodLabels[name] ?? name, value }))
-      .sort((a, b) => b.value - a.value)
-  }, [payments])
-
   const paymentMonthly = useMemo(() => {
     if (!payments?.content) return []
     const byMonth: Record<string, number> = {}
@@ -484,6 +457,7 @@ export default function Reports() {
       dataCount: dataCounts[c.id] ?? 0,
       maxData: Math.max(...Object.values(dataCounts), 1),
     }))
+
     if (activeCategory !== 'all') {
       cards = cards.filter((c) => c.id === activeCategory)
     }
@@ -585,12 +559,14 @@ export default function Reports() {
 
   /* -- Mutations export -- */
   const exportDebts = useMutation({
-    mutationFn: async (opts?: { status?: string }) => {
+    mutationFn: async (opts?: { status?: string; format?: ReportFormat }) => {
       const params = new URLSearchParams({ size: '9999' })
       if (opts?.status) params.set('status', opts.status)
       const rows = await apiGet<Page<TaxDebt>>(`/reports/collection?${params}`)
-      downloadCsv(
-        `rapport_recouvrement_${new Date().toISOString().slice(0, 10)}.csv`,
+      exportTable(
+        opts?.format ?? 'CSV',
+        `rapport_recouvrement_${new Date().toISOString().slice(0, 10)}`,
+        'Rapport de recouvrement',
         ['Reference', 'NIF', 'Contribuable', 'Impot', 'Periode', 'Total', 'Paye', 'Solde', 'Echeance', 'Statut'],
         rows.content.map((d) => [
           d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period,
@@ -603,13 +579,15 @@ export default function Reports() {
   })
 
   const exportPayments = useMutation({
-    mutationFn: async (opts?: { from?: string; to?: string }) => {
+    mutationFn: async (opts?: { from?: string; to?: string; format?: ReportFormat }) => {
       const params = new URLSearchParams({ size: '9999' })
       if (opts?.from) params.set('from', opts.from)
       if (opts?.to) params.set('to', opts.to)
       const rows = await apiGet<Page<Payment>>(`/reports/payments?${params}`)
-      downloadCsv(
-        `rapport_paiements_${new Date().toISOString().slice(0, 10)}.csv`,
+      exportTable(
+        opts?.format ?? 'CSV',
+        `rapport_paiements_${new Date().toISOString().slice(0, 10)}`,
+        'Rapport des paiements',
         ['Reference', 'NIF', 'Contribuable', 'Date', 'Montant', 'Mode', 'Alloue', 'Quittance'],
         rows.content.map((p) => [
           p.reference, p.nif, p.taxpayerName, p.paymentDate, p.amount,
@@ -622,12 +600,14 @@ export default function Reports() {
   })
 
   const exportDeclarations = useMutation({
-    mutationFn: async (opts?: { status?: string }) => {
+    mutationFn: async (opts?: { status?: string; format?: ReportFormat }) => {
       const params = new URLSearchParams({ size: '9999' })
       if (opts?.status) params.set('status', opts.status)
       const rows = await apiGet<Page<Declaration>>(`/reports/declarations?${params}`)
-      downloadCsv(
-        `rapport_declarations_${new Date().toISOString().slice(0, 10)}.csv`,
+      exportTable(
+        opts?.format ?? 'CSV',
+        `rapport_declarations_${new Date().toISOString().slice(0, 10)}`,
+        'Rapport des déclarations',
         ['Reference', 'NIF', 'Contribuable', 'Impot', 'Periode', 'Montant declare', 'Impot calcule', 'Paye', 'Reste', 'Statut'],
         rows.content.map((d) => [
           d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period,
@@ -640,12 +620,14 @@ export default function Reports() {
   })
 
   const exportTaxpayers = useMutation({
-    mutationFn: async (opts?: { status?: string }) => {
+    mutationFn: async (opts?: { status?: string; format?: ReportFormat }) => {
       const params = new URLSearchParams({ size: '9999' })
       if (opts?.status) params.set('status', opts.status)
       const rows = await apiGet<Page<TaxpayerSummary>>(`/reports/taxpayers?${params}`)
-      downloadCsv(
-        `rapport_contribuables_${new Date().toISOString().slice(0, 10)}.csv`,
+      exportTable(
+        opts?.format ?? 'CSV',
+        `rapport_contribuables_${new Date().toISOString().slice(0, 10)}`,
+        'Rapport des contribuables',
         ['NIF', 'Nom', 'Raison sociale', 'Type', 'Telephone', 'Email', 'Statut', 'Centre fiscal', 'Regime', 'Date creation'],
         rows.content.map((t) => [
           t.nif, t.name, t.businessName ?? '', t.type, t.phone ?? '', t.email ?? '',
@@ -658,10 +640,12 @@ export default function Reports() {
   })
 
   const exportActivity = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts?: { format?: ReportFormat }) => {
       const rows = await apiGet<Page<AuditLog>>('/reports/activity?size=9999')
-      downloadCsv(
-        `rapport_activite_${new Date().toISOString().slice(0, 10)}.csv`,
+      exportTable(
+        opts?.format ?? 'CSV',
+        `rapport_activite_${new Date().toISOString().slice(0, 10)}`,
+        "Rapport d'activité",
         ['Date', 'Utilisateur', 'Action', 'Type', 'Identifiant', 'Adresse IP'],
         rows.content.map((a) => [
           a.createdAt, a.username, a.action, a.entityType, a.entityId ?? '', a.ipAddress ?? '',
@@ -673,10 +657,12 @@ export default function Reports() {
   })
 
   const exportReceipts = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts?: { format?: ReportFormat }) => {
       const rows = await apiGet<Page<import('../types').Receipt>>('/receipts?size=9999')
-      downloadCsv(
-        `rapport_quittances_${new Date().toISOString().slice(0, 10)}.csv`,
+      exportTable(
+        opts?.format ?? 'CSV',
+        `rapport_quittances_${new Date().toISOString().slice(0, 10)}`,
+        'Rapport des quittances',
         ['N\u00b0', 'Reference', 'Contribuable', 'NIF', 'Impot', 'Periode', 'Montant', 'Mode', 'Statut', 'Emise le'],
         rows.content.map((r) => [
           r.receiptNumber, r.reference, r.taxpayerName, r.nif, r.taxTypeCode,
@@ -698,15 +684,16 @@ export default function Reports() {
     return { from, to }
   }, [])
 
-  const handleExport = useCallback((reportId: string, filters?: { status?: string; from?: string; to?: string }) => {
+  const handleExport = useCallback((reportId: string, filters?: { status?: string; from?: string; to?: string }, format?: ReportFormat) => {
+    const fmt = format ?? defaultFormatFor(reportId)
     switch (reportId) {
-      case 'recouvrement': exportDebts.mutate({ status: filters?.status }); break
-      case 'paiements': exportPayments.mutate({ from: filters?.from, to: filters?.to }); break
-      case 'quittances': exportReceipts.mutate(); break
-      case 'declarations': exportDeclarations.mutate({ status: filters?.status }); break
-      case 'contribuables': exportTaxpayers.mutate({ status: filters?.status }); break
-      case 'creances': exportDebts.mutate({ status: filters?.status }); break
-      case 'activite': exportActivity.mutate(); break
+      case 'recouvrement': exportDebts.mutate({ status: filters?.status, format: fmt }); break
+      case 'paiements': exportPayments.mutate({ from: filters?.from, to: filters?.to, format: fmt }); break
+      case 'quittances': exportReceipts.mutate({ format: fmt }); break
+      case 'declarations': exportDeclarations.mutate({ status: filters?.status, format: fmt }); break
+      case 'contribuables': exportTaxpayers.mutate({ status: filters?.status, format: fmt }); break
+      case 'creances': exportDebts.mutate({ status: filters?.status, format: fmt }); break
+      case 'activite': exportActivity.mutate({ format: fmt }); break
       default: toast.error('Export indisponible pour ce rapport')
     }
   }, [exportDebts, exportPayments, exportReceipts, exportDeclarations, exportTaxpayers, exportActivity, toast])
@@ -743,7 +730,7 @@ export default function Reports() {
     if (genStatusFilter) filters.status = genStatusFilter
     setGenerateModalOpen(false)
     toast.success(t('toast.exportDone'))
-    handleExport(genReportType, filters)
+    handleExport(genReportType, filters, genFormat as ReportFormat)
     resetWizard()
   }, [genReportType, genPeriod, genStatusFilter, handleExport, periodToDateRange, resetWizard, toast, t])
 
@@ -831,7 +818,13 @@ export default function Reports() {
   }, [queryClient, handleExport, toast])
 
   const handleDelete = useCallback((reportId: string) => {
-    setDeletedIds((prev) => new Set(prev).add(reportId))
+    setDeletedIds((prev) => {
+      const next = new Set(prev).add(reportId)
+      try {
+        localStorage.setItem('mnk_reports_deleted', JSON.stringify([...next]))
+      } catch { /* quota / navigation privée */ }
+      return next
+    })
     setDeleteConfirm(null)
     toast.success('Rapport supprime')
   }, [toast])
@@ -1007,7 +1000,7 @@ export default function Reports() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ ...cc.tooltip, fontSize: 12 }}
-                      formatter={(v: number) => [fmtNumber(v), 'Creances']}
+                      formatter={(v) => [fmtNumber(Number(v ?? 0)), 'Creances']}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -1051,7 +1044,7 @@ export default function Reports() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ ...cc.tooltip, fontSize: 12 }}
-                      formatter={(v: number) => [fmtNumber(v), 'Declarations']}
+                      formatter={(v) => [fmtNumber(Number(v ?? 0)), 'Declarations']}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -1089,7 +1082,7 @@ export default function Reports() {
                   <YAxis tick={{ fontSize: 10, fill: cc.tick }} axisLine={false} tickLine={false} width={40} tickFormatter={(v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
                   <Tooltip
                     contentStyle={{ ...cc.tooltip, fontSize: 12 }}
-                    formatter={(v: number) => [fmtMGA(v), 'Montant']}
+                    formatter={(v) => [fmtMGA(Number(v ?? 0)), 'Montant']}
                   />
                   <Area type="monotone" dataKey="amount" stroke={C.violet} strokeWidth={2} fill="url(#payGrad)" dot={false} activeDot={{ r: 5, fill: C.violet, stroke: '#fff', strokeWidth: 2 }} />
                 </AreaChart>
@@ -1330,7 +1323,7 @@ export default function Reports() {
                 <RecentReportRow
                   key={report.id}
                   report={report}
-                  onExport={() => handleExport(report.type)}
+                  onExport={() => handleExport(report.type, undefined, report.format)}
                   onPreview={() => handlePreview(report.type)}
                   onDelete={() => setDeleteConfirm({ id: report.id, name: report.name })}
                 />
@@ -1688,7 +1681,6 @@ function StatCard({
   value: React.ReactNode; sub: string; delta?: string; deltaTone?: 'up' | 'down' | 'neutral'
   sparkline?: number[]; sparkColor?: string
 }) {
-  const cc = useChartColors()
   return (
     <Card hover className="group relative overflow-hidden p-5">
       <div className="flex items-start justify-between gap-3">
@@ -1954,15 +1946,6 @@ function RecentReportRow({
 }
 
 /* ═══════════════════════════ Blocs de synthèse ═══════════════════════════ */
-
-function MiniStat({ label, value, tone = 'text-slate-900 dark:text-slate-100' }: { label: string; value: string; tone?: string }) {
-  return (
-    <div className="rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-slate-800/40">
-      <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">{label}</p>
-      <p className={`text-sm font-semibold tabular-nums ${tone}`}>{value}</p>
-    </div>
-  )
-}
 
 function MoneyRow({ label, value, tone = 'text-slate-900 dark:text-slate-100' }: { label: string; value: string; tone?: string }) {
   return (

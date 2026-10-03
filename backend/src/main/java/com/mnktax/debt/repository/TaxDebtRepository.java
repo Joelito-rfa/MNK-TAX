@@ -24,6 +24,8 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
 
     Optional<TaxDebt> findByReference(String reference);
 
+    Optional<TaxDebt> findByAssessmentId(Long assessmentId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT d FROM TaxDebt d WHERE d.id = :id")
     Optional<TaxDebt> findByIdForUpdate(@Param("id") Long id);

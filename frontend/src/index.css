@@ -1506,10 +1506,10 @@ html:not(.dark) .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
 }
 
 /* ── Badges ── */
-.dark [class*="rounded-full"][class*="bg-brand-600"] {
+.dark [class*="rounded-full"][class~="bg-brand-600"] {
   background-color: #6366f1 !important;
 }
-.dark [class*="rounded-full"][class*="bg-rose-500"] {
+.dark [class*="rounded-full"][class~="bg-rose-500"] {
   background-color: #f43f5e !important;
 }
 

@@ -9,6 +9,7 @@ import com.mnktax.auth.dto.SecurityEventDto;
 import com.mnktax.auth.dto.SessionDto;
 import com.mnktax.auth.dto.UpdateProfileRequest;
 import com.mnktax.auth.dto.UserDto;
+import com.mnktax.auth.security.Permissions;
 import com.mnktax.auth.service.AuthService;
 import com.mnktax.auth.service.RegistrationService;
 import com.mnktax.auth.service.UserService;
@@ -23,6 +24,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -76,6 +78,7 @@ public class AuthController {
     /* ── Admin: gestion des demandes ───────────────────── */
 
     @GetMapping("/admin/registrations")
+    @PreAuthorize("hasAuthority('" + Permissions.USER_READ + "')")
     @Operation(summary = "Rechercher les demandes d'inscription")
     public ResponseEntity<Page<RegistrationRequestDto>> listRegistrations(
             @RequestParam(required = false) String status,
@@ -86,18 +89,21 @@ public class AuthController {
     }
 
     @GetMapping("/admin/registrations/stats")
+    @PreAuthorize("hasAuthority('" + Permissions.USER_READ + "')")
     @Operation(summary = "Statistiques des demandes d'inscription")
     public ResponseEntity<Map<String, Long>> registrationStats() {
         return ResponseEntity.ok(registrationService.stats());
     }
 
     @GetMapping("/admin/registrations/{id}")
+    @PreAuthorize("hasAuthority('" + Permissions.USER_READ + "')")
     @Operation(summary = "Détail d'une demande d'inscription")
     public ResponseEntity<RegistrationRequestDto> getRegistration(@PathVariable Long id) {
         return ResponseEntity.ok(registrationService.getById(id));
     }
 
     @PostMapping("/admin/registrations/{id}/assign")
+    @PreAuthorize("hasAuthority('" + Permissions.USER_WRITE + "')")
     @Operation(summary = "Prendre en charge une demande")
     public ResponseEntity<RegistrationRequestDto> assignRegistration(
             @PathVariable Long id, HttpServletRequest httpRequest) {
@@ -105,6 +111,7 @@ public class AuthController {
     }
 
     @PostMapping("/admin/registrations/{id}/approve")
+    @PreAuthorize("hasAuthority('" + Permissions.USER_WRITE + "')")
     @Operation(summary = "Approuver une demande", description = "Approuve et crée le compte utilisateur.")
     public ResponseEntity<RegistrationRequestDto> approveRegistration(
             @PathVariable Long id,
@@ -115,6 +122,7 @@ public class AuthController {
     }
 
     @PostMapping("/admin/registrations/{id}/reject")
+    @PreAuthorize("hasAuthority('" + Permissions.USER_WRITE + "')")
     @Operation(summary = "Rejeter une demande", description = "Rejette avec motif obligatoire.")
     public ResponseEntity<RegistrationRequestDto> rejectRegistration(
             @PathVariable Long id,

@@ -74,9 +74,8 @@ class PaymentPlanIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        if (taxpayerRepository.count() > 0) {
-            return;
-        }
+        // Le seed de démonstration remplit déjà la base : on crée nos fixtures
+        // avec des codes dédiés (pas de supposition de base vide).
         TaxCenter center = centerRepository.save(TaxCenter.builder()
                 .code("CEN-PLAN-TEST").name("Centre échéanciers test").address("Test (fictif)")
                 .createdAt(Instant.now()).build());

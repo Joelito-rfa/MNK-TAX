@@ -33,6 +33,9 @@ import { CollectionFilters, EMPTY_ADV, type AdvancedFilters } from '../../compon
 import { TERMINAL_STATUSES, ACTION_KEYS, ACTION_ICONS, daysUntil } from '../../components/collection/constants'
 import { useCreateReminder } from '../../features/collection/api/mutations'
 import { ReminderModal, emptyReminderForm, type ReminderForm } from '../../features/collection/components/modals/ReminderModal'
+import { ActionWizard } from '../../features/collection/components/modals/ActionWizard'
+import { NoticeWizard } from '../../features/collection/components/modals/NoticeWizard'
+import { CollectionCreateWizard } from '../../features/collection/components/modals/CollectionCreateWizard'
 
 // Vue d'ensemble — Étape fiscale 1 : synthèse de toutes créances exigibles (DUE/PARTIALLY_PAID) avec KPIs globaux
 export default function CollectionOverview() {
@@ -49,16 +52,16 @@ export default function CollectionOverview() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [selectedDebt, setSelectedDebt] = useState<CollectionDebtRow | null>(null)
-  const [actionOpen, setActionOpen] = useState(false)
-  const [noticeOpen, setNoticeOpen] = useState(false)
-  const [noticeDebtId, setNoticeDebtId] = useState('')
-  const [noticeContent, setNoticeContent] = useState('')
-  const [actionType, setActionType] = useState<'call' | 'reminder' | 'commandment' | 'atd' | 'payment_plan' | 'suspension'>('call')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyDebtId, setHistoryDebtId] = useState<number | null>(null)
   const [reminderOpen, setReminderOpen] = useState(false)
   const [reminderDebt, setReminderDebt] = useState<CollectionDebtRow | null>(null)
   const [reminderForm, setReminderForm] = useState<ReminderForm>(emptyReminderForm())
+  const [actionWizardOpen, setActionWizardOpen] = useState(false)
+  const [actionWizardDebtId, setActionWizardDebtId] = useState<string | null>(null)
+  const [noticeWizardOpen, setNoticeWizardOpen] = useState(false)
+  const [noticeWizardDebtId, setNoticeWizardDebtId] = useState<string | null>(null)
+  const [createWizardOpen, setCreateWizardOpen] = useState(false)
 
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -95,30 +98,6 @@ export default function CollectionOverview() {
   const { data: actionDebts } = useQuery({
     queryKey: ['collection-action-debts'],
     queryFn: () => apiGet<Page<CollectionDebtRow>>(`/collection/debts?size=9999`),
-    enabled: actionOpen || noticeOpen,
-  })
-
-  const [actionForm, setActionForm] = useState({
-    debtId: '', type: 'PHONE_CONTACT', description: '', actionDate: new Date().toISOString().slice(0, 10),
-    outcome: '', nextAction: '', nextActionDate: '',
-  })
-
-  const createAction = useMutation({
-    mutationFn: () => apiPost('/collection/actions', {
-      debtId: Number(actionForm.debtId), type: actionForm.type, description: actionForm.description,
-      actionDate: actionForm.actionDate, outcome: actionForm.outcome || undefined,
-      nextAction: actionForm.nextAction || undefined, nextActionDate: actionForm.nextActionDate || undefined,
-    }),
-    onSuccess: () => { invalidateQueries(); setActionOpen(false); resetActionForm(); toast.success(t('collection.actionSaved')) },
-    onError: (err) => toast.error(apiErrorMessage(err)),
-  })
-
-  const createNotice = useMutation({
-    mutationFn: () => apiPost('/collection/notices', {
-      debtId: Number(noticeDebtId), noticeType: 'MISE_EN_DEMEURE', content: noticeContent || undefined,
-    }),
-    onSuccess: () => { invalidateQueries(); setNoticeOpen(false); setNoticeDebtId(''); setNoticeContent(''); toast.success(t('collection.noticeIssued')) },
-    onError: (err) => toast.error(apiErrorMessage(err)),
   })
 
   const createReminder = useCreateReminder()
@@ -145,10 +124,6 @@ export default function CollectionOverview() {
     queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
   }
 
-  function resetActionForm() {
-    setActionForm({ debtId: '', type: 'PHONE_CONTACT', description: '', actionDate: new Date().toISOString().slice(0, 10), outcome: '', nextAction: '', nextActionDate: '' })
-  }
-
   function openReminder(debtId?: string, debt?: CollectionDebtRow | null) { setReminderDebt(debt ?? null); setReminderForm(emptyReminderForm(debtId ?? '')); setReminderOpen(true) }
   function submitReminder() {
     createReminder.mutate({
@@ -163,13 +138,13 @@ export default function CollectionOverview() {
 
   function openActionWithType(type: 'call' | 'reminder' | 'commandment' | 'atd' | 'payment_plan' | 'suspension', debtId?: string) {
     if (type === 'reminder') { openReminder(debtId); return }
-    setActionType(type)
-    const typeMap: Record<string, string> = { call: 'PHONE_CONTACT', reminder: 'REMINDER', commandment: 'COMMANDMENT', atd: 'ATD', payment_plan: 'PAYMENT_PLAN', suspension: 'SUSPENSION_REQUEST' }
-    setActionForm((f) => ({ ...f, type: typeMap[type], debtId: debtId ?? f.debtId, description: '' }))
-    setActionOpen(true)
+    setActionWizardDebtId(debtId ?? null)
+    setActionWizardOpen(true)
   }
 
-  function openNotice(debtId?: string) { setNoticeDebtId(debtId ?? ''); setNoticeContent(''); setNoticeOpen(true) }
+  function openNotice(debtId?: string) { setNoticeWizardDebtId(debtId ?? ''); setNoticeWizardOpen(true) }
+
+  function openCreateWizard() { setCreateWizardOpen(true) }
 
   const totalResults = data?.totalElements ?? 0
   const hasFilters = !!(searchQ || taxTypeFilter || periodFilter || Object.values(advApplied).some(Boolean))
@@ -231,9 +206,10 @@ export default function CollectionOverview() {
           <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="h-4 w-4" />{t('collection.export')}</Button>
           <Button variant="secondary" size="sm" onClick={exportEtatPdf}><FileText className="h-4 w-4" />{t('collection.report')}</Button>
           <Link to="/reports"><Button variant="secondary" size="sm"><FileSpreadsheet className="h-4 w-4" />{t('collection.report')}</Button></Link>
-          <button onClick={() => openActionWithType('call')} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30">
+          <Button variant="secondary" size="sm" onClick={openCreateWizard}><Plus className="h-4 w-4" /> {t('collection.wizard.create.title')}</Button>
+          <Button size="sm" className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30" onClick={() => openActionWithType('call')}>
             <Plus className="h-4 w-4" /> {t('collection.newAction')}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -286,7 +262,7 @@ export default function CollectionOverview() {
             {hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={resetFilters}><X className="h-4 w-4" /> {t('collection.resetFilters')}</Button></div>}
           </div>
         ) : (
-          <div key={`${taxTypeFilter}|${periodFilter}|${JSON.stringify(advApplied)}|${page}`} className="animate-page-in">
+          <div className="animate-fade-in">
             {isLoading ? <Spinner /> : (
               <>
                 <div className="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
@@ -345,94 +321,14 @@ export default function CollectionOverview() {
         )}
       </Card>
 
-      {/* MODAL : NOUVELLE ACTION */}
-      {actionOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setActionOpen(false)}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
-              {actionType === 'call' ? t('collection.modal.action.titleCall') : actionType === 'reminder' ? t('collection.modal.action.titleReminder') : actionType === 'commandment' ? t('collection.modal.action.titleCommandment') : actionType === 'atd' ? t('collection.modal.action.titleAtd') : actionType === 'payment_plan' ? t('collection.modal.action.titlePlan') : actionType === 'suspension' ? t('collection.modal.action.titleSuspension') : t('collection.modal.action.titleDefault')}
-            </h3>
-            {createAction.isError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400">{t('collection.modal.action.saveError')}</div>}
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.action.debt')}</label>
-                  <Select value={actionForm.debtId} onChange={(e) => setActionForm({ ...actionForm, debtId: e.target.value })}>
-                    <option value="">{t('collection.modal.action.selectDebt')}</option>
-                    {(actionDebts?.content ?? data?.content ?? []).filter((d) => d.balance > 0 && !TERMINAL_STATUSES.includes(d.debtStatus)).map((d) => (
-                      <option key={d.id} value={d.id}>{d.reference} — {d.taxpayerName} — {d.taxTypeCode} {d.period} — {t('collection.modal.action.remaining', { amount: fmtMGA(d.balance) })}</option>
-                    ))}
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.action.type')}</label>
-                  <Select value={actionForm.type} onChange={(e) => setActionForm({ ...actionForm, type: e.target.value })}>
-                    {Object.entries(ACTION_KEYS).map(([k, key]) => [k, t(key)]).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
-                  </Select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.action.description')}</label>
-                <input value={actionForm.description} onChange={(e) => setActionForm({ ...actionForm, description: e.target.value })} placeholder={t('collection.filters.search')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.action.actionDate')}</label>
-                  <input type="date" value={actionForm.actionDate} onChange={(e) => setActionForm({ ...actionForm, actionDate: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.action.outcomeOpt')}</label>
-                  <input value={actionForm.outcome} onChange={(e) => setActionForm({ ...actionForm, outcome: e.target.value })} placeholder={t('common.description')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.action.nextOpt')}</label>
-                  <input value={actionForm.nextAction} onChange={(e) => setActionForm({ ...actionForm, nextAction: e.target.value })} placeholder={t('common.description')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.action.nextDate')}</label>
-                  <input type="date" value={actionForm.nextActionDate} onChange={(e) => setActionForm({ ...actionForm, nextActionDate: e.target.value })} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="secondary" onClick={() => setActionOpen(false)}>{t('collection.modal.action.cancel')}</Button>
-                <Button onClick={() => createAction.mutate()} disabled={createAction.isPending || !actionForm.debtId || !actionForm.description}>{createAction.isPending ? t('collection.modal.action.saving') : t('collection.modal.action.save')}</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* WIZARD : NOUVELLE ACTION */}
+      <ActionWizard open={actionWizardOpen} onClose={() => setActionWizardOpen(false)} presetDebtId={actionWizardDebtId ?? undefined} debts={actionDebts?.content ?? data?.content ?? []} />
 
-      {/* MODAL : MISE EN DEMEURE */}
-      {noticeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setNoticeOpen(false)}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl dark:bg-slate-800" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t('collection.modal.notice.title')}</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{t('collection.modal.notice.subtitle')}</p>
-            {createNotice.isError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-400">{apiErrorMessage(createNotice.error)}</div>}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.notice.debt')}</label>
-                <Select value={noticeDebtId} onChange={(e) => setNoticeDebtId(e.target.value)}>
-                  <option value="">{t('collection.modal.notice.selectDebt')}</option>
-                  {(actionDebts?.content ?? data?.content ?? []).filter((d) => d.balance > 0 && !TERMINAL_STATUSES.includes(d.debtStatus)).map((d) => (
-                    <option key={d.id} value={d.id}>{d.reference} — {d.taxpayerName} — {d.taxTypeCode} {d.period} — {t('collection.modal.action.remaining', { amount: fmtMGA(d.balance) })}</option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('collection.modal.notice.contentOpt')}</label>
-                <textarea rows={4} value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder={t('common.description')} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100" />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="secondary" onClick={() => setNoticeOpen(false)}>{t('collection.modal.notice.cancel')}</Button>
-                <Button onClick={() => createNotice.mutate()} disabled={createNotice.isPending || !noticeDebtId}>{createNotice.isPending ? t('collection.modal.notice.issuing') : t('collection.modal.notice.issue')}</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* WIZARD : MISE EN DEMEURE */}
+      <NoticeWizard open={noticeWizardOpen} onClose={() => setNoticeWizardOpen(false)} presetDebtId={noticeWizardDebtId ?? undefined} debts={actionDebts?.content ?? data?.content ?? []} />
+
+      {/* WIZARD : NOUVEAU RECOUVREMENT */}
+      <CollectionCreateWizard open={createWizardOpen} onClose={() => setCreateWizardOpen(false)} />
 
       {/* MODAL : PAIEMENT */}
       {paymentOpen && selectedDebt && (

@@ -3,6 +3,8 @@ package com.mnktax.ai.controller;
 import com.mnktax.ai.dto.AiDtos.ChatRequest;
 import com.mnktax.ai.dto.AiDtos.ChatResponse;
 import com.mnktax.ai.service.AiService;
+import com.mnktax.auth.security.Permissions;
+import com.mnktax.common.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -24,9 +26,11 @@ public class AiController {
     }
 
     @PostMapping("/chat")
-    @Operation(summary = "Envoyer un message à M-TAX AI et obtenir une réponse")
+    @Operation(summary = "Envoyer un message à M-TAX AI et obtenir une réponse",
+            description = "Seuls les profils disposant de REPORT_READ accèdent aux statistiques globales.")
     public ResponseEntity<ChatResponse> chat(@Valid @RequestBody ChatRequest request) {
-        String reply = aiService.chat(request.message(), request.history());
+        boolean allowGlobalStats = SecurityUtils.hasAuthority(Permissions.REPORT_READ);
+        String reply = aiService.chat(request.message(), request.history(), allowGlobalStats);
         return ResponseEntity.ok(new ChatResponse(reply));
     }
 }

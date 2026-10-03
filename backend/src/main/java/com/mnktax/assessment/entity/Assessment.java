@@ -6,6 +6,8 @@ import com.mnktax.taxpayer.entity.Taxpayer;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -49,9 +51,35 @@ public class Assessment {
     @Column(nullable = false, unique = true, length = 40)
     private String reference;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "declaration_id", nullable = false, unique = true)
+    @OneToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "declaration_id", unique = true)
     private Declaration declaration;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private AssessmentStatus status = AssessmentStatus.EMISED;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private AssessmentOrigin origin = AssessmentOrigin.DECLARATIVE;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private Assessment parent;
+
+    @Column(precision = 19, scale = 2)
+    private BigDecimal exemption;
+
+    @Column(name = "notified_at")
+    private Instant notifiedAt;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
+
+    @Column(length = 500)
+    private String observations;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "taxpayer_id", nullable = false)

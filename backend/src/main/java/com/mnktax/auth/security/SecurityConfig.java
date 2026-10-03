@@ -1,6 +1,7 @@
 package com.mnktax.auth.security;
 
 import com.mnktax.auth.repository.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -30,19 +31,22 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final CorsConfigurationSource corsConfigurationSource;
     private final UserRepository userRepository;
+    private final boolean exposeApiDocs;
 
     public SecurityConfig(JwtAuthFilter jwtAuthFilter,
                           RestAuthenticationEntryPoint authenticationEntryPoint,
                           RestAccessDeniedHandler accessDeniedHandler,
                           UserDetailsService userDetailsService,
                           CorsConfigurationSource corsConfigurationSource,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          @Value("${mnk-tax.security.expose-api-docs:true}") boolean exposeApiDocs) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
         this.userDetailsService = userDetailsService;
         this.corsConfigurationSource = corsConfigurationSource;
         this.userRepository = userRepository;
+        this.exposeApiDocs = exposeApiDocs;
     }
 
     @Bean
@@ -54,12 +58,15 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/register").permitAll()
-                        .requestMatchers("/api/receipts/verify/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/h2-console/**").permitAll()
-                        .anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/register").permitAll()
+                            .requestMatchers("/api/receipts/verify/**").permitAll()
+                            .requestMatchers("/actuator/health", "/actuator/info").permitAll();
+                    if (exposeApiDocs) {
+                        auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/h2-console/**").permitAll();
+                    }
+                    auth.anyRequest().authenticated();
+                })
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

@@ -33,4 +33,11 @@ public final class SecurityUtils {
         return auth != null && auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_" + role));
     }
+
+    /** Vérifie la présence d'une autorité (permission) pour l'utilisateur courant. */
+    public static boolean hasAuthority(String authority) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(authority));
+    }
 }

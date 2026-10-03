@@ -87,6 +87,8 @@ export default function ComposeDialog({
   const [updateContact, setUpdateContact] = useState(false)
   // Destinataire : fiche existante (auto) ou personne externe (email libre)
   const [recipientKind, setRecipientKind] = useState<'fiche' | 'externe'>('fiche')
+  // Déclaré ici (et non plus plus bas) : utilisé par l'effet de rendu de modèle ci-dessous.
+  const isExternal = recipientKind === 'externe'
   const [externalName, setExternalName] = useState('')
   const searchRef = useRef<HTMLDivElement>(null)
 
@@ -207,7 +209,6 @@ export default function ComposeDialog({
     }
   }
 
-  const isExternal = recipientKind === 'externe'
   const needsEmail = isExternal || channels.includes('EMAIL')
   const emailTrimmed = emailTo.trim()
   const emailValid = EMAIL_RE.test(emailTrimmed)

@@ -101,17 +101,18 @@ class FiscalFlowIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        if (taxpayerRepository.count() > 0) {
-            return;
-        }
+        // Le seed de démonstration remplit déjà la base au démarrage : on ne peut plus
+        // supposer une base vide. On réutilise les références existantes (TVA, pénalités,
+        // échéances) et on crée le reste avec des codes propres à ces tests.
         TaxCenter center = centerRepository.save(TaxCenter.builder()
                 .code("CEN-TEST").name("Centre test - DÉMO").address("Test (fictif)")
                 .createdAt(Instant.now()).build());
         TaxRegime regime = regimeRepository.save(TaxRegime.builder()
                 .code("REG-TEST").name("Régime test - DÉMO").category("REEL")
                 .vatApplicable(true).build());
-        TaxType tva = taxTypeRepository.save(TaxType.builder()
-                .code("TVA").name("TVA - DÉMO").category("DEMO").active(true).build());
+        TaxType tva = taxTypeRepository.findByCode("TVA")
+                .orElseGet(() -> taxTypeRepository.save(TaxType.builder()
+                        .code("TVA").name("TVA - DÉMO").category("DEMO").active(true).build()));
         TaxRule rule = ruleRepository.save(TaxRule.builder()
                 .code("R-TVA-TEST").name("TVA test 20%")
                 .taxType(tva)
@@ -128,18 +129,21 @@ class FiscalFlowIntegrationTest {
                 .build());
         versionRepository.save(TaxRuleVersion.builder().rule(rule).versionNumber(1)
                 .snapshot("{}").reason("création test").createdAt(Instant.now()).build());
-        deadlineRepository.save(Deadline.builder().taxType(tva).period("2025-11")
+        deadlineRepository.findByTaxTypeIdAndPeriod(tva.getId(), "2025-11").orElseGet(() ->
+                deadlineRepository.save(Deadline.builder().taxType(tva).period("2025-11")
                 .declarationDeadline(LocalDate.of(2025, 11, 20))
                 .paymentDeadline(LocalDate.of(2025, 11, 25))
-                .createdAt(Instant.now()).build());
+                .createdAt(Instant.now()).build()));
 
-        penaltyRepository.save(Penalty.builder().code("PEN_DEMO_5").name("Pénalité test 5%")
-                .rate(new BigDecimal("5")).build());
-        interestRepository.save(Interest.builder().code("INT_DEMO_1").name("Intérêt test 1%/mois")
-                .rate(new BigDecimal("1")).periodicity("MONTHLY").build());
+        penaltyRepository.findByCode("PEN_DEMO_5").orElseGet(() -> penaltyRepository.save(
+                Penalty.builder().code("PEN_DEMO_5").name("Pénalité test 5%")
+                .rate(new BigDecimal("5")).build()));
+        interestRepository.findByCode("INT_DEMO_1").orElseGet(() -> interestRepository.save(
+                Interest.builder().code("INT_DEMO_1").name("Intérêt test 1%/mois")
+                .rate(new BigDecimal("1")).periodicity("MONTHLY").build()));
 
         Taxpayer tp = Taxpayer.builder()
-                .nif("0000409001").type(TaxpayerType.COMPANY).name("Société Test DÉMO")
+                .nif("0000409777").type(TaxpayerType.COMPANY).name("Société Test DÉMO")
                 .email("test@demo.mg").phone("0320000000").address("Adresse fictive")
                 .taxCenter(center).taxRegime(regime)
                 .status(TaxpayerStatus.ACTIVE)

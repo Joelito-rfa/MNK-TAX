@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -10,8 +10,10 @@ import {
   Eye,
   Inbox,
   MailOpen,
+  Paperclip,
   RefreshCw,
   Send,
+  X,
   XCircle,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
@@ -48,6 +50,7 @@ import {
   useReopenMessage,
   useSendMessage,
   useUnarchiveMessage,
+  useUploadMessageAttachment,
 } from '../features/message/api/mutations'
 import type { MessageFolder } from '../features/message/api/keys'
 
@@ -487,16 +490,19 @@ function MessageThreadModal({
   const { t } = useI18n()
   const { user } = useAuth()
   const [replyContent, setReplyContent] = useState('')
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const threadQuery = useMessageThread(message?.id ?? null)
   const send = useSendMessage()
+  const attach = useUploadMessageAttachment()
   const archive = useArchiveMessage()
   const unarchive = useUnarchiveMessage()
   const close = useCloseMessage()
   const reopen = useReopenMessage()
   const download = useDownloadMessageAttachment()
 
-  useEffect(() => { setReplyContent('') }, [message?.id])
+  useEffect(() => { setReplyContent(''); setPendingFile(null) }, [message?.id])
 
   const thread = threadQuery.data ?? (message ? [message] : [])
   const isArchived = message != null && (message.archivedAt != null || message.processingStatus === 'ARCHIVED')
@@ -631,7 +637,40 @@ function MessageThreadModal({
                 placeholder={t('messages.writeReply')}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
               />
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null
+                      if (f) setPendingFile(f)
+                      e.target.value = ''
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                    title={t('messages.attach')}
+                  >
+                    <Paperclip className="h-3.5 w-3.5" /> {t('messages.attach')}
+                  </button>
+                  {pendingFile && (
+                    <span className="inline-flex min-w-0 items-center gap-1 rounded-lg bg-brand-50 px-2 py-1 text-xs text-brand-700 dark:bg-brand-900/30 dark:text-brand-300">
+                      <span className="max-w-40 truncate">📎 {pendingFile.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setPendingFile(null)}
+                        className="rounded p-0.5 transition hover:bg-brand-100 dark:hover:bg-brand-800/40"
+                        aria-label={t('common.close')}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )}
+                </div>
                 <Button
                   size="sm"
                   disabled={!replyContent.trim()}
@@ -644,7 +683,19 @@ function MessageThreadModal({
                         content: replyContent.trim(),
                         replyToId: message.id,
                       },
-                      { onSuccess: () => setReplyContent('') },
+                      {
+                        onSuccess: async (created) => {
+                          setReplyContent('')
+                          // La pièce jointe est envoyée une fois la réponse créée
+                          // (l'API attache un fichier à un message existant).
+                          if (pendingFile && created?.id) {
+                            try {
+                              await attach.mutateAsync({ id: created.id, file: pendingFile })
+                              setPendingFile(null)
+                            } catch { /* erreur déjà affichée par la mutation */ }
+                          }
+                        },
+                      },
                     )
                   }
                 >

@@ -49,6 +49,17 @@ export function useCancelPayment() {
   })
 }
 
+export function useRejectPayment() {
+  const toast = useToast()
+  const { t } = useI18n()
+  const invalidate = useInvalidatePayments()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => apiPut(`/payments/${id}/reject`, { reason }),
+    onSuccess: () => { invalidate(); toast.success(t('payments.detail.rejected')) },
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
+  })
+}
+
 /** Allocation automatique du paiement sur les créances ouvertes les plus anciennes. */
 export function useAllocatePayment() {
   const toast = useToast()

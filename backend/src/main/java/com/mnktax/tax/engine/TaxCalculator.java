@@ -66,12 +66,18 @@ public class TaxCalculator {
     }
 
     /**
-     * Calcul progressif par tranches.
+     * Calcul progressif par tranches à seuils marginaux.
      * Le champ brackets contient un JSON du type :
      * [{"upTo":50000000,"rate":0},{"upTo":100000000,"rate":10},{"upTo":null,"rate":20}]
      *
-     * La dernière tranche doit avoir "upTo": null (pas de plafond).
-     * Chaque tranche s'applique uniquement sur la portion de l'assiette qui lui correspond.
+     * "upTo" est un seuil cumulé de base imposable, et non un plafond de tranche :
+     * chaque taux ne s'applique qu'à la portion de l'assiette comprise entre le seuil
+     * précédent et le sien. Pour une assiette de 60 000 000, la première tranche
+     * (0 %) couvre 0 à 50 000 000 et la seconde (10 %) couvre 50 000 000 à
+     * 60 000 000, soit un impôt de 1 000 000.
+     *
+     * La dernière tranche doit avoir "upTo": null (pas de seuil).
+     * Les seuils sont attendus triés par ordre croissant.
      */
     private BigDecimal calculateProgressive(BigDecimal base, TaxRule rule) {
         String bracketsJson = rule.getBrackets();
@@ -97,25 +103,26 @@ public class TaxCalculator {
 
         BigDecimal totalTax = BigDecimal.ZERO;
         BigDecimal remaining = base;
+        BigDecimal lowerBound = BigDecimal.ZERO;
 
         for (Bracket bracket : brackets) {
-            if (remaining.signum() <= 0) break;
-
-            BigDecimal upperLimit = bracket.upTo();
-            BigDecimal bracketRate = bracket.rate();
-
-            BigDecimal taxableInBracket;
-            if (upperLimit == null) {
-                // Dernière tranche : tout le reste
-                taxableInBracket = remaining;
-            } else {
-                taxableInBracket = remaining.min(upperLimit);
+            if (remaining.signum() <= 0) {
+                break;
             }
 
-            BigDecimal taxForBracket = taxableInBracket.multiply(bracketRate)
-                    .divide(ONE_HUNDRED, 2, RoundingMode.HALF_UP);
-            totalTax = totalTax.add(taxForBracket);
+            // Dernière tranche (upTo null) : tout ce qui reste au-delà du seuil précédent.
+            BigDecimal upperBound = bracket.upTo() == null ? base : bracket.upTo().min(base);
+            if (upperBound.compareTo(lowerBound) <= 0) {
+                // Tranche vide ou seuils non triés : on avance sans rien taxable.
+                lowerBound = upperBound;
+                continue;
+            }
+
+            BigDecimal taxableInBracket = upperBound.subtract(lowerBound).min(remaining);
+            totalTax = totalTax.add(taxableInBracket.multiply(bracket.rate())
+                    .divide(ONE_HUNDRED, 2, RoundingMode.HALF_UP));
             remaining = remaining.subtract(taxableInBracket);
+            lowerBound = upperBound;
         }
 
         return totalTax;
@@ -123,10 +130,15 @@ public class TaxCalculator {
 
     private BigDecimal applyFloorAndCeiling(BigDecimal gross, TaxRule rule) {
         BigDecimal result = gross;
-        if (rule.getMinimum() != null && result.compareTo(rule.getMinimum()) < 0) {
+        if (rule.getMinimum() != null && rule.getMinimum().signum() > 0
+                && result.compareTo(rule.getMinimum()) < 0) {
             result = rule.getMinimum();
         }
-        if (rule.getMaximum() != null && result.compareTo(rule.getMaximum()) > 0) {
+        // Un plafond nul ou négatif est ignoré : il proviendrait d'une saisie
+        // accidentelle et ramènerait à 0 tout impôt positif. Un impôt nul
+        // s'exprime via une exonération.
+        if (rule.getMaximum() != null && rule.getMaximum().signum() > 0
+                && result.compareTo(rule.getMaximum()) > 0) {
             result = rule.getMaximum();
         }
         return result;

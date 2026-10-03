@@ -1,17 +1,17 @@
 import type { DebtStatus } from '../../types'
 
-export const STATUS_CONFIG: Record<string, { key: string; color: string; bg: string; border: string }> = {
-  DRAFT: { key: 'common.draft', color: 'text-slate-400', bg: 'bg-slate-500/15', border: 'border-slate-500/25' },
-  ISSUED: { key: 'status.FILED', color: 'text-sky-400', bg: 'bg-sky-500/15', border: 'border-sky-500/25' },
-  DUE: { key: 'status.DUE', color: 'text-blue-400', bg: 'bg-blue-500/15', border: 'border-blue-500/25' },
-  PARTIALLY_PAID: { key: 'status.PARTIALLY_PAID', color: 'text-indigo-400', bg: 'bg-indigo-500/15', border: 'border-indigo-500/25' },
-  OVERDUE: { key: 'status.OVERDUE', color: 'text-rose-400', bg: 'bg-rose-500/15', border: 'border-rose-500/25' },
-  IN_COLLECTION: { key: 'status.IN_COLLECTION', color: 'text-orange-400', bg: 'bg-orange-500/15', border: 'border-orange-500/25' },
-  DISPUTED: { key: 'status.DISPUTED', color: 'text-red-400', bg: 'bg-red-500/15', border: 'border-red-500/25' },
-  SUSPENDED: { key: 'status.SUSPENDED', color: 'text-amber-400', bg: 'bg-amber-500/15', border: 'border-amber-500/25' },
-  CLOSED: { key: 'status.CLOSED', color: 'text-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20' },
-  PAID: { key: 'status.PAID', color: 'text-emerald-400', bg: 'bg-emerald-500/15', border: 'border-emerald-500/25' },
-  CANCELLED: { key: 'status.CANCELLED', color: 'text-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20' },
+export const STATUS_CONFIG: Record<string, { key: string; color: string; dot: string; bg: string; border: string }> = {
+  DRAFT: { key: 'common.draft', color: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-500', bg: 'bg-slate-500/15', border: 'border-slate-500/25' },
+  ISSUED: { key: 'status.FILED', color: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500', bg: 'bg-sky-500/15', border: 'border-sky-500/25' },
+  DUE: { key: 'status.DUE', color: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-500', bg: 'bg-blue-500/15', border: 'border-blue-500/25' },
+  PARTIALLY_PAID: { key: 'status.PARTIALLY_PAID', color: 'text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-500', bg: 'bg-indigo-500/15', border: 'border-indigo-500/25' },
+  OVERDUE: { key: 'status.OVERDUE', color: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500', bg: 'bg-rose-500/15', border: 'border-rose-500/25' },
+  IN_COLLECTION: { key: 'status.IN_COLLECTION', color: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500', bg: 'bg-orange-500/15', border: 'border-orange-500/25' },
+  DISPUTED: { key: 'status.DISPUTED', color: 'text-red-700 dark:text-red-300', dot: 'bg-red-500', bg: 'bg-red-500/15', border: 'border-red-500/25' },
+  SUSPENDED: { key: 'status.SUSPENDED', color: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500', bg: 'bg-amber-500/15', border: 'border-amber-500/25' },
+  CLOSED: { key: 'status.CLOSED', color: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20' },
+  PAID: { key: 'status.PAID', color: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500', bg: 'bg-emerald-500/15', border: 'border-emerald-500/25' },
+  CANCELLED: { key: 'status.CANCELLED', color: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-500', bg: 'bg-slate-500/10', border: 'border-slate-500/20' },
 }
 
 export const TERMINAL_STATUSES: DebtStatus[] = ['PAID', 'CANCELLED', 'CLOSED']

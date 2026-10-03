@@ -398,6 +398,13 @@ public final class AiMessages {
         e.add(entry("def_try6", "• « Comparaison avec le mois dernier »"));
         e.add(entry("err_retry", "Désolé, une erreur technique est survenue. Veuillez réessayer dans quelques instants.\n\n"));
         e.add(entry("err_support", "Si le problème persiste, contactez l'assistance technique."));
+        e.add(entry("access_restricted",
+                "🔒 **Accès limité** : votre profil ne donne pas accès aux statistiques globales de l'administration.\n\n"
+                        + "Vous pouvez en revanche me poser des questions sur **vos propres données** — citez un NIF, "
+                        + "une déclaration ou une quittance — ou tapez « Aide » pour voir les exemples."));
+        e.add(entry("access_default",
+                "Je peux vous aider sur **vos propres données** : citez votre NIF pour consulter vos créances, "
+                        + "vos déclarations ou vos quittances.\n\nTapez « Aide » pour découvrir tous mes exemples."));
         return e.toArray(new Entry[0]);
     }
 
@@ -613,6 +620,13 @@ public final class AiMessages {
         e.add(entry("def_try6", "• \"Comparison with last month\""));
         e.add(entry("err_retry", "Sorry, a technical error occurred. Please try again in a few moments.\n\n"));
         e.add(entry("err_support", "If the problem persists, contact technical support."));
+        e.add(entry("access_restricted",
+                "🔒 **Limited access**: your profile does not grant access to the administration's global statistics.\n\n"
+                        + "You can still ask me about **your own data** — mention a NIF, a declaration or a receipt — "
+                        + "or type \"Help\" to see examples."));
+        e.add(entry("access_default",
+                "I can help with **your own data**: mention your NIF to check your debts, declarations or receipts.\n\n"
+                        + "Type \"Help\" to discover all my examples."));
         return e.toArray(new Entry[0]);
     }
 
@@ -809,6 +823,13 @@ public final class AiMessages {
         e.add(entry("def_try6", "• « Fampitahana amin'ny volana lasa »"));
         e.add(entry("err_retry", "Miala tsiny, nisy hadisoana ara-teknika. Andramo indray amin'ny fotoana vitsy.\n\n"));
         e.add(entry("err_support", "Raha mitohy ny olana, mifandraisa amin'ny fanohanana ara-teknika."));
+        e.add(entry("access_restricted",
+                "🔒 **Fetra fijinjana**: ny andraikitrao dia tsy manome fahazotoana amin'ny statistika ankapobeny.\n\n"
+                        + "Afaka manontany momba **ny angona manokanao** ianao — ampio NIF, fanoratana na taratasy "
+                        + "fandoavana — na soraty « Fanampiana » ny ohatra."));
+        e.add(entry("access_default",
+                "Afaka manampy amin'ny **angona manokanao** aho: ampio ny NIF mba hitana ny trosa, ny fanoratana "
+                        + "na ny taratasy fandoavanao.\n\nSoraty « Fanampiana » ny ohatra rehetra."));
         return e.toArray(new Entry[0]);
     }
 

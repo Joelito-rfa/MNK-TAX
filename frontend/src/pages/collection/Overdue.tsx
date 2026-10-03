@@ -145,7 +145,7 @@ export default function CollectionOverdue() {
             {f.hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={f.resetFilters}><X className="h-4 w-4" /> {t('collection.resetFilters')}</Button></div>}
           </div>
         ) : (
-          <div className="animate-page-in">
+          <div className="animate-fade-in">
             {isLoading ? <Spinner /> : (
               <>
                 <DebtTable stage="overdue" debts={data.content} onView={(d)=>{setDrawerDebtId(d.id);setDrawerOpen(true)}} onPayment={(d)=>{setSelectedDebt(d);setPaymentOpen(true)}} onAction={(_d,type)=>openActionWithType(type as any, String(_d.id))} onNotice={()=>{}} onPlan={(d)=>navigate(`/collection/plans?debt=${d.id}`)} onHistory={()=>{}} fmtMGA={fmtMGA} fmtDate={fmtDate} />

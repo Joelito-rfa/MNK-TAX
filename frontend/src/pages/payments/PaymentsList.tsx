@@ -3,12 +3,12 @@ import { useQuery } from '@tanstack/react-query'
 import { Filter, PlusCircle, Search } from 'lucide-react'
 import { apiGet } from '../../lib/api'
 import type { Payment, TaxType } from '../../types'
-import { Button, Card, EmptyState, Input, Modal, PageHeader, Pagination, Select, Spinner } from '../../components/ui'
+import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, Pagination, Select, Spinner } from '../../components/ui'
 import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../lib/i18n'
 import { usePaymentFilters } from '../../features/payment/hooks/usePaymentFilters'
 import { usePayments } from '../../features/payment/api/queries'
-import { useConfirmPayment } from '../../features/payment/api/mutations'
+import { useConfirmPayment, useRejectPayment } from '../../features/payment/api/mutations'
 import { METHOD_CODES, methodLabel } from '../../features/payment/lib/methods'
 import { PaymentTable } from '../../features/payment/components/PaymentTable'
 import { PaymentForm } from '../../features/payment/components/PaymentForm'
@@ -25,8 +25,12 @@ export function PaymentsList({ initialStatus = '', pendingMode = false }: Paymen
   const { can } = useAuth()
   const [detail, setDetail] = useState<Payment | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [rejectTarget, setRejectTarget] = useState<Payment | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
   const confirmPayment = useConfirmPayment()
+  const rejectPayment = useRejectPayment()
   const canConfirm = pendingMode && can('PAYMENT_CONFIRM')
+  const canReject = can('PAYMENT_CANCEL')
 
   const { setPage, size, setSize, status, setStatus, taxType, setTaxType, method, setMethod, q, setQ, dateFrom, setDateFrom, dateTo, setDateTo, showFilters, setShowFilters, buildParams, resetFilters } = usePaymentFilters(initialStatus)
 
@@ -100,6 +104,7 @@ export function PaymentsList({ initialStatus = '', pendingMode = false }: Paymen
               onCancel={can('PAYMENT_CANCEL') ? setDetail : undefined}
               onAllocate={can('PAYMENT_ALLOCATE') ? setDetail : undefined}
               onConfirm={canConfirm ? (p) => confirmPayment.mutate(p.id) : undefined}
+              onReject={canReject ? (p) => { setRejectReason(''); setRejectTarget(p) } : undefined}
             />
             <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-slate-700/50">
               <span className="text-sm text-slate-500">
@@ -114,6 +119,27 @@ export function PaymentsList({ initialStatus = '', pendingMode = false }: Paymen
       {createOpen && (
         <Modal open={createOpen} onClose={() => setCreateOpen(false)} title={t('payments.create.title')} subtitle={t('payments.create.subtitle')} wide>
           <PaymentForm onSaved={() => setCreateOpen(false)} onCancel={() => setCreateOpen(false)} />
+        </Modal>
+      )}
+      {rejectTarget && (
+        <Modal open onClose={() => setRejectTarget(null)} title={t('payments.detail.rejectTitle')}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">{t('payments.title')} <strong>{rejectTarget.reference}</strong> {t('payments.detail.rejectText')}</p>
+            <Field label={t('payments.detail.rejectReasonLabel')}>
+              <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800" rows={3} placeholder={t('payments.reasonPlaceholder')} />
+            </Field>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setRejectTarget(null)}>{t('payments.detail.back')}</Button>
+              <Button
+                variant="ghost"
+                className="text-amber-700"
+                onClick={() => rejectPayment.mutate({ id: rejectTarget.id, reason: rejectReason.trim() }, { onSuccess: () => setRejectTarget(null) })}
+                disabled={rejectPayment.isPending || !rejectReason.trim()}
+              >
+                {rejectPayment.isPending ? t('payments.detail.rejecting') : t('payments.detail.confirmReject')}
+              </Button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

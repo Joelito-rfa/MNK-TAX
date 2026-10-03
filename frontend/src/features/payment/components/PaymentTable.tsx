@@ -5,14 +5,15 @@ import type { Payment } from '../../../types'
 import { fmtDate, fmtMGA } from '../../../lib/format'
 import { methodLabel } from '../lib/methods'
 import RowActionPortal from '../../../components/RowActionPortal'
-import { Eye, Ban, Check, CheckCircle2 } from 'lucide-react'
+import { Eye, Ban, Check, CheckCircle2, XCircle } from 'lucide-react'
 
-export function PaymentTable({ payments, onView, onCancel, onAllocate, onConfirm }: {
+export function PaymentTable({ payments, onView, onCancel, onAllocate, onConfirm, onReject }: {
   payments: Payment[]
   onView: (p: Payment) => void
   onCancel?: (p: Payment) => void
   onAllocate?: (p: Payment) => void
   onConfirm?: (p: Payment) => void
+  onReject?: (p: Payment) => void
 }) {
   const { t } = useI18n()
   return (
@@ -60,6 +61,11 @@ export function PaymentTable({ payments, onView, onCancel, onAllocate, onConfirm
                   {onConfirm && p.status === 'PENDING' && (
                     <button onClick={(e) => { e.stopPropagation(); onConfirm(p) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20">
                       <CheckCircle2 className="h-4 w-4 shrink-0" /> {t('payments.actions.confirm')}
+                    </button>
+                  )}
+                  {onReject && ['PENDING', 'CONFIRMED'].includes(p.status) && (
+                    <button onClick={(e) => { e.stopPropagation(); onReject(p) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-amber-700 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-900/20">
+                      <XCircle className="h-4 w-4 shrink-0" /> {t('payments.actions.reject')}
                     </button>
                   )}
                   {onCancel && ['PENDING', 'CONFIRMED'].includes(p.status) && (

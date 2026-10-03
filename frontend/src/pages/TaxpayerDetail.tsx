@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUpRight, Banknote, Download, FilePlus2, FileQuestion, FileSearch, Pause, Pencil, PhoneCall, Play, Plus, Send, Square, Trash2, Upload, Wallet, Wand2 } from 'lucide-react'
-import { apiErrorMessage, apiGet, apiPatch, apiPost, apiPut, api } from '../lib/api'
+import { apiDelete, apiErrorMessage, apiGet, apiGetBlob, apiPatch, apiPost, apiPut, api } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { fmtBytes, fmtDate, fmtDateTime, fmtMGA } from '../lib/format'
 import type {
@@ -1452,10 +1452,26 @@ function CreatePaymentModal({ taxpayerId, onClose }: { taxpayerId: number; onClo
 /* ──────────────────────── Receipts Tab ──────────────────────── */
 
 function ReceiptsTab({ taxpayerId }: { taxpayerId: number }) {
+  const toast = useToast()
   const { data, isLoading } = useQuery({
     queryKey: ['receipts', taxpayerId],
     queryFn: () => apiGet<Page<Receipt>>(`/receipts?taxpayerId=${taxpayerId}&size=50`),
   })
+
+  /* Le PDF exige le jeton d'authentification : on ne peut pas utiliser un simple <a href>. */
+  async function downloadPdf(r: Receipt) {
+    try {
+      const blob = await apiGetBlob(`/receipts/${r.id}/pdf`)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `quittance-${r.receiptNumber}.pdf`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    }
+  }
   return (
     <Card>
       {isLoading ? (
@@ -1487,14 +1503,13 @@ function ReceiptsTab({ taxpayerId }: { taxpayerId: number }) {
                 <Td>{r.method}</Td>
                 <Td>{fmtDate(r.issuedAt)}</Td>
                 <Td>
-                  <a
-                    href={`/api/receipts/${r.id}/pdf`}
+                  <button
+                    type="button"
+                    onClick={() => downloadPdf(r)}
                     className="inline-flex items-center gap-1 text-brand-700 hover:underline"
-                    target="_blank"
-                    rel="noreferrer"
                   >
                     <Download className="h-3.5 w-3.5" /> PDF
-                  </a>
+                  </button>
                 </Td>
               </tr>
             ))}
@@ -1956,10 +1971,37 @@ function DocumentsTab({ taxpayerId }: { taxpayerId: number }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const queryClient = useQueryClient()
+  const toast = useToast()
   const { data, isLoading } = useQuery({
     queryKey: ['documents', taxpayerId],
     queryFn: () => apiGet<DocumentItem[]>(`/documents?taxpayerId=${taxpayerId}`),
   })
+
+  /* Téléchargement authentifié (l'endpoint exige le jeton : pas de <a href> brut). */
+  async function downloadDoc(d: DocumentItem) {
+    try {
+      const blob = await apiGetBlob(`/documents/${d.id}/content`)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = d.title || `document-${d.id}`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError(apiErrorMessage(err))
+    }
+  }
+
+  async function removeDoc(d: DocumentItem) {
+    if (!confirm(`Supprimer le document « ${d.title} » ?`)) return
+    try {
+      await apiDelete(`/documents/${d.id}`)
+      queryClient.invalidateQueries({ queryKey: ['documents'] })
+      toast.success('Document supprimé')
+    } catch (err) {
+      toast.error(apiErrorMessage(err))
+    }
+  }
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault()
@@ -2030,14 +2072,23 @@ function DocumentsTab({ taxpayerId }: { taxpayerId: number }) {
                 <Td>{d.uploadedBy ?? '—'}</Td>
                 <Td>{fmtDate(d.createdAt)}</Td>
                 <Td>
-                  <a
-                    href={`/api/documents/${d.id}/content`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-brand-700 hover:underline"
-                  >
-                    <Download className="h-3.5 w-3.5" /> Télécharger
-                  </a>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => downloadDoc(d)}
+                      className="inline-flex items-center gap-1 text-brand-700 hover:underline"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Télécharger
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeDoc(d)}
+                      className="inline-flex items-center gap-1 text-red-500 transition hover:text-red-600"
+                      aria-label="Supprimer le document"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </Td>
               </tr>
             ))}

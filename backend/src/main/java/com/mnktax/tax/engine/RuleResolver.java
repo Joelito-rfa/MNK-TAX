@@ -32,9 +32,16 @@ public class RuleResolver {
             throw new BusinessException("RULE_NOT_FOUND",
                     "Aucune règle fiscale applicable pour l'impôt " + context.taxType().getCode()
                             + " à la date " + context.effectDate()
+                            + " (type de contribuable : " + describe(context.taxpayerType())
+                            + ", régime : " + describe(context.regimeId())
+                            + ", activité : " + describe(context.activityCode()) + ")"
                             + ". La règle est configurable et doit être créée dans le référentiel.");
         }
         return candidates.get(0);
+    }
+
+    private String describe(Object value) {
+        return value == null ? "non renseigné" : String.valueOf(value);
     }
 
     public TaxRule resolveOrNull(TaxContext context) {

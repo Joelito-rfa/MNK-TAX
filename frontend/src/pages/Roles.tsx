@@ -420,6 +420,7 @@ function CreateRoleModal({
   })
   const [perms, setPerms] = useState<string[]>(initial?.permissions ?? [])
   const [filter, setFilter] = useState('')
+  const [step, setStep] = useState(0)
   const toast = useToast()
 
   const create = useMutation({
@@ -441,10 +442,24 @@ function CreateRoleModal({
     ? allPermissions.filter((p) => p.toLowerCase().includes(filter.toLowerCase()))
     : allPermissions
 
+  const step0Valid = !!form.code.trim()
+  const step1Valid = perms.length > 0
+  const subtitles = initial
+    ? ['Informations dupliquées', 'Ajuster les permissions', 'Vérification et validation']
+    : ['Informations du rôle', 'Sélection des permissions', 'Vérification et validation']
+  const baseTitle = initial ? `Dupliquer — ${initial.name}` : 'Nouveau rôle'
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (step === 0 && step0Valid) { setStep(1); return }
+    if (step === 1 && step1Valid) { setStep(2); return }
+    if (step === 2) create.mutate()
+  }
+
   return (
-    <Modal open onClose={onClose} title={initial ? `Dupliquer — ${initial.name}` : 'Nouveau rôle'} size="full">
+    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — ${baseTitle}`} subtitle={subtitles[step]} size="full">
       <form
-        onSubmit={(e) => { e.preventDefault(); create.mutate() }}
+        onSubmit={submit}
         className="space-y-4"
       >
         {create.isError && (
@@ -452,51 +467,120 @@ function CreateRoleModal({
             {apiErrorMessage(create.error)}
           </div>
         )}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Code (A-Z, chiffres, _)">
-            <Input
-              value={form.code}
-              onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-              placeholder="ex : AUDITOR"
-            />
-          </Field>
-          <Field label="Nom affiché">
-            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="ex : Auditeur" />
-          </Field>
-        </div>
-        <Field label="Description">
-          <Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-        </Field>
         <div>
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Permissions ({perms.length})</p>
-            <div className="w-48">
-              <Input placeholder="Filtrer…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            </div>
+          <div className="flex items-center gap-2">
+            {[0, 1, 2].map((s) => (
+              <div key={s} className={`h-1.5 flex-1 rounded-full transition ${s <= step ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+            ))}
           </div>
-          <div className="grid max-h-64 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-slate-100 p-2 dark:border-slate-700/50 sm:grid-cols-2">
-            {filtered.map((p) => {
-              const checked = perms.includes(p)
-              return (
-                <label key={p} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => setPerms(checked ? perms.filter((x) => x !== p) : [...perms, p])}
-                    className="h-4 w-4 accent-brand-600"
-                  />
-                  <span className="font-mono text-xs">{p}</span>
-                </label>
-              )
-            })}
-            {filtered.length === 0 && (
-              <p className="col-span-full py-4 text-center text-sm text-slate-500">Aucune permission ne correspond.</p>
+          <div className="mt-1.5 flex justify-between text-[11px] font-medium uppercase tracking-wide">
+            {['Informations', 'Permissions', 'Récapitulatif'].map((label, i) => (
+              <span key={label} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
+            ))}
+          </div>
+        </div>
+
+        {step === 0 && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Code (A-Z, chiffres, _) *">
+                <Input
+                  value={form.code}
+                  onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                  placeholder="ex : AUDITOR"
+                />
+              </Field>
+              <Field label="Nom affiché">
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="ex : Auditeur" />
+              </Field>
+            </div>
+            <Field label="Description">
+              <Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            </Field>
+            {!step0Valid && (
+              <p className="text-xs text-slate-400">Le code du rôle est requis pour continuer.</p>
             )}
           </div>
-        </div>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
-          <Button type="submit" disabled={create.isPending || !form.code.trim()}>{initial ? 'Dupliquer' : 'Créer'}</Button>
+        )}
+
+        {step === 1 && (
+          <div className="space-y-3 animate-fade-in">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Permissions ({perms.length}) *</p>
+              <div className="flex items-center gap-2">
+                {perms.length > 0 && (
+                  <button type="button" onClick={() => setPerms([])} className="text-xs font-medium text-slate-500 hover:text-rose-600">
+                    Tout désélectionner
+                  </button>
+                )}
+                <div className="w-48">
+                  <Input placeholder="Filtrer…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            <div className="grid max-h-64 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-slate-100 p-2 dark:border-slate-700/50 sm:grid-cols-2">
+              {filtered.map((p) => {
+                const checked = perms.includes(p)
+                return (
+                  <label key={p} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setPerms(checked ? perms.filter((x) => x !== p) : [...perms, p])}
+                      className="h-4 w-4 accent-brand-600"
+                    />
+                    <span className="font-mono text-xs">{p}</span>
+                  </label>
+                )
+              })}
+              {filtered.length === 0 && (
+                <p className="col-span-full py-4 text-center text-sm text-slate-500">Aucune permission ne correspond.</p>
+              )}
+            </div>
+            {!step1Valid && (
+              <p className="text-xs text-slate-400">Sélectionnez au moins une permission pour continuer.</p>
+            )}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4 animate-fade-in">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+              <div className="flex justify-between gap-4"><span className="text-slate-500">Code</span><span className="font-mono font-medium text-slate-900 dark:text-slate-100">{form.code || '—'}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">Nom</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.name || '—'}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">Description</span><span className="max-w-72 truncate font-medium text-slate-900 dark:text-slate-100">{form.description || '—'}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">Permissions</span><span className="font-semibold text-violet-600 dark:text-violet-400">{perms.length} sélectionnée(s)</span></div>
+              {perms.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {perms.slice(0, 12).map((p) => (
+                    <span key={p} className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] text-slate-600 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600">{p}</span>
+                  ))}
+                  {perms.length > 12 && (
+                    <span className="px-1 text-[11px] text-slate-400">+{perms.length - 12} autres…</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
+          <div>
+            {step > 0 && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            {step < 2 ? (
+              <Button type="submit" disabled={(step === 0 && !step0Valid) || (step === 1 && !step1Valid)}>
+                Suivant →
+              </Button>
+            ) : (
+              <Button type="submit" disabled={create.isPending || !step0Valid || !step1Valid}>{initial ? 'Dupliquer' : 'Créer'}</Button>
+            )}
+          </div>
         </div>
       </form>
     </Modal>

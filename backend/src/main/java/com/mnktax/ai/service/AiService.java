@@ -128,6 +128,14 @@ public class AiService {
      * et entités, consulte le contexte conversationnel, et génère une réponse enrichie.
      */
     public String chat(String userMessage, List<ChatMessage> history) {
+        return chat(userMessage, history, true);
+    }
+
+    /**
+     * Variante contrôlée : sans droit {@code REPORT_READ} ({@code allowGlobalStats} faux),
+     * aucun agrégat global n'est calculé et les réponses statistiques sont refusées.
+     */
+    public String chat(String userMessage, List<ChatMessage> history, boolean allowGlobalStats) {
         try {
             // Texte normalisé (minuscules, sans accents, ponctuation -> espaces) :
             // base commune du scoring d'intentions et de l'extraction d'entités.
@@ -155,10 +163,16 @@ public class AiService {
             // 3bis. Résoudre les filtres (NIF, type d'impôt, période relative, période fiscale, plage de dates).
             AiFilters filters = resolveFilters(ctx, entities, detectTemporal(userMessage.toLowerCase()));
 
-            // 3ter. Le résumé est calculé sur la fenêtre de la période demandée.
-            DashboardSummary s = dashboardService.summary(filters.months());
+            // 3ter. Le résumé est calculé sur la fenêtre de la période demandée —
+            //      uniquement pour les profils autorisés à voir les agrégats globaux.
+            DashboardSummary s = allowGlobalStats
+                    ? dashboardService.summary(filters.months())
+                    : DashboardSummary.empty();
 
-            String reply = route(norm, intents, entities, s, ctx, filters);
+            String reply = route(norm, intents, entities, s, ctx, filters, msgs, allowGlobalStats);
+            if (!allowGlobalStats) {
+                return reply;
+            }
             return applyFilters(reply, filters, intents, entities, s, ctx);
 
         } catch (Exception e) {
@@ -174,13 +188,23 @@ public class AiService {
      * (sections filtrées par type d'impôt / période) par {@link #applyFilters}.
      */
     private String route(String norm, IntentResult intents, Entities entities, DashboardSummary s,
-                         ConversationContext ctx, AiFilters filters) {
+                         ConversationContext ctx, AiFilters filters, AiMessages msgs, boolean allowGlobalStats) {
         // Un NIF mémorisé ou cité permet de répondre sur CE contribuable précis.
         if (filters.hasNif() && focusesTaxpayer(intents, entities)) {
             Optional<AiDataService.TaxpayerSnapshot> snapshot = aiDataService.findByNif(filters.nif());
             if (snapshot.isPresent()) {
                 return taxpayerCard(snapshot.get());
             }
+        }
+
+        // Profil sans REPORT_READ : pas d'agrégat global (l'aide statique reste accessible).
+        if (!allowGlobalStats) {
+            if (intents.isHelp()) {
+                return helpResponse(entities);
+            }
+            String key = intents.matchedIntents().equals(List.of("default")) ? "access_default" : "access_restricted";
+            String message = msgs.text(key);
+            return message != null ? message : msgs.text("help");
         }
 
         // 4. Mémoire conversationnelle : questions de suivi et messages vagues

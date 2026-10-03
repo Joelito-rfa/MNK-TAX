@@ -1,5 +1,7 @@
 package com.mnktax.control.service;
 
+import com.mnktax.assessment.entity.Assessment;
+import com.mnktax.assessment.service.AssessmentService;
 import com.mnktax.audit.service.AuditService;
 import com.mnktax.auth.entity.User;
 import com.mnktax.auth.repository.UserRepository;
@@ -39,19 +41,22 @@ public class TaxControlService {
     private final TaxDebtRepository debtRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final AssessmentService assessmentService;
 
     public TaxControlService(TaxControlRepository controlRepository,
                              ControlDocumentRepository documentRepository,
                              TaxpayerRepository taxpayerRepository,
                              TaxDebtRepository debtRepository,
                              UserRepository userRepository,
-                             AuditService auditService) {
+                             AuditService auditService,
+                             @org.springframework.context.annotation.Lazy AssessmentService assessmentService) {
         this.controlRepository = controlRepository;
         this.documentRepository = documentRepository;
         this.taxpayerRepository = taxpayerRepository;
         this.debtRepository = debtRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
+        this.assessmentService = assessmentService;
     }
 
     @Transactional(readOnly = true)
@@ -151,6 +156,15 @@ public class TaxControlService {
             TaxDebt debt = debtRepository.findById(debtId)
                     .orElseThrow(() -> new ResourceNotFoundException("Dette non trouvée : " + debtId));
             tc.setDebt(debt);
+            // Redressement = imposition complémentaire rattachée à l'imposition d'origine.
+            if (redressement != null && redressement.signum() > 0 && debt.getTaxType() != null) {
+                Assessment parent = debt.getAssessment();
+                Assessment compl = assessmentService.createFromRedressement(
+                        debt.getTaxpayer(), debt.getTaxType(), debt.getPeriod(),
+                        redressement, parent,
+                        "Redressement contrôle " + tc.getReference());
+                debtRepository.findByAssessmentId(compl.getId()).ifPresent(tc::setDebt);
+            }
         }
 
         tc = controlRepository.save(tc);

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDownRight,
@@ -81,10 +81,10 @@ const emptyForm = {
   regimeCode: '',
   calculationMethod: 'PERCENTAGE_OF_BASE',
   rate: '',
-  minimum: '0',
-  maximum: '0',
-  deduction: '0',
-  exemption: '0',
+  minimum: '',
+  maximum: '',
+  deduction: '',
+  exemption: '',
   legalReference: '',
   brackets: '',
   demo: false,
@@ -93,6 +93,26 @@ const emptyForm = {
 }
 
 /* ═══════════════════════════ Helpers ═══════════════════════════ */
+
+/**
+ * Convertit un champ de formulaire en nombre, ou undefined si le champ est vide.
+ * Un seuil vide doit rester « non défini » et non 0 : 0 est un plafond valide
+ * pour le moteur et taxerait à 0 toutes les assiettes positives.
+ */
+function toNumberOrUndefined(value: unknown): number | undefined {
+  if (value === null || value === undefined) return undefined
+  if (typeof value === 'number') return Number.isNaN(value) ? undefined : value
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed === 'null' || trimmed === 'undefined') return undefined
+  const parsed = Number(trimmed)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
+/** Valeur affichable d'un seuil numérique, chaîne vide quand il n'est pas défini. */
+function toFormValue(value: number | null | undefined): string {
+  return value === null || value === undefined ? '' : String(value)
+}
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '--'
@@ -104,7 +124,8 @@ function fmtDate(iso: string | null | undefined): string {
   }
 }
 
-function fmtMGA(v: number): string {
+function fmtMGA(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '--'
   return new Intl.NumberFormat('fr-MG', { style: 'decimal', maximumFractionDigits: 0 }).format(v) + ' MGA'
 }
 
@@ -136,14 +157,22 @@ function calculateTax(rule: TaxRule, taxableAmount: number, deduction: number): 
 
   if (rule.calculationMethod === 'PROGRESSIVE') {
     const brackets = parseBrackets(rule.brackets)
+    // Seuils marginaux : chaque taux s'applique à la portion comprise entre
+    // le seuil précédent et le sien (aligné sur TaxCalculator.calculateProgressive).
     let remaining = base
+    let lowerBound = 0
     let totalTax = 0
     for (const bracket of brackets) {
-      const upper = bracket.upTo ?? Infinity
-      const taxable = Math.min(remaining, upper)
+      if (remaining <= 0) break
+      const upper = bracket.upTo === null || bracket.upTo === undefined ? base : Math.min(bracket.upTo, base)
+      if (upper <= lowerBound) {
+        lowerBound = upper
+        continue
+      }
+      const taxable = Math.min(upper - lowerBound, remaining)
       totalTax += taxable * (bracket.rate / 100)
       remaining -= taxable
-      if (remaining <= 0) break
+      lowerBound = upper
     }
     return { baseImposable: base, tauxApplique: 0, deductions: deduction, montantImpot: Math.round(totalTax) }
   }
@@ -279,10 +308,10 @@ export default function TaxRules() {
         regimeCode: form.regimeCode || undefined,
         calculationMethod: form.calculationMethod,
         rate: Number(form.rate),
-        minimum: Number(form.minimum),
-        maximum: Number(form.maximum),
-        deduction: Number(form.deduction),
-        exemption: Number(form.exemption),
+        minimum: toNumberOrUndefined(form.minimum),
+        maximum: toNumberOrUndefined(form.maximum),
+        deduction: toNumberOrUndefined(form.deduction),
+        exemption: toNumberOrUndefined(form.exemption),
         legalReference: form.legalReference || undefined,
         brackets: form.brackets || undefined,
         demo: form.demo,
@@ -341,10 +370,10 @@ export default function TaxRules() {
       regimeCode: r.regimeCode ?? '',
       calculationMethod: r.calculationMethod,
       rate: String(r.rate),
-      minimum: String(r.minimum),
-      maximum: String(r.maximum),
-      deduction: String(r.deduction),
-      exemption: String(r.exemption),
+      minimum: toFormValue(r.minimum),
+      maximum: toFormValue(r.maximum),
+      deduction: toFormValue(r.deduction),
+      exemption: toFormValue(r.exemption),
       legalReference: r.legalReference ?? '',
       brackets: r.brackets ?? '',
       demo: r.demo,
@@ -364,10 +393,10 @@ export default function TaxRules() {
       regimeCode: r.regimeCode ?? '',
       calculationMethod: r.calculationMethod,
       rate: String(r.rate),
-      minimum: String(r.minimum),
-      maximum: String(r.maximum),
-      deduction: String(r.deduction),
-      exemption: String(r.exemption),
+      minimum: toFormValue(r.minimum),
+      maximum: toFormValue(r.maximum),
+      deduction: toFormValue(r.deduction),
+      exemption: toFormValue(r.exemption),
       legalReference: r.legalReference ?? '',
       brackets: r.brackets ?? '',
       demo: r.demo,
@@ -603,7 +632,7 @@ export default function TaxRules() {
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
                       Min: {fmtMGA(rule.minimum)} · Max: {fmtMGA(rule.maximum)}
                     </p>
-                    {rule.deduction > 0 && (
+                    {(rule.deduction ?? 0) > 0 && (
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">
                         Deduction: {fmtMGA(rule.deduction)}
                       </p>
@@ -1009,10 +1038,10 @@ function ImportRulesModal({ onClose }: { onClose: () => void }) {
           regimeCode: item.regimeCode || undefined,
           calculationMethod: item.calculationMethod ?? 'PERCENTAGE_OF_BASE',
           rate: Number(item.rate ?? 0),
-          minimum: Number(item.minimum ?? 0),
-          maximum: Number(item.maximum ?? 0),
-          deduction: Number(item.deduction ?? 0),
-          exemption: Number(item.exemption ?? 0),
+          minimum: toNumberOrUndefined(item.minimum),
+          maximum: toNumberOrUndefined(item.maximum),
+          deduction: toNumberOrUndefined(item.deduction),
+          exemption: toNumberOrUndefined(item.exemption),
           legalReference: item.legalReference || undefined,
           brackets: item.brackets || undefined,
           demo: Boolean(item.demo),
@@ -1091,105 +1120,215 @@ function ImportRulesModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-/* -- Create/Edit Modal -- */
+/* -- Create/Edit Modal : wizard 3 étapes -- */
 function CreateEditModal({ open, editing, form, setForm, saving, error, onClose, onSubmit }: {
   open: boolean; editing: TaxRule | null; form: typeof emptyForm
   setForm: (f: typeof emptyForm) => void; saving: boolean; error: string | null
   onClose: () => void; onSubmit: () => void
 }) {
+  const [step, setStep] = useState(0)
+  useEffect(() => { if (open) setStep(0) }, [open, editing])
   if (!open) return null
+
+  const stepTitles = editing
+    ? [`Étape ${step + 1}/3 — Modifier : ${editing.code}`, step === 0 ? 'Identification de la règle' : step === 1 ? 'Paramètres de calcul' : 'Validité et récapitulatif']
+    : [`Étape ${step + 1}/3 — Nouvelle règle de calcul`, step === 0 ? 'Identification de la règle' : step === 1 ? 'Paramètres de calcul' : 'Validité et récapitulatif']
+
+  const rateNum = Number(form.rate)
+  const bracketsValid = (() => {
+    if (form.calculationMethod !== 'PROGRESSIVE') return true
+    if (!form.brackets.trim()) return false
+    try {
+      const arr = JSON.parse(form.brackets)
+      return Array.isArray(arr) && arr.length > 0 && arr.every((b: { upTo?: number | null; rate?: number }) => typeof b.rate === 'number' && b.rate >= 0)
+    } catch { return false }
+  })()
+
+  const step0Valid = !!(form.code.trim() && form.name.trim() && form.taxTypeCode)
+  const step1Valid = !!(form.rate !== '' && !isNaN(rateNum) && rateNum > 0 && bracketsValid)
+  const step2Valid = !!form.effectiveFrom && (!form.effectiveTo || form.effectiveTo >= form.effectiveFrom)
+  const canSubmit = step0Valid && step1Valid && step2Valid
+
+  function next() {
+    if (step === 0 && step0Valid) setStep(1)
+    else if (step === 1 && step1Valid) setStep(2)
+  }
+
+  function close() {
+    setStep(0)
+    onClose()
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (step < 2) { next(); return }
+    if (canSubmit) onSubmit()
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-2 backdrop-blur-sm sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-2 backdrop-blur-sm sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="relative w-full max-w-6xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              {editing ? `Modifier : ${editing.code}` : 'Nouvelle regle de calcul'}
+              {stepTitles[0]}
             </h3>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              {editing ? 'Modifiez les parametres de la regle' : 'Configurez une nouvelle regle fiscale'}
+              {stepTitles[1]}
             </p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700">
+          <button onClick={close} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); onSubmit() }} className="px-6 py-5 space-y-5">
+        <form onSubmit={submit} className="px-6 py-5 space-y-5">
           {error && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{error}</div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Code de la regle" value={form.code} onChange={(v) => setForm({ ...form, code: v })} placeholder="ex: R-TVA-20" />
-            <FieldInput label="Nom" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="ex: TVA taux normal" />
+          {/* Barre de progression */}
+          <div>
+            <div className="flex items-center gap-2">
+              {[0, 1, 2].map((s) => (
+                <div key={s} className={`h-1.5 flex-1 rounded-full transition ${s <= step ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+              ))}
+            </div>
+            <div className="mt-1.5 flex justify-between text-[11px] font-medium uppercase tracking-wide">
+              {['Identification', 'Calcul', 'Récapitulatif'].map((label, i) => (
+                <span key={label} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <FieldSelect label="Impot concerne" value={form.taxTypeCode} onChange={(v) => setForm({ ...form, taxTypeCode: v })} options={[
-              { value: '', label: 'Selectionner...' },
-              { value: 'TVA', label: 'TVA' },
-              { value: 'IRSA', label: 'IRSA' },
-              { value: 'IR', label: 'IR' },
-              { value: 'IS', label: 'IS' },
-              { value: 'IFT', label: 'IFT' },
-            ]} />
-            <FieldSelect label="Methode de calcul" value={form.calculationMethod} onChange={(v) => setForm({ ...form, calculationMethod: v })} options={
-              Object.entries(METHOD_LABELS).map(([k, v]) => ({ value: k, label: v }))
-            } />
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <FieldInput label="Taux (%)" type="number" value={form.rate} onChange={(v) => setForm({ ...form, rate: v })} step="0.0001" min="0" />
-            <FieldInput label="Seuil minimum (MGA)" type="number" value={form.minimum} onChange={(v) => setForm({ ...form, minimum: v })} min="0" />
-            <FieldInput label="Seuil maximum (MGA)" type="number" value={form.maximum} onChange={(v) => setForm({ ...form, maximum: v })} min="0" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Deduction (MGA)" type="number" value={form.deduction} onChange={(v) => setForm({ ...form, deduction: v })} min="0" />
-            <FieldInput label="Exoneration (MGA)" type="number" value={form.exemption} onChange={(v) => setForm({ ...form, exemption: v })} min="0" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FieldSelect label="Type de contribuable" value={form.taxpayerType} onChange={(v) => setForm({ ...form, taxpayerType: v })} options={[
-              { value: '', label: 'Tous' },
-              { value: 'COMPANY', label: 'Entreprise' },
-              { value: 'PERSON', label: 'Particulier' },
-            ]} />
-            <FieldInput label="Reference legale" value={form.legalReference} onChange={(v) => setForm({ ...form, legalReference: v })} placeholder="ex: CGI Art. 01" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Applicable a partir du" type="date" value={form.effectiveFrom} onChange={(v) => setForm({ ...form, effectiveFrom: v })} />
-            <FieldInput label="Date de fin" type="date" value={form.effectiveTo} onChange={(v) => setForm({ ...form, effectiveTo: v })} />
-          </div>
-
-          {form.calculationMethod === 'PROGRESSIVE' && (
-            <div>
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Tranches progressives (JSON)</label>
-              <textarea
-                value={form.brackets}
-                onChange={(e) => setForm({ ...form, brackets: e.target.value })}
-                placeholder='[{"upTo":500000,"rate":5},{"upTo":1000000,"rate":10},{"upTo":null,"rate":20}]'
-                rows={4}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-violet-400"
-              />
-              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">JSON : chaque tranche a "upTo" (null = pas de plafond) et "rate" (taux en %)</p>
+          {step === 0 && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput label="Code de la regle *" value={form.code} onChange={(v) => setForm({ ...form, code: v })} placeholder="ex: R-TVA-20" />
+                <FieldInput label="Nom *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="ex: TVA taux normal" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FieldSelect label="Impot concerne *" value={form.taxTypeCode} onChange={(v) => setForm({ ...form, taxTypeCode: v })} options={[
+                  { value: '', label: 'Selectionner...' },
+                  { value: 'TVA', label: 'TVA' },
+                  { value: 'IRSA', label: 'IRSA' },
+                  { value: 'IR', label: 'IR' },
+                  { value: 'IS', label: 'IS' },
+                  { value: 'IFT', label: 'IFT' },
+                ]} />
+                <FieldSelect label="Type de contribuable" value={form.taxpayerType} onChange={(v) => setForm({ ...form, taxpayerType: v })} options={[
+                  { value: '', label: 'Tous' },
+                  { value: 'COMPANY', label: 'Entreprise' },
+                  { value: 'PERSON', label: 'Particulier' },
+                ]} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput label="Reference legale" value={form.legalReference} onChange={(v) => setForm({ ...form, legalReference: v })} placeholder="ex: CGI Art. 01" />
+                <div className="flex items-end gap-2 pb-2.5">
+                  <input type="checkbox" id="demo-toggle" checked={form.demo} onChange={(e) => setForm({ ...form, demo: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
+                  <label htmlFor="demo-toggle" className="text-sm text-slate-600 dark:text-slate-400">Regle de demonstration</label>
+                </div>
+              </div>
+              {!step0Valid && (
+                <p className="text-xs text-slate-400">Renseignez le code, le nom et l'impôt concerné pour continuer.</p>
+              )}
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="demo-toggle" checked={form.demo} onChange={(e) => setForm({ ...form, demo: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
-            <label htmlFor="demo-toggle" className="text-sm text-slate-600 dark:text-slate-400">Regle de demonstration</label>
-          </div>
+          {step === 1 && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="grid grid-cols-2 gap-4">
+                <FieldSelect label="Methode de calcul" value={form.calculationMethod} onChange={(v) => setForm({ ...form, calculationMethod: v })} options={
+                  Object.entries(METHOD_LABELS).map(([k, v]) => ({ value: k, label: v }))
+                } />
+                <FieldInput label="Taux (%) *" type="number" value={form.rate} onChange={(v) => setForm({ ...form, rate: v })} step="0.0001" min="0" />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <FieldInput label="Seuil minimum (MGA)" type="number" value={form.minimum} onChange={(v) => setForm({ ...form, minimum: v })} min="0" />
+                <FieldInput label="Seuil maximum (MGA)" type="number" value={form.maximum} onChange={(v) => setForm({ ...form, maximum: v })} min="0" />
+                <div />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput label="Deduction (MGA)" type="number" value={form.deduction} onChange={(v) => setForm({ ...form, deduction: v })} min="0" />
+                <FieldInput label="Exoneration (MGA)" type="number" value={form.exemption} onChange={(v) => setForm({ ...form, exemption: v })} min="0" />
+              </div>
+              {form.calculationMethod === 'PROGRESSIVE' && (
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Tranches progressives (JSON) *</label>
+                  <textarea
+                    value={form.brackets}
+                    onChange={(e) => setForm({ ...form, brackets: e.target.value })}
+                    placeholder='[{"upTo":500000,"rate":5},{"upTo":1000000,"rate":10},{"upTo":null,"rate":20}]'
+                    rows={4}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-violet-400"
+                  />
+                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">JSON : chaque tranche a "upTo" (null = pas de plafond) et "rate" (taux en %)</p>
+                  {!bracketsValid && (
+                    <p className="mt-1 text-xs text-rose-600">Tranches JSON invalides : fournissez au moins une tranche avec un taux valide.</p>
+                  )}
+                </div>
+              )}
+              {!step1Valid && (
+                <p className="text-xs text-slate-400">Un taux positif est requis pour continuer.</p>
+              )}
+            </div>
+          )}
 
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
-            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
-            <Button type="submit" disabled={saving || !form.code || !form.name || !form.taxTypeCode || !form.rate} loading={saving}>
-              {editing ? 'Enregistrer' : 'Creer'}
-            </Button>
+          {step === 2 && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput label="Applicable a partir du *" type="date" value={form.effectiveFrom} onChange={(v) => setForm({ ...form, effectiveFrom: v })} />
+                <FieldInput label="Date de fin" type="date" value={form.effectiveTo} onChange={(v) => setForm({ ...form, effectiveTo: v })} />
+              </div>
+              {form.effectiveTo && form.effectiveTo < form.effectiveFrom && (
+                <p className="text-xs text-rose-600">La date de fin doit être postérieure à la date de début.</p>
+              )}
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+                <RecapRow label="Code" value={form.code || '—'} mono />
+                <RecapRow label="Nom" value={form.name || '—'} />
+                <RecapRow label="Impôt" value={form.taxTypeCode || '—'} />
+                <RecapRow label="Méthode" value={METHOD_LABELS[form.calculationMethod] ?? form.calculationMethod} />
+                <RecapRow label="Taux" value={form.rate ? `${form.rate} %` : '—'} strong />
+                <RecapRow label="Seuils" value={`${form.minimum || '0'} – ${form.maximum || '0'} MGA`} />
+                <RecapRow label="Déduction / Exonération" value={`${form.deduction || '0'} / ${form.exemption || '0'} MGA`} />
+                <RecapRow label="Contribuables" value={form.taxpayerType === 'COMPANY' ? 'Entreprise' : form.taxpayerType === 'PERSON' ? 'Particulier' : 'Tous'} />
+                <RecapRow label="Validité" value={`${form.effectiveFrom || '—'} → ${form.effectiveTo || 'sans fin'}`} />
+                {form.legalReference && <RecapRow label="Réf. légale" value={form.legalReference} />}
+                {form.demo && <RecapRow label="Démo" value="Oui" />}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
+            <div>
+              {step > 0 && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="secondary" onClick={close}>Annuler</Button>
+              {step < 2 ? (
+                <Button type="submit" disabled={(step === 0 && !step0Valid) || (step === 1 && !step1Valid)}>
+                  Suivant →
+                </Button>
+              ) : (
+                <Button type="submit" disabled={saving || !canSubmit} loading={saving}>
+                  {editing ? 'Enregistrer' : 'Creer'}
+                </Button>
+              )}
+            </div>
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+function RecapRow({ label, value, mono = false, strong = false }: { label: string; value: string; mono?: boolean; strong?: boolean }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-slate-500">{label}</span>
+      <span className={`${mono ? 'font-mono' : ''} ${strong ? 'font-semibold text-violet-600 dark:text-violet-400' : 'font-medium text-slate-900 dark:text-slate-100'}`}>{value}</span>
     </div>
   )
 }

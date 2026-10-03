@@ -29,6 +29,16 @@ export function useTaxTypesRef() {
   })
 }
 
+/** Référentiel contribuables pour le Select NIF (cache partagé via `taxpayers-lite`). */
+export function useTaxpayersRef(enabled = true) {
+  return useQuery({
+    queryKey: debtKeys.taxpayers,
+    queryFn: () => apiGet<Page<TaxpayerSummary>>('/taxpayers?size=1000'),
+    enabled,
+    staleTime: 60_000,
+  })
+}
+
 /** Recherche incrémentale de contribuables (à partir de 2 caractères). */
 export function useTaxpayerSearch(q: string) {
   return useQuery({

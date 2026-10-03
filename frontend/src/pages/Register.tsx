@@ -44,8 +44,16 @@ export default function Register() {
   const {
     register,
     handleSubmit,
+    trigger,
+    watch,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  } = useForm<FormValues>({ resolver: zodResolver(schema), mode: 'onTouched' })
+  const [step, setStep] = useState(0)
+  const watchedName = watch('name')
+  const watchedEmail = watch('email')
+  const watchedOrg = watch('organization')
+  const watchedRole = watch('role')
+  const watchedMessage = watch('message')
 
   const mutation = useMutation({
     mutationFn: (data: FormValues) => apiPost('/auth/register', data),
@@ -198,65 +206,122 @@ export default function Register() {
             <>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('login.register.title')}</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('login.register.subtitle')}</p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-400">Étape {step + 1}/3 — {step === 0 ? 'Identité' : step === 1 ? 'Organisation et rôle' : 'Message et validation'}</p>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5" noValidate>
+              <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5" noValidate>
                 {error && (
                   <div className="animate-fade-in rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-400">
                     {error}
                   </div>
                 )}
 
-                <Field label={t('login.register.name')}>
-                  <div className="relative">
-                    <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <Input className="pl-10" placeholder={t('login.register.name.placeholder')} {...register('name')} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    {[0, 1, 2].map((s) => (
+                      <div key={s} className={`h-1.5 flex-1 rounded-full transition ${s <= step ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+                    ))}
                   </div>
-                  {errors.name && <p className="mt-1 text-xs text-rose-600">{errors.name.message}</p>}
-                </Field>
-
-                <Field label={t('login.register.email')}>
-                  <div className="relative">
-                    <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    <Input className="pl-10" type="email" placeholder={t('login.register.email.placeholder')} {...register('email')} />
+                  <div className="mt-1.5 flex justify-between text-[11px] font-medium uppercase tracking-wide">
+                    {['Identité', 'Rôle', 'Récapitulatif'].map((label, i) => (
+                      <span key={label} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
+                    ))}
                   </div>
-                  {errors.email && <p className="mt-1 text-xs text-rose-600">{errors.email.message}</p>}
-                </Field>
+                </div>
 
-                <Field label={t('login.register.organization')}>
-                  <div className="relative">
-                    <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    <Input className="pl-10" placeholder={t('login.register.organization.placeholder')} {...register('organization')} />
+                {step === 0 && (
+                  <div className="space-y-5 animate-fade-in">
+                    <Field label={t('login.register.name')}>
+                      <div className="relative">
+                        <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input className="pl-10" placeholder={t('login.register.name.placeholder')} {...register('name')} />
+                      </div>
+                      {errors.name && <p className="mt-1 text-xs text-rose-600">{errors.name.message}</p>}
+                    </Field>
+
+                    <Field label={t('login.register.email')}>
+                      <div className="relative">
+                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        <Input className="pl-10" type="email" placeholder={t('login.register.email.placeholder')} {...register('email')} />
+                      </div>
+                      {errors.email && <p className="mt-1 text-xs text-rose-600">{errors.email.message}</p>}
+                    </Field>
                   </div>
-                  {errors.organization && <p className="mt-1 text-xs text-rose-600">{errors.organization.message}</p>}
-                </Field>
+                )}
 
-                <Field label={t('login.register.role')}>
-                  <div className="relative">
-                    <ShieldCheck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <select {...register('role')} className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
-                      <option value="">{t('login.register.role.placeholder')}</option>
-                      {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </select>
+                {step === 1 && (
+                  <div className="space-y-5 animate-fade-in">
+                    <Field label={t('login.register.organization')}>
+                      <div className="relative">
+                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        <Input className="pl-10" placeholder={t('login.register.organization.placeholder')} {...register('organization')} />
+                      </div>
+                      {errors.organization && <p className="mt-1 text-xs text-rose-600">{errors.organization.message}</p>}
+                    </Field>
+
+                    <Field label={t('login.register.role')}>
+                      <div className="relative">
+                        <ShieldCheck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <select {...register('role')} className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                          <option value="">{t('login.register.role.placeholder')}</option>
+                          {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </div>
+                      {errors.role && <p className="mt-1 text-xs text-rose-600">{errors.role.message}</p>}
+                    </Field>
                   </div>
-                  {errors.role && <p className="mt-1 text-xs text-rose-600">{errors.role.message}</p>}
-                </Field>
+                )}
 
-                <Field label={t('login.register.message')}>
-                  <textarea
-                    {...register('message')}
-                    rows={3}
-                    placeholder={t('login.register.message.placeholder')}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
-                  />
-                </Field>
+                {step === 2 && (
+                  <div className="space-y-5 animate-fade-in">
+                    <Field label={t('login.register.message')}>
+                      <textarea
+                        {...register('message')}
+                        rows={3}
+                        placeholder={t('login.register.message.placeholder')}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+                      />
+                    </Field>
 
-                <Button type="submit" disabled={mutation.isPending} loading={mutation.isPending} className="w-full" size="lg">
-                  {mutation.isPending ? t('login.register.submitting') : t('login.register.submit')}
-                </Button>
+                    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+                      <div className="flex justify-between gap-4"><span className="text-slate-500">Nom</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedName || '—'}</span></div>
+                      <div className="flex justify-between gap-4"><span className="text-slate-500">Email</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedEmail || '—'}</span></div>
+                      <div className="flex justify-between gap-4"><span className="text-slate-500">Organisation</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedOrg || '—'}</span></div>
+                      <div className="flex justify-between gap-4"><span className="text-slate-500">Rôle</span><span className="font-medium text-violet-600 dark:text-violet-400">{watchedRole || '—'}</span></div>
+                      {watchedMessage && <div className="flex justify-between gap-4"><span className="text-slate-500">Message</span><span className="max-w-48 truncate text-right font-medium text-slate-900 dark:text-slate-100">{watchedMessage}</span></div>}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-between gap-2">
+                  <div>
+                    {step > 0 && (
+                      <Button type="button" variant="secondary" onClick={() => setStep(step - 1)}>← Précédent</Button>
+                    )}
+                  </div>
+                  <div>
+                    {step < 2 ? (
+                      <Button
+                        type="button"
+                        onClick={async () => {
+                          const fields = step === 0 ? (['name', 'email'] as const) : (['organization', 'role'] as const)
+                          const ok = await trigger(fields)
+                          if (ok) setStep(step + 1)
+                        }}
+                      >
+                        Suivant →
+                      </Button>
+                    ) : (
+                      <Button type="submit" disabled={mutation.isPending} loading={mutation.isPending} className="w-full" size="lg">
+                        {mutation.isPending ? t('login.register.submitting') : t('login.register.submit')}
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </form>
             </>
           )}

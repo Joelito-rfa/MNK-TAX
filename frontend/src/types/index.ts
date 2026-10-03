@@ -248,6 +248,7 @@ export interface Assessment {
   taxBase: number
   grossTax: number
   deduction: number
+  exemption: number
   credit: number
   adjustment: number
   netTax: number
@@ -256,7 +257,32 @@ export interface Assessment {
   ruleVersion: number
   computedBy: string
   createdAt: string
+  status: string
+  origin: string
+  parentId: number | null
+  parentReference: string | null
+  notifiedAt: string | null
+  cancelledAt: string | null
+  observations: string | null
   lines: AssessmentLine[]
+}
+
+export interface AssessmentHistory {
+  id: number
+  username: string
+  action: string
+  oldValue: string | null
+  newValue: string | null
+  commentaire: string | null
+  createdAt: string
+}
+
+export interface AssessmentStats {
+  total: number
+  baseTotal: number
+  netTotal: number
+  byOrigin: { origin: string; count: number }[]
+  byStatus: { status: string; count: number }[]
 }
 
 export interface DebtItem {
@@ -708,10 +734,10 @@ export interface TaxRule {
   activityCode: string
   calculationMethod: CalculationMethod
   rate: number
-  minimum: number
-  maximum: number
-  deduction: number
-  exemption: number
+  minimum: number | null
+  maximum: number | null
+  deduction: number | null
+  exemption: number | null
   legalReference: string
   brackets: string | null
   demo: boolean

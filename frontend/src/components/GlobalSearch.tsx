@@ -74,7 +74,7 @@ const CATEGORIES: Record<string, SearchCategory> = {
 
 /* ── Pages navigables (toujours disponibles) ── */
 const PAGE_RESULTS: SearchResult[] = [
-  { id: 'page-dashboard', title: 'Tableau de bord', subtitle: "Vue d'ensemble de l'activité", route: '/', type: 'page' },
+  { id: 'page-dashboard', title: 'Tableau de bord', subtitle: "Vue d'ensemble de l'activité", route: '/dashboard', type: 'page' },
   { id: 'page-taxpayers', title: 'Contribuables', subtitle: 'Gestion des contribuables', route: '/taxpayers', type: 'page' },
   { id: 'page-declarations', title: 'Déclarations', subtitle: 'Déclarations fiscales', route: '/declarations', type: 'page' },
   { id: 'page-debts', title: 'Créances', subtitle: 'Créances et dettes fiscales', route: '/debts', type: 'page' },

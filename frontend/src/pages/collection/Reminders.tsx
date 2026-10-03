@@ -175,7 +175,7 @@ export default function CollectionReminders() {
             {hasFilters && <div className="mt-4 flex justify-center"><Button variant="secondary" size="sm" onClick={resetFilters}><X className="h-4 w-4" /> {t('collection.reset')}</Button></div>}
           </div>
         ) : (
-          <div className="animate-page-in">
+          <div className="animate-fade-in">
             {isLoading ? <Spinner /> : (
               <>
                 <div className="max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">

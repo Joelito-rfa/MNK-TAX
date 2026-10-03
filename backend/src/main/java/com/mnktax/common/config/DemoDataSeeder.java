@@ -406,7 +406,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 "DECLARATION_READ", "DECLARATION_CREATE", "DECLARATION_UPDATE", "DECLARATION_SUBMIT",
                 "DECLARATION_REVIEW", "DECLARATION_VALIDATE", "DECLARATION_REJECT", "DECLARATION_EXPORT", "DECLARATION_ATTACH",
                 "DEBT_READ", "DEBT_VIEW_HISTORY",
-                "ASSESSMENT_READ", "RULE_READ", "TAXONOMY_READ", "REPORT_READ", "REPORT_TAX",
+                "ASSESSMENT_READ", "ASSESSMENT_WRITE", "RULE_READ", "TAXONOMY_READ", "REPORT_READ", "REPORT_TAX",
                 "PAYMENT_READ", "PAYMENT_VIEW_HISTORY",
                 "RECEIPT_READ", "RECEIPT_VIEW_HISTORY",
                 "COLLECTION_READ", "NOTIFICATION_READ",
@@ -547,23 +547,34 @@ public class DemoDataSeeder implements ApplicationRunner {
         LocalDate past = LocalDate.of(2024, 1, 1);
         createRule("R-TVA-20", "TVA taux unique", "TVA", "PERCENTAGE_OF_BASE",
                 new BigDecimal("20"), "Règle de calcul de référence",
-                "COMPANY", "REG-REEL", past, null);
+                "COMPANY", "REG-REEL", past, null, null);
+        createRule("R-TVA-20-GEN", "TVA taux unique (tous régimes)", "TVA", "PERCENTAGE_OF_BASE",
+                new BigDecimal("20"), "Repli générique : aucun régime réel configuré",
+                null, null, past, null, null);
         createRule("R-IS-25", "IS taux", "IS", "PERCENTAGE_OF_BASE",
                 new BigDecimal("25"), "Règle de calcul de référence",
-                "COMPANY", "REG-REEL", past, null);
+                "COMPANY", "REG-REEL", past, null, null);
+        createRule("R-IS-25-GEN", "IS taux (tous régimes)", "IS", "PERCENTAGE_OF_BASE",
+                new BigDecimal("25"), "Repli générique : aucun régime réel configuré",
+                null, null, past, null, null);
         createRule("R-IRSA-15", "IRSA taux", "IRSA", "PERCENTAGE_OF_BASE",
                 new BigDecimal("15"), "Règle de calcul de référence",
-                "PERSON", null, past, null);
-        createRule("R-IR-20", "IR taux", "IR", "PROGRESSIVE",
-                new BigDecimal("20"), "Règle de calcul de référence",
-                null, null, past, null);
+                "PERSON", null, past, null, null);
+        createRule("R-IR-20", "IR taux progressif", "IR", "PROGRESSIVE",
+                new BigDecimal("20"), "Barème progressif de référence (seuils marginaux)",
+                null, null, past, null, PROGRESSIVE_BRACKETS);
         createRule("R-IFT-2", "IFT taux", "IFT", "PERCENTAGE_OF_BASE",
                 new BigDecimal("2"), "Règle de calcul de référence",
-                null, null, past, null);
+                null, null, past, null, null);
     }
 
+    /** Seuils marginaux : chaque taux s'applique à la portion comprise entre le seuil précédent et le sien. */
+    private static final String PROGRESSIVE_BRACKETS = """
+            [{"upTo":50000000,"rate":0},{"upTo":100000000,"rate":10},{"upTo":null,"rate":20}]""";
+
     private void createRule(String code, String name, String taxTypeCode, String method, BigDecimal rate,
-                            String legalRef, String taxpayerType, String regimeCode, LocalDate from, LocalDate to) {
+                            String legalRef, String taxpayerType, String regimeCode, LocalDate from, LocalDate to,
+                            String brackets) {
         if (ruleRepository.existsByCode(code)) {
             return;
         }
@@ -575,6 +586,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 .calculationMethod(CalculationMethod.valueOf(method))
                 .rate(rate).effectiveFrom(from).effectiveTo(to)
                 .active(true).demo(true)
+                .brackets(brackets)
                 .legalReference(legalRef)
                 .createdAt(Instant.now()).createdBy("seed")
                 .build();

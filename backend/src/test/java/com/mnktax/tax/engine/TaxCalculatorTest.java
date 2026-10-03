@@ -15,6 +15,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TaxCalculatorTest {
 
+    /** Seuils marginaux : 0 % jusqu'à 50 M, 10 % de 50 à 100 M, 20 % au-delà. */
+    private static final String PROGRESSIVE_BRACKETS =
+            "[{\"upTo\":50000000,\"rate\":0},{\"upTo\":100000000,\"rate\":10},{\"upTo\":null,\"rate\":20}]";
+
     private TaxCalculator calculator;
 
     @BeforeEach
@@ -108,5 +112,71 @@ class TaxCalculatorTest {
     void negativeBaseRejected() {
         TaxRule rule = rule(CalculationMethod.PERCENTAGE_OF_BASE, new BigDecimal("20"), null, null, null, null);
         assertThrows(BusinessException.class, () -> calculator.calculate(context(new BigDecimal("-1")), rule, 1));
+    }
+
+    @Test
+    @DisplayName("Plafond nul : ignoré, l'impôt n'est pas ramené à 0")
+    void zeroCeilingIsIgnored() {
+        // Régression : une règle saisie avec maximum = 0 taxait toutes les assiettes à 0.
+        TaxRule rule = rule(CalculationMethod.PERCENTAGE_OF_BASE, new BigDecimal("20"),
+                null, BigDecimal.ZERO, null, null);
+        CalculationResult result = calculator.calculate(context(new BigDecimal("1000000")), rule, 1);
+        assertEquals(new BigDecimal("200000.00"), result.grossTax());
+        assertEquals(new BigDecimal("200000.00"), result.netTax());
+    }
+
+    @Test
+    @DisplayName("Progressif à seuils marginaux : 60 M franchit 50 M à 10 % → 1 M")
+    void progressiveMarginalThresholds() {
+        TaxRule rule = progressiveRule(new BigDecimal("20"));
+        CalculationResult result = calculator.calculate(context(new BigDecimal("60000000")), rule, 1);
+        assertEquals(new BigDecimal("1000000.00"), result.grossTax());
+    }
+
+    @Test
+    @DisplayName("Progressif : assiette sous le premier seuil → impôt nul")
+    void progressiveBelowFirstThreshold() {
+        TaxRule rule = progressiveRule(new BigDecimal("20"));
+        CalculationResult result = calculator.calculate(context(new BigDecimal("40000000")), rule, 1);
+        assertEquals(new BigDecimal("0.00"), result.grossTax());
+    }
+
+    @Test
+    @DisplayName("Progressif : assiette au-delà du dernier seuil → 0 % + 10 % + 20 %")
+    void progressiveAboveAllThresholds() {
+        // 0 à 50 M à 0 %, 50 à 100 M à 10 % (5 M), 100 à 120 M à 20 % (4 M)
+        TaxRule rule = progressiveRule(new BigDecimal("20"));
+        CalculationResult result = calculator.calculate(context(new BigDecimal("120000000")), rule, 1);
+        assertEquals(new BigDecimal("9000000.00"), result.grossTax());
+    }
+
+    @Test
+    @DisplayName("Progressif sans tranches définies → repli sur le taux de la règle")
+    void progressiveWithoutBracketsFallsBackToRate() {
+        TaxRule rule = rule(CalculationMethod.PROGRESSIVE, new BigDecimal("20"), null, null, null, null);
+        CalculationResult result = calculator.calculate(context(new BigDecimal("1000000")), rule, 1);
+        assertEquals(new BigDecimal("200000.00"), result.grossTax());
+    }
+
+    @Test
+    @DisplayName("Progressif : JSON de tranches invalide → rejet explicite")
+    void progressiveInvalidJsonRejected() {
+        TaxRule rule = TaxRule.builder()
+                .calculationMethod(CalculationMethod.PROGRESSIVE)
+                .rate(new BigDecimal("20"))
+                .brackets("[{\"upTo\":")
+                .build();
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> calculator.calculate(context(new BigDecimal("1000000")), rule, 1));
+        assertEquals("INVALID_BRACKETS", ex.getCode());
+    }
+
+    private TaxRule progressiveRule(BigDecimal rate) {
+        return TaxRule.builder()
+                .code("R-TEST-PROGRESSIVE")
+                .calculationMethod(CalculationMethod.PROGRESSIVE)
+                .rate(rate)
+                .brackets(PROGRESSIVE_BRACKETS)
+                .build();
     }
 }

@@ -714,9 +714,10 @@ function PermissionsPanel({ user, roles, onClose }: { user: UserType; roles: Rol
   )
 }
 
-/* -- Create User Modal -- */
+/* -- Create User Modal : wizard 3 étapes -- */
 function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => void }) {
   const [form, setForm] = useState({ username: '', firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '', roleCode: '' })
+  const [step, setStep] = useState(0)
   const queryClient = useQueryClient()
   const toast = useToast()
 
@@ -730,42 +731,121 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
+  const emailValid = !form.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)
+  const step0Valid = form.username.trim().length >= 3 && !!form.roleCode
+  const step1Valid = form.password.length >= 6 && form.confirmPassword === form.password && emailValid
+  const canSubmit = step0Valid && step1Valid
+  const roleName = roles.find((r) => r.code === form.roleCode)?.name ?? form.roleCode ?? '—'
+
+  function close() { setStep(0); onClose() }
+  function next() {
+    if (step === 0 && step0Valid) setStep(1)
+    else if (step === 1 && step1Valid) setStep(2)
+  }
+  function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (step < 2) { next(); return }
+    if (canSubmit) create.mutate()
+  }
+
+  const subtitles = ['Compte et rôle', 'Identité et sécurité', 'Vérification et validation']
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-2 backdrop-blur-sm sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-2 backdrop-blur-sm sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="relative w-full max-w-6xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Nouvel utilisateur</h3>
-            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Creez un nouveau compte utilisateur</p>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Étape {step + 1}/3 — Nouvel utilisateur</h3>
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitles[step]}</p>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700"><X className="h-5 w-5" /></button>
+          <button onClick={close} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700"><X className="h-5 w-5" /></button>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); create.mutate() }} className="px-6 py-5 space-y-5">
+        <form onSubmit={submit} className="px-6 py-5 space-y-5" noValidate>
           {create.isError && (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{apiErrorMessage(create.error)}</div>
           )}
-          <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Identifiant" value={form.username} onChange={(v) => setForm({ ...form, username: v })} placeholder="ex: agent.nouveau" />
-            <FieldSelect label="Role" value={form.roleCode} onChange={(v) => setForm({ ...form, roleCode: v })}
-              options={[{ value: '', label: 'Selectionner...' }, ...roles.map((r) => ({ value: r.code, label: r.name }))]} />
+          <div>
+            <div className="flex items-center gap-2">
+              {[0, 1, 2].map((s) => (
+                <div key={s} className={`h-1.5 flex-1 rounded-full transition ${s <= step ? 'bg-brand-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
+              ))}
+            </div>
+            <div className="mt-1.5 flex justify-between text-[11px] font-medium uppercase tracking-wide">
+              {['Compte', 'Sécurité', 'Récapitulatif'].map((label, i) => (
+                <span key={label} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Prenom" value={form.firstName} onChange={(v) => setForm({ ...form, firstName: v })} />
-            <FieldInput label="Nom" value={form.lastName} onChange={(v) => setForm({ ...form, lastName: v })} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-            <FieldInput label="Telephone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Mot de passe" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
-            <FieldInput label="Confirmer" type="password" value={form.confirmPassword} onChange={(v) => setForm({ ...form, confirmPassword: v })} />
-          </div>
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
-            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
-            <Button type="submit" disabled={create.isPending || !form.username || !form.password || !form.roleCode} loading={create.isPending}>
-              <Plus className="h-4 w-4" /> Creer l'utilisateur
-            </Button>
+
+          {step === 0 && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput label="Identifiant *" value={form.username} onChange={(v) => setForm({ ...form, username: v })} placeholder="ex: agent.nouveau" />
+                <FieldSelect label="Role *" value={form.roleCode} onChange={(v) => setForm({ ...form, roleCode: v })}
+                  options={[{ value: '', label: 'Selectionner...' }, ...roles.map((r) => ({ value: r.code, label: r.name }))]} />
+              </div>
+              {!step0Valid && (
+                <p className="text-xs text-slate-400">Identifiant (min 3 caractères) et rôle requis pour continuer.</p>
+              )}
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput label="Prenom" value={form.firstName} onChange={(v) => setForm({ ...form, firstName: v })} />
+                <FieldInput label="Nom" value={form.lastName} onChange={(v) => setForm({ ...form, lastName: v })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+                <FieldInput label="Telephone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+              </div>
+              {!emailValid && <p className="text-xs text-rose-600">Format d'email invalide.</p>}
+              <div className="grid grid-cols-2 gap-4">
+                <FieldInput label="Mot de passe *" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+                <FieldInput label="Confirmer *" type="password" value={form.confirmPassword} onChange={(v) => setForm({ ...form, confirmPassword: v })} />
+              </div>
+              {form.password && form.password.length < 6 && (
+                <p className="text-xs text-rose-600">Le mot de passe doit contenir au moins 6 caractères.</p>
+              )}
+              {form.confirmPassword && form.confirmPassword !== form.password && (
+                <p className="text-xs text-rose-600">Les mots de passe ne correspondent pas.</p>
+              )}
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-4 animate-fade-in">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+                <div className="flex justify-between gap-4"><span className="text-slate-500">Identifiant</span><span className="font-mono font-medium text-slate-900 dark:text-slate-100">{form.username || '—'}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">Nom complet</span><span className="font-medium text-slate-900 dark:text-slate-100">{`${form.firstName} ${form.lastName}`.trim() || '—'}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">Email</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.email || '—'}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">Téléphone</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.phone || '—'}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">Rôle</span><span className="font-medium text-violet-600 dark:text-violet-400">{roleName}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">Mot de passe</span><span className="font-medium text-slate-900 dark:text-slate-100">••••••</span></div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
+            <div>
+              {step > 0 && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="secondary" onClick={close}>Annuler</Button>
+              {step < 2 ? (
+                <Button type="submit" disabled={(step === 0 && !step0Valid) || (step === 1 && !step1Valid)}>
+                  Suivant →
+                </Button>
+              ) : (
+                <Button type="submit" disabled={create.isPending || !canSubmit} loading={create.isPending}>
+                  <Plus className="h-4 w-4" /> Creer l'utilisateur
+                </Button>
+              )}
+            </div>
           </div>
         </form>
       </div>

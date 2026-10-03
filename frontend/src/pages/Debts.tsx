@@ -27,7 +27,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { apiErrorMessage } from '../lib/api'
-import { fetchDebts, useDebtStats, useDebts, useTaxpayerSearch, useTaxTypesRef } from '../features/debt/api/queries'
+import { fetchDebts, useDebts, useDebtStats, useTaxpayersRef, useTaxTypesRef } from '../features/debt/api/queries'
 import { useCloseDebt, useCreateDebt, useMarkOverdue, useResumeDebt, useSuspendDebt } from '../features/debt/api/mutations'
 import { fmtMGA } from '../lib/format'
 import { downloadCsv } from '../lib/csv'
@@ -150,8 +150,6 @@ export default function Debts() {
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
   const [createOpen, setCreateOpen] = useState(false)
   const [createStep, setCreateStep] = useState(0)
-  const [taxpayerSearch, setTaxpayerSearch] = useState('')
-  const [selectedTaxpayer, setSelectedTaxpayer] = useState<TaxpayerSummary | null>(null)
   const toast = useToast()
 
   const {
@@ -171,6 +169,7 @@ export default function Debts() {
   const watchedTaxType = watch('taxTypeCode')
   const watchedPeriod = watch('period')
   const watchedObs = watch('observations')
+  const watchedTaxpayerId = watch('taxpayerId')
 
   /* ── Query params ── */
   const params = new URLSearchParams({ page: String(page), size: String(size) })
@@ -185,7 +184,7 @@ export default function Debts() {
   const { data, isLoading } = useDebts(params.toString())
   const { data: stats } = useDebtStats()
   const { data: taxTypes } = useTaxTypesRef()
-  const { data: taxpayerResults } = useTaxpayerSearch(taxpayerSearch)
+  const { data: taxpayers, isLoading: taxpayersLoading, isError: taxpayersError } = useTaxpayersRef(createOpen)
 
   /* ── Mutations ── */
   const createMutation = useCreateDebt()
@@ -225,6 +224,17 @@ export default function Debts() {
     }
     return counts
   }, [stats])
+
+  /* ── NIF triés par NIF croissant (format "NIF — Nom") ── */
+  const sortedTaxpayers: TaxpayerSummary[] = useMemo(() => {
+    const list = taxpayers?.content ?? []
+    return [...list].sort((a, b) => (a.nif ?? '').localeCompare(b.nif ?? '', 'fr'))
+  }, [taxpayers])
+
+  const selectedTaxpayer: TaxpayerSummary | null = useMemo(() => {
+    if (!watchedTaxpayerId) return null
+    return sortedTaxpayers.find((t) => String(t.id) === String(watchedTaxpayerId)) ?? null
+  }, [sortedTaxpayers, watchedTaxpayerId])
 
   /* ── Handlers ── */
   function resetFilters() {
@@ -291,7 +301,7 @@ export default function Debts() {
               <AlertTriangle className="h-4 w-4" /> Détecter les impayés
             </Button>
             <Button
-              onClick={() => { reset(); setSelectedTaxpayer(null); setTaxpayerSearch(''); setCreateStep(0); setCreateOpen(true) }}
+              onClick={() => { reset(); setCreateStep(0); setCreateOpen(true) }}
               className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 transition-all duration-200"
             >
               <Plus className="h-4 w-4" /> Ajouter une créance
@@ -804,7 +814,7 @@ export default function Debts() {
       {/* ── Create Modal : wizard 3 étapes ── */}
       <Modal
         open={createOpen}
-        onClose={() => { setCreateOpen(false); setCreateStep(0); setTaxpayerSearch(''); setSelectedTaxpayer(null) }}
+        onClose={() => { setCreateOpen(false); setCreateStep(0); reset() }}
         title={`Étape ${createStep + 1}/3 — Ajouter une créance`}
         subtitle={createStep === 0 ? 'Sélection du contribuable' : createStep === 1 ? 'Détails fiscaux et montant' : 'Vérification et validation'}
         size="full"
@@ -816,8 +826,6 @@ export default function Debts() {
                 setCreateOpen(false)
                 setCreateStep(0)
                 reset()
-                setTaxpayerSearch('')
-                setSelectedTaxpayer(null)
               },
             }),
           )}
@@ -842,37 +850,26 @@ export default function Debts() {
 
           {createStep === 0 && (
             <div className="space-y-4 animate-fade-in">
-              <Field label="Contribuable (NIF ou nom)">
-                <input
-                  type="text"
-                  placeholder="Rechercher par NIF ou nom... (min 2 caractères)"
-                  value={taxpayerSearch}
-                  onChange={(e) => setTaxpayerSearch(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-                />
-                {taxpayerResults && taxpayerResults.content.length > 0 && !selectedTaxpayer && (
-                  <div className="mt-1 max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
-                    {taxpayerResults.content.map((t) => (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => {
-                          setValue('taxpayerId', String(t.id), { shouldValidate: true })
-                          setSelectedTaxpayer(t)
-                          setTaxpayerSearch(`${t.nif} — ${t.name}`)
-                        }}
-                        className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700"
-                      >
-                        <CreditCard className="h-4 w-4 shrink-0 text-slate-400" />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{t.name}</p>
-                          <p className="font-mono text-xs text-violet-600 dark:text-violet-400">{t.nif}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+              <Field label="NIF du contribuable *">
+                <Select
+                  {...register('taxpayerId')}
+                  disabled={taxpayersLoading}
+                >
+                  <option value="">
+                    {taxpayersLoading ? 'Chargement des NIF…' : '— Sélectionner un NIF —'}
+                  </option>
+                  {sortedTaxpayers.map((t) => (
+                    <option key={t.id} value={String(t.id)}>
+                      {t.nif} — {t.name}
+                    </option>
+                  ))}
+                </Select>
+                {taxpayersError && (
+                  <p className="mt-1 text-xs text-rose-600">Impossible de charger la liste des NIF.</p>
                 )}
-                <input type="hidden" {...register('taxpayerId')} />
+                {!taxpayersLoading && sortedTaxpayers.length === 0 && !taxpayersError && (
+                  <p className="mt-1 text-xs text-slate-500">Aucun contribuable disponible.</p>
+                )}
                 {errors.taxpayerId && <p className="mt-1 text-xs text-rose-600">{errors.taxpayerId.message}</p>}
               </Field>
               {selectedTaxpayer && (
@@ -886,7 +883,7 @@ export default function Debts() {
                       <p className="font-mono text-xs text-violet-600 dark:text-violet-400">NIF : {selectedTaxpayer.nif}</p>
                     </div>
                   </div>
-                  <button type="button" onClick={() => { setSelectedTaxpayer(null); setValue('taxpayerId', ''); setTaxpayerSearch('') }} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600">
+                  <button type="button" onClick={() => setValue('taxpayerId', '', { shouldValidate: true })} className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-rose-600">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
@@ -936,7 +933,7 @@ export default function Debts() {
             <div className="space-y-4 animate-fade-in">
               <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
               <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
-                <div className="flex justify-between"><span className="text-slate-500">Contribuable</span><span className="font-medium text-slate-900 dark:text-slate-100">{selectedTaxpayer ? `${selectedTaxpayer.name} (${selectedTaxpayer.nif})` : taxpayerSearch || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Contribuable</span><span className="font-medium text-slate-900 dark:text-slate-100">{selectedTaxpayer ? `${selectedTaxpayer.nif} — ${selectedTaxpayer.name}` : '—'}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Impôt</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedTaxType || '—'}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Période</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedPeriod || '—'}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Montant</span><strong className="text-violet-600 dark:text-violet-400">{watchedPrincipal ? fmtMGA(Number(watchedPrincipal)) : '—'}</strong></div>
@@ -953,7 +950,7 @@ export default function Debts() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" type="button" onClick={() => { setCreateOpen(false); setCreateStep(0); setTaxpayerSearch(''); setSelectedTaxpayer(null) }}>
+              <Button variant="ghost" size="sm" type="button" onClick={() => { setCreateOpen(false); setCreateStep(0); reset() }}>
                 Annuler
               </Button>
               {createStep < 2 ? (
@@ -961,6 +958,7 @@ export default function Debts() {
                   type="button"
                   size="sm"
                   className="bg-brand-600 text-white"
+                  disabled={createStep === 0 && !watchedTaxpayerId}
                   onClick={async () => {
                     if (createStep === 0) {
                       const ok = await trigger('taxpayerId')

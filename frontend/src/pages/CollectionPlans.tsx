@@ -62,11 +62,11 @@ const INSTALLMENT_STATUS_KEYS: Record<InstallmentStatus, string> = {
 }
 
 const INSTALLMENT_STATUS_STYLE: Record<InstallmentStatus, { badge: string; dot: string }> = {
-  PENDING: { badge: 'border-blue-500/25 bg-blue-500/15 text-blue-400', dot: 'bg-blue-400' },
-  PARTIALLY_PAID: { badge: 'border-indigo-500/25 bg-indigo-500/15 text-indigo-400', dot: 'bg-indigo-400' },
-  PAID: { badge: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-400', dot: 'bg-emerald-400' },
-  OVERDUE: { badge: 'border-rose-500/25 bg-rose-500/15 text-rose-400', dot: 'bg-rose-400' },
-  CANCELLED: { badge: 'border-slate-500/20 bg-slate-500/10 text-slate-500', dot: 'bg-slate-500' },
+  PENDING: { badge: 'border-blue-500/25 bg-blue-500/15 text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
+  PARTIALLY_PAID: { badge: 'border-indigo-500/25 bg-indigo-500/15 text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-500' },
+  PAID: { badge: 'border-emerald-500/25 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' },
+  OVERDUE: { badge: 'border-rose-500/25 bg-rose-500/15 text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' },
+  CANCELLED: { badge: 'border-slate-500/20 bg-slate-500/10 text-slate-600 dark:text-slate-400', dot: 'bg-slate-500' },
 }
 
 function PlanBadge({ status }: { status: PaymentPlanStatus }) {

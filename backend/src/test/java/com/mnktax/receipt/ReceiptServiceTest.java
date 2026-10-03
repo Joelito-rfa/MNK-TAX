@@ -108,24 +108,17 @@ class ReceiptServiceTest {
 
     @BeforeEach
     void setUp() {
-        if (taxpayerRepository.count() > 0) {
-            // Récupérer la première dette existante
-            debt = debtRepository.findAll().stream()
-                    .filter(d -> d.getStatus() == DebtStatus.ISSUED || d.getStatus() == DebtStatus.PARTIALLY_PAID)
-                    .findFirst()
-                    .orElse(null);
-            company = taxpayerRepository.findAll().stream().findFirst().orElse(null);
-            return;
-        }
-
+        // Le seed de démonstration remplit la base au démarrage : on crée toujours
+        // nos propres fixtures (codes dédiés) au lieu de supposer une base vide.
         TaxCenter center = centerRepository.save(TaxCenter.builder()
                 .code("CEN-TEST-REC").name("Centre test quittances").address("Test (fictif)")
                 .createdAt(Instant.now()).build());
         TaxRegime regime = regimeRepository.save(TaxRegime.builder()
                 .code("REG-TEST-REC").name("Régime test quittances").category("REEL")
                 .vatApplicable(true).build());
-        TaxType tva = taxTypeRepository.save(TaxType.builder()
-                .code("TVA").name("TVA - DÉMO").category("DEMO").active(true).build());
+        TaxType tva = taxTypeRepository.findByCode("TVA")
+                .orElseGet(() -> taxTypeRepository.save(TaxType.builder()
+                        .code("TVA").name("TVA - DÉMO").category("DEMO").active(true).build()));
         TaxRule rule = ruleRepository.save(TaxRule.builder()
                 .code("R-TVA-TEST-REC").name("TVA test 20%")
                 .taxType(tva)
@@ -142,10 +135,11 @@ class ReceiptServiceTest {
                 .build());
         versionRepository.save(TaxRuleVersion.builder().rule(rule).versionNumber(1)
                 .snapshot("{}").reason("création test").createdAt(Instant.now()).build());
-        deadlineRepository.save(Deadline.builder().taxType(tva).period("2026-01")
+        deadlineRepository.findByTaxTypeIdAndPeriod(tva.getId(), "2026-01").orElseGet(() ->
+                deadlineRepository.save(Deadline.builder().taxType(tva).period("2026-01")
                 .declarationDeadline(LocalDate.of(2026, 1, 20))
                 .paymentDeadline(LocalDate.of(2026, 1, 25))
-                .createdAt(Instant.now()).build());
+                .createdAt(Instant.now()).build()));
 
         penaltyRepository.save(Penalty.builder().code("PEN_TEST_REC").name("Pénalité test 5%")
                 .rate(new BigDecimal("5")).build());
@@ -153,7 +147,7 @@ class ReceiptServiceTest {
                 .rate(new BigDecimal("1")).periodicity("MONTHLY").build());
 
         Taxpayer tp = Taxpayer.builder()
-                .nif("0000409001").type(TaxpayerType.COMPANY).name("Société Test Quittances")
+                .nif("0000409888").type(TaxpayerType.COMPANY).name("Société Test Quittances")
                 .email("test.rec@demo.mg").phone("0320000000").address("Adresse fictive")
                 .taxCenter(center).taxRegime(regime)
                 .status(TaxpayerStatus.ACTIVE)

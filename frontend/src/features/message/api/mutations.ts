@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiErrorCode, apiErrorMessageI18n, apiGetBlob, apiPost } from '../../../lib/api'
+import { apiErrorCode, apiErrorMessageI18n, apiGetBlob, apiPost, apiUpload } from '../../../lib/api'
 import { useToast } from '../../../components/Toast'
 import { useI18n } from '../../../lib/i18n'
-import type { Message, SendMessageRequest } from '../../../types'
+import type { Message, MessageAttachment, SendMessageRequest } from '../../../types'
 import { messageKeys } from './keys'
 
 /** Rafraîchit la messagerie : dossiers, compteurs de non-lus et statistiques. */
@@ -89,6 +89,22 @@ export function useCloseMessage() {
 
 export function useReopenMessage() {
   return useMailboxAction((id) => `/messages/${id}/reopen`, 'messages.reopened')
+}
+
+/** Joindre un fichier à un message existant (multipart « file »). */
+export function useUploadMessageAttachment() {
+  const toast = useToast()
+  const { t } = useI18n()
+  const invalidate = useMailboxInvalidation()
+  return useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) =>
+      apiUpload<MessageAttachment>(`/messages/${id}/attachments`, file),
+    onSuccess: () => {
+      invalidate()
+      toast.success(t('messages.attachmentAdded'))
+    },
+    onError: (err) => toast.error(apiErrorMessageI18n(err, t)),
+  })
 }
 
 /** Télécharge une pièce jointe (l'endpoint exige le jeton d'authentification). */

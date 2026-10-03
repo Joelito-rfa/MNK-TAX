@@ -45,6 +45,23 @@ public final class ReportDtos {
             List<Map<String, Object>> declarationsByMonth,
             List<Map<String, Object>> receiptsByMonth
     ) {
+        /** Résumé neutre, utilisé quand l'utilisateur n'a pas le droit de voir les agrégats globaux. */
+        public static DashboardSummary empty() {
+            return new DashboardSummary(
+                    0L, 0L, 0L, 0L, 0L, 0L,
+                    BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                    0d,
+                    List.of(), List.of(), List.of(), List.of(), List.of(),
+                    0L, 0L, 0L,
+                    List.of(), List.of(),
+                    BigDecimal.ZERO,
+                    0L, 0L, 0L,
+                    List.of(), List.of(),
+                    0L,
+                    BigDecimal.ZERO,
+                    0L,
+                    List.of(), List.of(), List.of());
+        }
     }
 
     public record CollectionReportRow(
