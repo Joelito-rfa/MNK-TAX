@@ -3,6 +3,8 @@ services:
     name: mnk-tax-api
     runtime: docker
     rootDir: backend
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
     plan: free
     healthCheckPath: /actuator/health
     envVars:
@@ -20,6 +22,44 @@ services:
         value: "true"
       - key: SERVER_PORT
         value: "10000"
+      # Planificateur
+      - key: COMM_SCHEDULER_CRON
+        value: "0 15 7 * * *"
+      - key: OVERDUE_SCHEDULER_CRON
+        value: "0 30 6 * * *"
+      - key: DEADLINE_SCHEDULER_CRON
+        value: "0 0 7 * * *"
+      - key: SCHEDULER_TIMEZONE
+        value: "Indian/Antananarivo"
+      - key: SCHEDULER_POOL_SIZE
+        value: "4"
+      - key: COMM_QUEUE_POLL_DELAY_MS
+        value: "20000"
+      - key: COMM_DEMO_PROVIDER
+        value: "true"
+      # Fournisseurs de communication
+      - key: SMS_PROVIDER
+        value: "none"
+      - key: SMS_ACCOUNT_SID
+        sync: false
+      - key: SMS_AUTH_TOKEN
+        sync: false
+      - key: SMS_FROM_NUMBER
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        value: "no-reply@mnk-tax.mg"
+      - key: MAIL_FROM_NAME
+        value: "MNK-TAX — Administration fiscale"
+      - key: MAIL_BASE_URL
+        value: "https://mnk-tax-frontend.onrender.com"
       - key: JAVA_OPTS
         value: "-Xms256m -Xmx384m -XX:+UseG1GC -XX:+UseStringDeduplication"
 
