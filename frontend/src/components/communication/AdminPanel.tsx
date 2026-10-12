@@ -329,6 +329,10 @@ function EventRulesCard() {
     onError: (err) => toast.error(apiErrorMessageI18n(err, t)),
   })
 
+  function setDayOffset(rule: CommEventRule, value: number | null) {
+    update.mutate({ id: rule.id, body: { dayOffset: value } })
+  }
+
   function toggleChannel(rule: CommEventRule, ch: string) {
     const current = rule.channels.split(',').filter(Boolean)
     const next = current.includes(ch) ? current.filter((c) => c !== ch) : [...current, ch]
@@ -362,7 +366,22 @@ function EventRulesCard() {
                 <tr key={rule.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <Td className="font-mono text-xs">{rule.eventType}</Td>
                   <Td className="font-mono text-xs text-slate-500">{rule.templateCode}</Td>
-                  <Td className="text-sm">{rule.dayOffset ?? '—'}</Td>
+                  <Td className="text-sm">
+                    <div className="inline-flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="-365"
+                        max="0"
+                        value={rule.dayOffset ?? ''}
+                        onChange={(e) => setDayOffset(rule, e.target.value === '' ? null : Number(e.target.value))}
+                        className="w-16 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs text-right tabular-nums focus:border-brand-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+                        title={t('comm.admin.rules.dayOffset')}
+                      />
+                      {rule.dayOffset != null && (
+                        <span className="text-xs text-slate-400 dark:text-slate-500">J{rule.dayOffset}</span>
+                      )}
+                    </div>
+                  </Td>
                   <Td>
                     <div className="flex gap-1">
                       {RULE_CHANNELS.map((ch) => {

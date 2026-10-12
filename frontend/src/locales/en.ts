@@ -24,6 +24,8 @@ export const en: Record<string, string> = {
   'login.remember': 'Remember me',
   'login.password': 'Password',
   'login.password.placeholder': '••••••••',
+  'login.showPassword.show': 'Show password',
+  'login.showPassword.hide': 'Hide password',
   'login.submit': 'Sign in',
   'login.submitting': 'Signing in…',
   'login.username.required': 'Username is required.',
@@ -251,6 +253,7 @@ export const en: Record<string, string> = {
   'error.notFound': 'Page not found',
   'error.notFound.text': 'The page you are looking for does not exist or has been moved.',
   'error.backHome': 'Back to home',
+  'error.backToApp': 'Back to the app',
   'error.unauthorized': 'Unauthorized access',
   'error.server': 'Server error',
 

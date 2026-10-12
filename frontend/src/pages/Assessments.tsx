@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Calculator, Download, Eye, FileText, Receipt, Scale, Wallet } from 'lucide-react'
 import { fmtDate, fmtMGA, fmtNumber } from '../lib/format'
+import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { apiGetBlob } from '../lib/api'
 import type { Assessment } from '../types'
@@ -40,6 +41,8 @@ const STATUSES = ['', 'EMISED', 'NOTIFIEE', 'ANNULEE']
 
 export default function Assessments() {
   const { locale } = useI18n()
+  const { can } = useAuth()
+  const canWrite = can('ASSESSMENT_WRITE')
   const [params, setParams] = useSearchParams()
   const taxpayerId = params.get('taxpayerId') ?? ''
   const [page, setPage] = useState(0)
@@ -103,7 +106,7 @@ export default function Assessments() {
             <Button variant="secondary" onClick={exportCsv}>
               <Download className="h-4 w-4" /> CSV
             </Button>
-            <Button onClick={() => setShowOffice(true)}>Taxation d'office</Button>
+            {canWrite && <Button onClick={() => setShowOffice(true)}>Taxation d'office</Button>}
           </div>
         }
       />
@@ -256,6 +259,8 @@ export default function Assessments() {
 
 export function AssessmentDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
   const { locale } = useI18n()
+  const { can } = useAuth()
+  const canWrite = can('ASSESSMENT_WRITE')
   const qc = useQueryClient()
   const { data, isLoading } = useAssessmentDetail(id)
   const { data: history } = useAssessmentHistory(id)
@@ -302,7 +307,7 @@ export function AssessmentDetailModal({ id, onClose }: { id: number; onClose: ()
             >
               <Wallet className="h-3.5 w-3.5" /> Paiements du contribuable
             </Link>
-            {data.status !== 'ANNULEE' && (
+            {data.status !== 'ANNULEE' && canWrite && (
               <>
                 <Button variant="secondary" onClick={() => notifyMut.mutate(undefined, { onSuccess: refresh })}>
                   Notifier

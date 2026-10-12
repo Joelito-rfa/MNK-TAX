@@ -13,11 +13,22 @@ public class CommunicationProperties {
     private final Sms sms = new Sms();
     private final Queue queue = new Queue();
     private final Test test = new Test();
+    private final DemoProvider demoProvider = new DemoProvider();
 
     public Mail getMail() { return mail; }
     public Sms getSms() { return sms; }
     public Queue getQueue() { return queue; }
     public Test getTest() { return test; }
+    public DemoProvider getDemoProvider() { return demoProvider; }
+
+    /**
+     * true lorsque le fournisseur de démonstration (log uniquement) est actif :
+     * les canaux EMAIL/SMS simulés sont alors traités comme configurés, sans
+     * envoi réel — utile pour une démo de bout en bout sans credentials.
+     */
+    public boolean isDemoProviderEnabled() {
+        return demoProvider.isEnabled();
+    }
 
     /** Vérifie la présence effective de MAIL_HOST dans l'environnement. */
     public boolean isMailHostConfigured() {
@@ -82,6 +93,18 @@ public class CommunicationProperties {
         public void setMaxAttempts(int maxAttempts) { this.maxAttempts = maxAttempts; }
         public long getRetryBackoffMinutes() { return retryBackoffMinutes; }
         public void setRetryBackoffMinutes(long retryBackoffMinutes) { this.retryBackoffMinutes = retryBackoffMinutes; }
+    }
+
+    /**
+     * Fournisseur de démonstration : aucune dépendance externe, se contente de
+     * journaliser l'envoi et de le marquer SENT. Activable/désactivable via
+     * COMM_DEMO_PROVIDER.
+     */
+    public static class DemoProvider {
+        private boolean enabled = true;
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
     }
 
     public static class Test {

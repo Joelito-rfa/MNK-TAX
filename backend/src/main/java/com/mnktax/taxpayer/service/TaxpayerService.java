@@ -1,10 +1,13 @@
 package com.mnktax.taxpayer.service;
 
 import com.mnktax.audit.service.AuditService;
+import com.mnktax.auth.repository.UserRepository;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.NifValidator;
 import com.mnktax.common.util.PhoneUtil;
+import com.mnktax.common.util.SecurityUtils;
+import com.mnktax.communication.entity.CommunicationChannel;
 import com.mnktax.debt.entity.DebtStatus;
 import com.mnktax.debt.repository.TaxDebtRepository;
 import com.mnktax.declaration.entity.DeclarationStatus;
@@ -30,11 +33,17 @@ import com.mnktax.taxpayer.entity.TaxpayerType;
 import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 @Service
 public class TaxpayerService {
@@ -46,11 +55,15 @@ public class TaxpayerService {
     private final TaxDebtRepository debtRepository;
     private final DeclarationRepository declarationRepository;
     private final AuditService auditService;
+    private final DataScope dataScope;
+    private final UserRepository userRepository;
+
+    private static final Set<String> SUPPORTED_LANGUAGES = Set.of("FR", "MG", "EN");
 
     public TaxpayerService(TaxpayerRepository taxpayerRepository, TaxCenterRepository taxCenterRepository,
                            TaxRegimeRepository taxRegimeRepository, TaxObligationRepository obligationRepository,
                            TaxDebtRepository debtRepository, DeclarationRepository declarationRepository,
-                           AuditService auditService) {
+                           AuditService auditService, DataScope dataScope, UserRepository userRepository) {
         this.taxpayerRepository = taxpayerRepository;
         this.taxCenterRepository = taxCenterRepository;
         this.taxRegimeRepository = taxRegimeRepository;
@@ -58,14 +71,43 @@ public class TaxpayerService {
         this.debtRepository = debtRepository;
         this.declarationRepository = declarationRepository;
         this.auditService = auditService;
+        this.dataScope = dataScope;
+        this.userRepository = userRepository;
     }
 
     @Transactional(readOnly = true)
     public Page<TaxpayerSummaryDto> search(String q, TaxpayerType type, TaxpayerStatus status, Long taxCenterId,
                                            Long taxRegimeId, String activityCode, String taxTypeCode, Pageable pageable) {
+        if (dataScope.isSelfService()) {
+            // Un contribuable ne voit que son propre dossier : on ignore les filtres globaux.
+            return ownDossierPage(pageable);
+        }
         return taxpayerRepository.search(blankToNull(q), type, status, taxCenterId, taxRegimeId,
                         blankToNull(activityCode), blankToNull(taxTypeCode), pageable)
                 .map(TaxpayerSummaryDto::from);
+    }
+
+    /** Page réduite au dossier rattaché à l'utilisateur courant (rôle TAXPAYER). */
+    @Transactional(readOnly = true)
+    public Page<TaxpayerSummaryDto> ownDossierPage(Pageable pageable) {
+        return ownTaxpayerEntities(pageable).map(TaxpayerSummaryDto::from);
+    }
+
+    private Page<Taxpayer> ownTaxpayerEntities(Pageable pageable) {
+        Long userId = SecurityUtils.currentUserId();
+        if (userId == null) {
+            return Page.empty(pageable);
+        }
+        List<Taxpayer> own = taxpayerRepository.findByUserId(userId)
+                .map(List::of)
+                .orElseGet(List::of);
+        if (own.isEmpty()) {
+            return Page.empty(pageable);
+        }
+        int total = own.size();
+        int from = (int) Math.min(pageable.getOffset(), total);
+        int to = Math.min(from + pageable.getPageSize(), total);
+        return new PageImpl<>(own.subList(from, to), pageable, total);
     }
 
     @Transactional(readOnly = true)
@@ -88,6 +130,7 @@ public class TaxpayerService {
 
     @Transactional(readOnly = true)
     public TaxpayerDetailDto get(Long id) {
+        dataScope.requireOwnership(id);
         Taxpayer taxpayer = find(id);
         long obligations = obligationRepository.countByTaxpayerId(id);
         return TaxpayerDetailDto.from(taxpayer, obligations);
@@ -98,6 +141,7 @@ public class TaxpayerService {
         NifValidator.validate(nif);
         Taxpayer taxpayer = taxpayerRepository.findByNif(nif)
                 .orElseThrow(() -> new ResourceNotFoundException("Contribuable NIF", nif));
+        dataScope.requireOwnership(taxpayer.getId());
         long obligations = obligationRepository.countByTaxpayerId(taxpayer.getId());
         return TaxpayerDetailDto.from(taxpayer, obligations);
     }
@@ -116,12 +160,17 @@ public class TaxpayerService {
      */
     @Transactional(readOnly = true)
     public TaxpayerDtos.TaxpayerContactDto getContact(Long id) {
+        dataScope.requireOwnership(id);
         return TaxpayerDtos.TaxpayerContactDto.from(find(id));
     }
 
     /** Liste des coordonnées pour recherche du composeur (NIF, nom, email, téléphone). */
     @Transactional(readOnly = true)
     public Page<TaxpayerDtos.TaxpayerContactDto> contacts(String q, Pageable pageable) {
+        if (dataScope.isSelfService()) {
+            // Un contribuable n'accède qu'à ses propres coordonnées.
+            return ownTaxpayerEntities(pageable).map(TaxpayerDtos.TaxpayerContactDto::from);
+        }
         return taxpayerRepository.search(blankToNull(q), null, null, null, null, null, null, pageable)
                 .map(TaxpayerDtos.TaxpayerContactDto::from);
     }
@@ -129,6 +178,8 @@ public class TaxpayerService {
     @Transactional
     public TaxpayerDetailDto create(CreateTaxpayerRequest request, HttpServletRequest http) {
         String nif = resolveNif(request.nif());
+        String language = normalizeLanguage(request.language());
+        String channels = normalizeChannels(request.preferredChannels());
         Taxpayer taxpayer = Taxpayer.builder()
                 .nif(nif)
                 .type(request.type())
@@ -146,9 +197,17 @@ public class TaxpayerService {
                 .taxCenter(resolveCenter(request.taxCenterId()))
                 .taxRegime(resolveRegime(request.taxRegimeId()))
                 .status(TaxpayerStatus.ACTIVE)
+                .language(language == null ? "FR" : language)
+                .preferredChannels(channels == null ? "IN_APP" : channels)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
+        // Rattachement au compte utilisateur de même email : sans ce lien, un
+        // contribuable ne verrait aucun dossier (cf. DataScope).
+        if (request.email() != null && !request.email().isBlank()) {
+            userRepository.findByEmail(request.email().trim())
+                    .ifPresent(u -> taxpayer.setUserId(u.getId()));
+        }
         if (request.addresses() != null) {
             for (AddressDto a : request.addresses()) {
                 taxpayer.getAddresses().add(TaxpayerAddress.builder()
@@ -202,6 +261,14 @@ public class TaxpayerService {
         taxpayer.setTaxCenter(resolveCenter(request.taxCenterId()));
         taxpayer.setTaxRegime(resolveRegime(request.taxRegimeId()));
         taxpayer.setStatus(request.status());
+        String language = normalizeLanguage(request.language());
+        if (language != null) {
+            taxpayer.setLanguage(language);
+        }
+        String channels = normalizeChannels(request.preferredChannels());
+        if (channels != null) {
+            taxpayer.setPreferredChannels(channels);
+        }
         taxpayer.setUpdatedAt(Instant.now());
         Taxpayer saved = taxpayerRepository.save(taxpayer);
         auditService.record("UPDATE", "TAXPAYER", String.valueOf(id), old,
@@ -277,5 +344,41 @@ public class TaxpayerService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    /** Valide et normalise la langue préférée (FR | MG | EN). Renvoie null si non renseignée. */
+    private String normalizeLanguage(String language) {
+        if (language == null || language.isBlank()) {
+            return null;
+        }
+        String value = language.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_LANGUAGES.contains(value)) {
+            throw new BusinessException("VALIDATION",
+                    "Langue invalide : " + language + " (FR, MG ou EN attendu).");
+        }
+        return value;
+    }
+
+    /**
+     * Valide et normalise les canaux préférés (sous-ensemble de IN_APP/EMAIL/SMS).
+     * Renvoie null si la valeur n'est pas renseignée (le défaut est conservé).
+     */
+    private String normalizeChannels(String channels) {
+        if (channels == null) {
+            return null;
+        }
+        LinkedHashSet<String> valid = new LinkedHashSet<>();
+        for (String token : Arrays.stream(channels.split(",")).map(String::trim).toList()) {
+            if (token.isEmpty()) {
+                continue;
+            }
+            try {
+                valid.add(CommunicationChannel.valueOf(token.toUpperCase(Locale.ROOT)).name());
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException("VALIDATION",
+                        "Canal de communication invalide : " + token + " (IN_APP, EMAIL ou SMS attendu).");
+            }
+        }
+        return valid.isEmpty() ? null : String.join(",", valid);
     }
 }

@@ -5,6 +5,7 @@ import com.mnktax.communication.entity.CommunicationEventRule;
 import com.mnktax.communication.entity.CommunicationEventType;
 import com.mnktax.communication.entity.MessageTemplate;
 import com.mnktax.message.entity.Message;
+import com.mnktax.message.entity.MessageContextType;
 
 import java.time.Instant;
 import java.util.List;
@@ -36,8 +37,25 @@ public final class CommunicationDtos {
             String emailOverride,
             String senderEmail,
             Boolean updateContact,
-            String externalName
+            String externalName,
+            MessageContextType contextType,   // DEADLINE | PAYMENT | … (anti-doublon exact)
+            String contextRef                 // référence contextuelle unique (ex : deadlineId:offset)
     ) {
+        /**
+         * Sur-ensemble rétro-compatible : les appelants existants (campagnes, tests)
+         * n'ont pas à fournir de contexte.
+         */
+        public ComposeRequest(Long taxpayerId, Long userId, String username, String audience,
+                              String taxTypeCode, List<Long> taxpayerIds, List<String> channels,
+                              String subject, String content, String templateCode, String language,
+                              String priority, String messageType, String scheduledAt,
+                              Boolean requireConfirmation, String emailOverride, String senderEmail,
+                              Boolean updateContact, String externalName) {
+            this(taxpayerId, userId, username, audience, taxTypeCode, taxpayerIds, channels,
+                    subject, content, templateCode, language, priority, messageType, scheduledAt,
+                    requireConfirmation, emailOverride, senderEmail, updateContact, externalName,
+                    null, null);
+        }
     }
 
     public record SenderDto(String email, String name, boolean isDefault) {

@@ -8,6 +8,7 @@ import com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerSummaryDto;
 import com.mnktax.taxpayer.dto.TaxpayerDtos.UpdateTaxpayerRequest;
 import com.mnktax.taxpayer.entity.TaxpayerStatus;
 import com.mnktax.taxpayer.entity.TaxpayerType;
+import com.mnktax.taxpayer.service.DataScope;
 import com.mnktax.taxpayer.service.TaxpayerService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,9 +35,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class TaxpayerController {
 
     private final TaxpayerService taxpayerService;
+    private final DataScope dataScope;
 
-    public TaxpayerController(TaxpayerService taxpayerService) {
+    public TaxpayerController(TaxpayerService taxpayerService, DataScope dataScope) {
         this.taxpayerService = taxpayerService;
+        this.dataScope = dataScope;
     }
 
     @GetMapping
@@ -59,6 +62,7 @@ public class TaxpayerController {
     @PreAuthorize("hasAuthority('" + Permissions.TAXPAYER_READ + "')")
     @Operation(summary = "Statistiques du registre des contribuables")
     public ResponseEntity<TaxpayerStatsDto> stats() {
+        dataScope.assertNotSelfService("registre des contribuables");
         return ResponseEntity.ok(taxpayerService.stats());
     }
 

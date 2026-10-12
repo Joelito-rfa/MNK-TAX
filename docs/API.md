@@ -334,7 +334,7 @@ Motifs : `VAT_CREDIT`, `OVERPAYMENT`, `OTHER`. Statuts : `PENDING`, `UNDER_REVIE
 | POST | `/api/communication/messages/{id}/retry` | `MESSAGE_MANAGE` | Relancer l'envoi |
 | POST | `/api/communication/messages/{id}/cancel` | `MESSAGE_MANAGE` | Annuler |
 | GET | `/api/communication/stats` | `MESSAGE_MANAGE` | Statistiques d'envoi |
-| GET | `/api/communication/providers` | `MESSAGE_MANAGE` | État des fournisseurs (SMTP, SMS) |
+| GET | `/api/communication/providers` | `MESSAGE_MANAGE` | État des fournisseurs (SMTP, SMS, démo) |
 | POST | `/api/communication/test` | `MESSAGE_MANAGE` | Envoi test (destination explicite) |
 | GET | `/api/communication/templates` | `MESSAGE_MANAGE` | Modèles |
 | POST | `/api/communication/templates` | `MESSAGE_MANAGE` | Créer/mettre à jour un modèle |
@@ -342,7 +342,17 @@ Motifs : `VAT_CREDIT`, `OVERPAYMENT`, `OTHER`. Statuts : `PENDING`, `UNDER_REVIE
 | GET | `/api/communication/campaigns/preview` | `MESSAGE_MANAGE` | Aperçu d'audience |
 | POST | `/api/communication/campaigns` | `MESSAGE_MANAGE` | Lancer une campagne |
 | GET | `/api/communication/event-rules` | `MESSAGE_MANAGE` | Règles d'événement |
-| POST | `/api/communication/event-rules/{id}` | `MESSAGE_MANAGE` | Modifier une règle d'événement |
+| POST | `/api/communication/event-rules/{id}` | `MESSAGE_MANAGE` | Modifier une règle d'événement (`dayOffset` éditable) |
+
+**Rappels automatiques d'échéance** (planificateur, non manuels) :
+- Déclencheurs de rappel : `DECLARATION_DUE_SOON` (J-7/J-1/J-0) et `PAYMENT_DUE_SOON` (J-7/J-3/J-1/J-0).
+- Chaque rappel est anti-dupliqué via `contextType=DEADLINE` + `contextRef` inclut la date cible.
+- Les canaux réels empruntés = intersection(triggered rule channels, taxpayer.preferredChannels), fallback `IN_APP`.
+- Le canal SMS n'est émis que si `phoneNormalized` est renseigné,
+  et le corps SMS utilise `templates.smsBodyFor(language)` (tranche à 320).
+- L'état effectif des fournisseurs : `GET /api/communication/providers`.
+- Pour que les rappels SMS/EMAIL en mode démo (sans SMTP/Twilio) marquent `OK`, activez `COMM_DEMO_PROVIDER=true` (défaut).
+- Cron + fuseau : `COMM_SCHEDULER_CRON` (`0 15 7 * * *` par défaut) dans `SCHEDULER_TIMEZONE` (`Indian/Antananarivo`).
 
 ## Assistant IA
 

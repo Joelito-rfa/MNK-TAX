@@ -11,6 +11,10 @@ validé par `spring.jpa.hibernate.ddl-auto=validate`.
 | `V4__create_debt_collection.sql` | Créances + composantes, actions de recouvrement, mises en demeure |
 | `V5__create_payment_receipt.sql` | Paiements, quittances (QR), vérifications |
 | `V6__create_auxiliary.sql` | Notifications, journal d'audit, paramètres système, documents |
+| `V30__seed_templates.sql` | Modèles de messages (déclaration validée, créance, mise en demeure, paiement reçu, échéance) |
+| `V31__..._reminder_rules.sql` | Règles de rappel déclaration (J-3) |
+| `V32__..._overdue_rules.sql` | Règles de relance créance (J0/J3/J7) |
+| `V36__deadline_reminder_rules.sql` | Colonne `messages.sms_content` + template `PAYMENT_DUE_REMINDER` + règles rappel déclaration/paiement (J-7/J-3/J-1/J-0) |
 
 ## Entités principales
 
@@ -36,6 +40,10 @@ debts 1─n collection_actions / collection_notices
 users 1─n notifications
 users 1─n audit_logs
 taxpayers 1─n documents
+taxpayers 1─n messages ──n─1 message_templates
+messages 1─n message_deliveries (IN_APP | EMAIL | SMS)
+
+communication_event_rules ──1─1 message_templates (templateCode)
 ```
 
 ## Règles de gestion implémentées
@@ -51,13 +59,18 @@ taxpayers 1─n documents
 
 ## Rôles et permissions (seed)
 
-Rôles : `SUPER_ADMIN`, `TAX_AGENT`, `COLLECTION_AGENT`, `ACCOUNTANT`, `TAXPAYER`.
-Permissions : `{DOMAINE}_{READ|WRITE|APPROVE|ADMIN}` pour les domaines `TAXPAYER`,
-`DECLARATION`, `ASSESSMENT`, `DEBT`, `PAYMENT`, `RECEIPT`, `COLLECTION`, `TAXONOMY`,
-`RULE`, `USER`, `ROLE`, `AUDIT`, `PARAMETER`, `REPORT`, `DASHBOARD`, `DOCUMENT`.
+Rôles : `SUPER_ADMIN`, `ADMIN`, `TAX_AGENT`, `COLLECTION_AGENT`, `ACCOUNTANT`, `TAXPAYER`.
+Permissions : codes `{DOMAINE}_{ACTION}` (`TAXPAYER_READ`, `DEBT_WRITE`, `COLLECTION_READ`,
+`PAYMENT_CONFIRM`, …) définis dans `backend/src/main/java/com/mnktax/auth/security/Permissions.java`.
+Le catalogue exact des permissions et le mapping rôle → permissions sont documentés dans
+[`ACCESS_MATRIX.md`](ACCESS_MATRIX.md) et seedés par `DemoDataSeeder` (`seedPermissions`,
+`seedRoles`).
 
 > Les codes persistés sont **nus** (`TAXPAYER_READ`) ; Spring Security utilise la forme
 > préfixée `PERMISSION_TAXPAYER_READ` (voir `Permissions.java`).
+>
+> `DemoDataSeeder.seedRoles()` réécrase `role_permissions` pour les 6 rôles système à chaque
+> démarrage lorsque `SEED_DEMO=true` : tout ajustement manuel en base est perdu.
 
 ## Environnements
 

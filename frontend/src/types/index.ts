@@ -113,6 +113,9 @@ export interface TaxpayerDetail extends TaxpayerSummary {
   taxCenterName: string | null
   taxRegimeId: number | null
   taxRegimeName: string | null
+  phoneNormalized: string | null
+  language: string
+  preferredChannels: string
   addresses: TaxpayerAddress[]
   activities: TaxpayerActivity[]
   obligationsCount: number
@@ -795,6 +798,15 @@ export interface CreateObligationRequest {
   expectedAmount?: number | null
 }
 
+/** Palier de rappel (J-N) adossé à une échéance du calendrier fiscal. */
+export interface DeadlineReminderOffset {
+  eventType: string
+  dayOffset: number
+  templateCode: string
+  channels: string
+  enabled: boolean
+}
+
 export interface Deadline {
   id: number
   taxTypeCode: string
@@ -802,6 +814,14 @@ export interface Deadline {
   period: string
   declarationDeadline: string
   paymentDeadline: string
+  /** Décalages (J-N) des règles de rappel activées et associées à ce type d'impôt/ période. */
+  reminderOffsets: DeadlineReminderOffset[]
+  /** Contribuables couverts par cette échéance. */
+  taxpayerCount: number
+  /** Canaux réellement utilisables : intersection des règles + preferredChannels des contribuables couverts. */
+  channels: string
+  /** État effectif du centre de communication (email/sms réel ou démo). */
+  providerStatus: CommProviderStatus[]
 }
 
 export interface Role {
@@ -1041,6 +1061,13 @@ export interface CommProvidersStatus {
   maxAttempts: number
   retryBackoffMinutes: number
 }
+/** État effectif d'un suppléant de livraison (EMAIL/SMS/reel/demo). */
+export interface DeliveryProviderState {
+  channel: string
+  provider: string
+  status: 'CONNECTED' | 'INCOMPLETE' | 'DISCONNECTED'
+  detail: string
+}
 
 export interface CommTemplate {
   id: number
@@ -1114,6 +1141,9 @@ export interface CommEventRule {
   priority: CommPriority
   dayOffset: number | null
   enabled: boolean
+
+  /** Champs enrichis sur la règle affichée dans l'interface : chaine CSV de canaux pour affichage rapide. */
+  channelsCsv: string
 }
 
 export interface CommUpdateEventRuleRequest {

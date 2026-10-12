@@ -63,11 +63,16 @@ npm run dev                   # http://localhost:5177
 
 | Rôle | Identifiant | Mot de passe |
 | ---- | ----------- | ------------ |
-| Super admin | `admin` | `Admin@123` |
-| Agent des impôts | `agent.tax` | `Agent@123` |
-| Agent de recouvrement | `agent.collection` | `Agent@123` |
-| Comptable | `accountant` | `Agent@123` |
-| Contribuable | `taxpayer.demo` | `Taxpayer@123` |
+| Super administrateur (`SUPER_ADMIN`) | `superadmin` | `Admin@123` |
+| Administrateur (`ADMIN`) | `admin` | `Admin@123` |
+| Agent des impôts (`TAX_AGENT`) | `agent.tax` | `Agent@123` |
+| Agent de recouvrement (`COLLECTION_AGENT`) | `agent.collection` | `Agent@123` |
+| Comptable (`ACCOUNTANT`) | `accountant` | `Agent@123` |
+| Contribuable (`TAXPAYER`) | `taxpayer.demo` | `Taxpayer@123` |
+
+Seed activé par `SEED_DEMO=true` (défaut en développement, `false` en production).
+
+Matrice complète des accès : [`docs/ACCESS_MATRIX.md`](docs/ACCESS_MATRIX.md).
 
 ## Commandes utiles
 

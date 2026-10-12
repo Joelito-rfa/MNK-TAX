@@ -243,7 +243,8 @@ public class NotificationService {
      * Tâche quotidienne : notifications d'échéances aux agents
      * + notifications ciblées aux contribuables via les obligations.
      */
-    @Scheduled(cron = "${mnk-tax.scheduler.deadline-cron:0 0 7 * * *}")
+    @Scheduled(cron = "${mnk-tax.scheduler.deadline-cron:0 0 7 * * *}",
+            zone = "${mnk-tax.scheduler.zone:Indian/Antananarivo}")
     @Transactional
     public void dailyDeadlineCheck() {
         LocalDate today = LocalDate.now();

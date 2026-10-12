@@ -12,6 +12,7 @@ import com.mnktax.payment.service.PaymentAllocationService;
 import com.mnktax.payment.service.PaymentCancellationService;
 import com.mnktax.payment.service.PaymentQueryService;
 import com.mnktax.payment.service.PaymentRecordingService;
+import com.mnktax.taxpayer.service.DataScope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,15 +45,18 @@ public class PaymentController {
     private final PaymentAllocationService allocationService;
     private final PaymentCancellationService cancellationService;
     private final PaymentQueryService queryService;
+    private final DataScope dataScope;
 
     public PaymentController(PaymentRecordingService recordingService,
                              PaymentAllocationService allocationService,
                              PaymentCancellationService cancellationService,
-                             PaymentQueryService queryService) {
+                             PaymentQueryService queryService,
+                             DataScope dataScope) {
         this.recordingService = recordingService;
         this.allocationService = allocationService;
         this.cancellationService = cancellationService;
         this.queryService = queryService;
+        this.dataScope = dataScope;
     }
 
     @GetMapping
@@ -70,7 +74,7 @@ public class PaymentController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(queryService.search(status, taxpayerId, method, from, to, q,
+        return ResponseEntity.ok(queryService.search(status, dataScope.effectiveTaxpayerId(taxpayerId), method, from, to, q,
                 debtId, taxTypeCode, declarationId, center, pageable));
     }
 
@@ -78,7 +82,9 @@ public class PaymentController {
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_READ + "')")
     @Operation(summary = "Détail d'un paiement")
     public ResponseEntity<PaymentDto> get(@PathVariable Long id) {
-        return ResponseEntity.ok(queryService.get(id));
+        PaymentDto payment = queryService.get(id);
+        dataScope.requireOwnership(payment.taxpayerId());
+        return ResponseEntity.ok(payment);
     }
 
     @PostMapping
@@ -127,6 +133,7 @@ public class PaymentController {
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_READ + "')")
     @Operation(summary = "Statistiques des paiements")
     public ResponseEntity<PaymentStatsDto> stats() {
+        dataScope.assertNotSelfService("paiements");
         return ResponseEntity.ok(queryService.stats());
     }
 
@@ -134,6 +141,7 @@ public class PaymentController {
     @PreAuthorize("hasAuthority('" + Permissions.PAYMENT_RECONCILE + "')")
     @Operation(summary = "Réconcilier un paiement")
     public ResponseEntity<ReconcileResult> reconcile(@PathVariable Long id) {
+        dataScope.requireOwnership(queryService.get(id).taxpayerId());
         return ResponseEntity.ok(queryService.reconcile(id));
     }
 }

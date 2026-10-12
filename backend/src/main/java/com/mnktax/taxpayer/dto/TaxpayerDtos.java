@@ -33,8 +33,20 @@ public final class TaxpayerDtos {
             Long taxCenterId,
             Long taxRegimeId,
             List<AddressDto> addresses,
-            List<ActivityDto> activities
+            List<ActivityDto> activities,
+            String language,          // FR | MG | EN
+            String preferredChannels  // "IN_APP,EMAIL,SMS" (sous-ensemble)
     ) {
+        /** Sur-ensemble rétro-compatible (appelants existants). */
+        public CreateTaxpayerRequest(String nif, TaxpayerType type, String name, String businessName,
+                                     String firstName, String lastName, String phone, String email,
+                                     String address, LocalDate birthDate, String legalRepresentative,
+                                     LocalDate registrationDate, Long taxCenterId, Long taxRegimeId,
+                                     List<AddressDto> addresses, List<ActivityDto> activities) {
+            this(nif, type, name, businessName, firstName, lastName, phone, email, address, birthDate,
+                    legalRepresentative, registrationDate, taxCenterId, taxRegimeId, addresses,
+                    activities, null, null);
+        }
     }
 
     public record UpdateTaxpayerRequest(
@@ -51,8 +63,20 @@ public final class TaxpayerDtos {
             LocalDate registrationDate,
             Long taxCenterId,
             Long taxRegimeId,
-            @NotNull(message = "Le statut est requis.") TaxpayerStatus status
+            @NotNull(message = "Le statut est requis.") TaxpayerStatus status,
+            String language,          // FR | MG | EN
+            String preferredChannels  // "IN_APP,EMAIL,SMS" (sous-ensemble)
     ) {
+        /** Sur-ensemble rétro-compatible (appelants existants). */
+        public UpdateTaxpayerRequest(TaxpayerType type, String name, String businessName,
+                                     String firstName, String lastName, String phone, String email,
+                                     String address, LocalDate birthDate, String legalRepresentative,
+                                     LocalDate registrationDate, Long taxCenterId, Long taxRegimeId,
+                                     TaxpayerStatus status) {
+            this(type, name, businessName, firstName, lastName, phone, email, address, birthDate,
+                    legalRepresentative, registrationDate, taxCenterId, taxRegimeId, status,
+                    null, null);
+        }
     }
 
     public record AddressDto(Long id, String type, String addressLine1, String addressLine2,
@@ -85,15 +109,18 @@ public final class TaxpayerDtos {
     }
 
     public record TaxpayerDetailDto(Long id, String nif, TaxpayerType type, String name, String businessName,
-                                    String firstName, String lastName, String phone, String email, String address,
+                                    String firstName, String lastName, String phone, String phoneNormalized,
+                                    String email, String address,
                                     LocalDate birthDate, String legalRepresentative, LocalDate registrationDate,
                                     TaxpayerStatus status, Long taxCenterId, String taxCenterCode, String taxCenterName,
                                     Long taxRegimeId, String taxRegimeCode, String taxRegimeName,
+                                    String language, String preferredChannels,
                                     List<AddressDto> addresses, List<ActivityDto> activities,
                                     long obligationsCount) {
         public static TaxpayerDetailDto from(Taxpayer t, long obligationsCount) {
             return new TaxpayerDetailDto(t.getId(), t.getNif(), t.getType(), t.getName(),
-                    t.getBusinessName(), t.getFirstName(), t.getLastName(), t.getPhone(), t.getEmail(),
+                    t.getBusinessName(), t.getFirstName(), t.getLastName(), t.getPhone(),
+                    t.getPhoneNormalized(), t.getEmail(),
                     t.getAddress(), t.getBirthDate(), t.getLegalRepresentative(), t.getRegistrationDate(),
                     t.getStatus(),
                     t.getTaxCenter() == null ? null : t.getTaxCenter().getId(),
@@ -102,6 +129,7 @@ public final class TaxpayerDtos {
                     t.getTaxRegime() == null ? null : t.getTaxRegime().getId(),
                     t.getTaxRegime() == null ? null : t.getTaxRegime().getCode(),
                     t.getTaxRegime() == null ? null : t.getTaxRegime().getName(),
+                    t.getLanguage(), t.getPreferredChannels(),
                     t.getAddresses().stream().map(a -> new AddressDto(a.getId(), a.getType(), a.getAddressLine1(),
                             a.getAddressLine2(), a.getCity(), a.getRegion(), a.getCountry(), a.getPostalCode())).toList(),
                     t.getActivities().stream().map(a -> new ActivityDto(a.getId(), a.getCode(), a.getLabel(),

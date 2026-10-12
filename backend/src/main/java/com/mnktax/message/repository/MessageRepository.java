@@ -125,6 +125,15 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
     Page<Message> findSentCommunication(@Param("status") com.mnktax.communication.entity.MessageStatus status,
                                         @Param("search") String search, Pageable pageable);
 
+    /**
+     * Anti-doublon exact : une communication déjà émise pour ce contribuable et cette
+     * référence contextuelle (ex : DEADLINE + "12:declaration:-3") ne doit jamais
+     * être renvoyée — quel que soit le délai écoulé.
+     */
+    boolean existsByTaxpayerIdAndContextTypeAndContextRef(Long taxpayerId,
+                                                          MessageContextType contextType,
+                                                          String contextRef);
+
     /** Dernière communication automatique d'un contribuable (anti-doublon relances). */
     @Query("SELECT m FROM Message m WHERE m.taxpayerId = :taxpayerId " +
            "AND m.messageType = :messageType " +

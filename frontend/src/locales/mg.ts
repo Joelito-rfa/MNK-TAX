@@ -24,6 +24,8 @@ export const mg: Record<string, string> = {
   'login.remember': 'Manao aiza',
   'login.password': 'Tenimiafina',
   'login.password.placeholder': '••••••••',
+  'login.showPassword.show': 'Afficher le mot de passe',
+  'login.showPassword.hide': 'Masquer le mot de passe',
   'login.submit': 'Miditra',
   'login.submitting': 'Mitsy ndray…',
   'login.username.required': 'Ilàny ny anaran\'ny mpampiasa.',
@@ -253,6 +255,7 @@ export const mg: Record<string, string> = {
   'error.notFound': 'Tsy hita',
   'error.notFound.text': 'Tsy misy pejy ity na efa nihetsika.',
   'error.backHome': 'Avereno',
+  'error.backToApp': 'Hiverena amin\'ny rindranasa',
   'error.unauthorized': 'Tsy afaka miditra',
   'error.server': 'Olana amin\'ny mpizara',
 

@@ -39,7 +39,8 @@ public class FiscalSchedulerService {
     /**
      * Tâche quotidienne à 06h30 : détection des retards et mise à jour des statuts.
      */
-    @Scheduled(cron = "${mnk-tax.scheduler.overdue-cron:0 30 6 * * *}")
+    @Scheduled(cron = "${mnk-tax.scheduler.overdue-cron:0 30 6 * * *}",
+            zone = "${mnk-tax.scheduler.zone:Indian/Antananarivo}")
     @Transactional
     public void dailyOverdueCheck() {
         LocalDate today = LocalDate.now();

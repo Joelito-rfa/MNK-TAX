@@ -1,14 +1,18 @@
 package com.mnktax.communication.service;
 
+import com.mnktax.communication.entity.CommunicationEventRule;
 import com.mnktax.communication.entity.CommunicationEventType;
 import com.mnktax.communication.repository.CommunicationEventRuleRepository;
 import com.mnktax.debt.entity.TaxDebt;
+import com.mnktax.message.entity.MessageContextType;
 import com.mnktax.debt.repository.TaxDebtRepository;
 import com.mnktax.paymentplan.entity.InstallmentStatus;
 import com.mnktax.paymentplan.entity.PaymentPlanInstallment;
 import com.mnktax.paymentplan.entity.PaymentPlanStatus;
 import com.mnktax.paymentplan.repository.PaymentPlanRepository;
+import com.mnktax.tax.entity.Deadline;
 import com.mnktax.tax.entity.TaxObligation;
+import com.mnktax.tax.repository.DeadlineRepository;
 import com.mnktax.tax.repository.TaxObligationRepository;
 import com.mnktax.taxpayer.entity.Taxpayer;
 import org.slf4j.Logger;
@@ -17,11 +21,14 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Relances automatiques quotidiennes (règles configurables dans
@@ -46,6 +53,7 @@ public class CommunicationSchedulerService {
 
     private final TaxObligationRepository obligationRepository;
     private final TaxDebtRepository debtRepository;
+    private final DeadlineRepository deadlineRepository;
     private final CommunicationEventRuleRepository ruleRepository;
     private final PaymentPlanRepository planRepository;
     private final CommunicationService communicationService;
@@ -53,12 +61,14 @@ public class CommunicationSchedulerService {
 
     public CommunicationSchedulerService(TaxObligationRepository obligationRepository,
                                          TaxDebtRepository debtRepository,
+                                         DeadlineRepository deadlineRepository,
                                          CommunicationEventRuleRepository ruleRepository,
                                          PaymentPlanRepository planRepository,
                                          @org.springframework.context.annotation.Lazy CommunicationService communicationService,
                                          CommunicationEventEngine eventEngine) {
         this.obligationRepository = obligationRepository;
         this.debtRepository = debtRepository;
+        this.deadlineRepository = deadlineRepository;
         this.ruleRepository = ruleRepository;
         this.planRepository = planRepository;
         this.communicationService = communicationService;
@@ -69,11 +79,23 @@ public class CommunicationSchedulerService {
     @Scheduled(cron = "${mnk-tax.scheduler.communication-cron:0 15 7 * * *}",
             zone = "${mnk-tax.scheduler.zone:Indian/Antananarivo}")
     public void dailyCommunicationCheck() {
-        LocalDate today = LocalDate.now();
+        runDailyChecks(LocalDate.now());
+    }
+
+    /**
+     * Exécution déterministe (testable) de tous les rappels pour une date donnée.
+     * La date est injectée — jamais codée en dur dans la logique.
+     */
+    void runDailyChecks(LocalDate today) {
         try {
-            notifyDeclarationsDueSoon(today);
+            notifyDeclarationReminders(today);
         } catch (Exception ex) {
             log.error("Échec des rappels d'échéance de déclaration", ex);
+        }
+        try {
+            notifyPaymentReminders(today);
+        } catch (Exception ex) {
+            log.error("Échec des rappels d'échéance de paiement", ex);
         }
         try {
             notifyDebtRelances(today);
@@ -87,53 +109,140 @@ public class CommunicationSchedulerService {
         }
     }
 
-    private void notifyDeclarationsDueSoon(LocalDate today) {
-        // Jours ciblés par les règles activées (ex : règle J-3 → rappel à J-3).
-        // Les délais restent dans la configuration métier, jamais en dur.
-        Set<Integer> targetOffsets = ruleRepository.findByEventTypeAndEnabledTrue(
-                        CommunicationEventType.DECLARATION_DUE_SOON).stream()
-                .map(r -> r.getDayOffset())
-                .filter(java.util.Objects::nonNull)
-                .filter(off -> off <= 0)                      // J-0, J-1, J-3… (négatif = avant échéance)
-                .map(off -> -off)
-                .collect(java.util.stream.Collectors.toSet());
-        if (targetOffsets.isEmpty()) {
+    /**
+     * Rappels d'échéance de DÉCLARATION. Le calendrier fiscal (table deadlines)
+     * fait foi : la date effective retenue est celle du calendrier quand une ligne
+     * correspond à l'impôt + période, sinon la date portée par l'obligation
+     * (repli sans régression). Les paliers J-7 / J-3 / J-1 / J-0 viennent des
+     * règles en base, jamais du code.
+     */
+    private void notifyDeclarationReminders(LocalDate today) {
+        Set<Integer> offsets = dueOffsets(CommunicationEventType.DECLARATION_DUE_SOON);
+        if (offsets.isEmpty()) {
             return;
         }
-        List<TaxObligation> upcoming =
-                obligationRepository.findDueBetween(today, today.plusDays(15));
-        Map<Long, TaxObligation> earliestByTaxpayer = new HashMap<>();
-        for (TaxObligation obligation : upcoming) {
+        List<TaxObligation> obligations = obligationRepository.findDueBetween(
+                today, today.plusDays(maxOffset(offsets)));
+        if (obligations.isEmpty()) {
+            return;
+        }
+        Map<String, Deadline> calendar = deadlineIndex();
+        int sent = 0;
+        for (TaxObligation obligation : obligations) {
             if (obligation.getTaxpayer() == null || obligation.getTaxpayer().getUserId() == null) {
                 continue;
             }
-            int daysUntilDue = (int) java.time.temporal.ChronoUnit.DAYS
-                    .between(today, obligation.getDeclarationDeadline());
-            if (!targetOffsets.contains(daysUntilDue)) {
+            Deadline deadline = calendar.get(key(obligation.getTaxType().getCode(), obligation.getPeriod()));
+            LocalDate effective = deadline != null
+                    ? deadline.getDeclarationDeadline() : obligation.getDeclarationDeadline();
+            if (effective == null) {
                 continue;
             }
-            TaxObligation existing = earliestByTaxpayer.get(obligation.getTaxpayer().getId());
-            if (existing == null || obligation.getDeclarationDeadline().isBefore(existing.getDeclarationDeadline())) {
-                earliestByTaxpayer.put(obligation.getTaxpayer().getId(), obligation);
+            int daysUntilDue = (int) ChronoUnit.DAYS.between(today, effective);
+            if (!offsets.contains(daysUntilDue)) {
+                continue;
             }
-        }
-        int sent = 0;
-        for (Map.Entry<Long, TaxObligation> entry : earliestByTaxpayer.entrySet()) {
-            TaxObligation obligation = entry.getValue();
-            if (recentlyNotified(obligation.getTaxpayer().getId(), CommunicationEventType.DECLARATION_DUE_SOON.name())) {
+            String contextRef = refBase(deadline, obligation) + ":declaration:" + (-daysUntilDue);
+            if (communicationService.deadlineReminderSent(obligation.getTaxpayer().getId(), contextRef)) {
                 continue;
             }
             Map<String, String> variables = new HashMap<>();
-            variables.put("declaration_reference", obligation.getTaxType().getCode() + " " + obligation.getPeriod());
-            variables.put("due_date", obligation.getDeclarationDeadline().toString());
+            variables.put("declaration_reference",
+                    obligation.getTaxType().getCode() + " " + obligation.getPeriod());
+            variables.put("due_date", effective.toString());
             variables.put("amount", obligation.getExpectedAmount() == null ? "0"
                     : obligation.getExpectedAmount().toPlainString());
-            eventEngine.onEvent(CommunicationEventType.DECLARATION_DUE_SOON, obligation.getTaxpayer(), variables);
+            eventEngine.onEvent(CommunicationEventType.DECLARATION_DUE_SOON, obligation.getTaxpayer(),
+                    variables, MessageContextType.DEADLINE, contextRef);
             sent++;
         }
         if (sent > 0) {
-            log.info("Rappels d'échéance : {} contribuable(s) notifié(s)", sent);
+            log.info("Rappels d'échéance de déclaration : {} envoi(s)", sent);
         }
+    }
+
+    /**
+     * Rappels d'échéance de PAIEMENT (obligations restant à régler). Même logique
+     * de source de vérité calendaire et de paliers configurables J-7…J-0.
+     */
+    private void notifyPaymentReminders(LocalDate today) {
+        Set<Integer> offsets = dueOffsets(CommunicationEventType.PAYMENT_DUE_SOON);
+        if (offsets.isEmpty()) {
+            return;
+        }
+        List<TaxObligation> obligations = obligationRepository.findPaymentDueBetween(
+                today, today.plusDays(maxOffset(offsets)));
+        if (obligations.isEmpty()) {
+            return;
+        }
+        Map<String, Deadline> calendar = deadlineIndex();
+        int sent = 0;
+        for (TaxObligation obligation : obligations) {
+            if (obligation.getTaxpayer() == null || obligation.getTaxpayer().getUserId() == null) {
+                continue;
+            }
+            Deadline deadline = calendar.get(key(obligation.getTaxType().getCode(), obligation.getPeriod()));
+            LocalDate effective = deadline != null
+                    ? deadline.getPaymentDeadline() : obligation.getPaymentDeadline();
+            if (effective == null) {
+                continue;
+            }
+            int daysUntilDue = (int) ChronoUnit.DAYS.between(today, effective);
+            if (!offsets.contains(daysUntilDue)) {
+                continue;
+            }
+            String contextRef = refBase(deadline, obligation) + ":payment:" + (-daysUntilDue);
+            if (communicationService.deadlineReminderSent(obligation.getTaxpayer().getId(), contextRef)) {
+                continue;
+            }
+            Map<String, String> variables = new HashMap<>();
+            variables.put("payment_reference",
+                    obligation.getTaxType().getCode() + " " + obligation.getPeriod());
+            variables.put("due_date", effective.toString());
+            variables.put("amount", obligation.getExpectedAmount() == null ? "0"
+                    : obligation.getExpectedAmount().toPlainString());
+            eventEngine.onEvent(CommunicationEventType.PAYMENT_DUE_SOON, obligation.getTaxpayer(),
+                    variables, MessageContextType.DEADLINE, contextRef);
+            sent++;
+        }
+        if (sent > 0) {
+            log.info("Rappels d'échéance de paiement : {} envoi(s)", sent);
+        }
+    }
+
+    /** Paliers avant échéance (règles activées) : J-7, J-3, J-1, J-0 → {7,3,1,0}. */
+    private Set<Integer> dueOffsets(CommunicationEventType eventType) {
+        return ruleRepository.findByEventTypeAndEnabledTrue(eventType).stream()
+                .map(CommunicationEventRule::getDayOffset)
+                .filter(Objects::nonNull)
+                .filter(off -> off <= 0)
+                .map(off -> -off)
+                .collect(Collectors.toSet());
+    }
+
+    private static int maxOffset(Set<Integer> offsets) {
+        return offsets.stream().mapToInt(Integer::intValue).max().orElse(0);
+    }
+
+    /** Indexe le calendrier par impôt + période (source de vérité des dates). */
+    private Map<String, Deadline> deadlineIndex() {
+        Map<String, Deadline> index = new HashMap<>();
+        for (Deadline deadline : deadlineRepository.findAllFetchTaxType()) {
+            if (deadline.getTaxType() == null) {
+                continue;
+            }
+            index.put(key(deadline.getTaxType().getCode(), deadline.getPeriod()), deadline);
+        }
+        return index;
+    }
+
+    private static String key(String taxTypeCode, String period) {
+        return (taxTypeCode == null ? "" : taxTypeCode) + "|" + (period == null ? "" : period);
+    }
+
+    /** Référence de base de l'anti-doublon : ligne calendrier sinon obligation. */
+    private static String refBase(Deadline deadline, TaxObligation obligation) {
+        return deadline != null ? String.valueOf(deadline.getId()) : "O" + obligation.getId();
     }
 
     private void notifyDebtRelances(LocalDate today) {

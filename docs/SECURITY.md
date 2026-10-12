@@ -12,9 +12,16 @@
 ## RBAC
 
 - Les **permissions** sont rattachées aux **rôles**, eux-mêmes portés par les **utilisateurs**.
+  Matrice complète : [`ACCESS_MATRIX.md`](ACCESS_MATRIX.md).
 - Le frontend réplique les gardes (`ProtectedRoute`), mais la **source de vérité reste l'API**
-  : chaque endpoint vérifie sa permission.
+  : chaque endpoint vérifie sa permission. Un refus frontend redirige vers `/forbidden`.
 - Les rôles **système** (`system = true`) ne sont pas modifiables par l'API.
+- **Anti-escalade** : gérer les permissions d'un rôle (`ROLE_WRITE`) ou attribuer un rôle
+  (`USER_WRITE`) exige en plus `ROLE_ASSIGN`. Un `USER_WRITE` ne peut pas non plus attribuer
+  un rôle dont les permissions excèdent les siennes, modifier les rôles d'un utilisateur
+  système ni en désactiver un.
+- **Isolation par ligne** : un compte `TAXPAYER` est restreint à son propre dossier
+  (`DataScope`), y compris sur les détails, les historiques et les agrégats.
 
 ## Endpoints publics (authentification explicite requise)
 

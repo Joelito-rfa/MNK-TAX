@@ -49,6 +49,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.mnktax.debt.repository.TaxDebtRepository;
 import com.mnktax.message.entity.Message;
+import com.mnktax.message.entity.MessageContextType;
 import com.mnktax.message.entity.MessagePriority;
 import com.mnktax.message.repository.MessageRepository;
 import com.mnktax.tax.repository.TaxObligationRepository;
@@ -237,6 +238,7 @@ public class CommunicationService {
             String language = target.language();
             String subject = request.subject();
             String content = request.content();
+            String smsContent = null;
             // Rendu template par langue — jamais de mélange de langues dans un envoi.
             if (template != null) {
                 Map<String, String> vars = baseVariables(target);
@@ -246,6 +248,8 @@ public class CommunicationService {
                 }
                 subject = renderVars(template.subjectFor(language), vars);
                 content = renderVars(template.bodyFor(language), vars);
+                // Version SMS courte, rendue ici : le worker n'a plus à tronquer l'email.
+                smsContent = renderVars(template.smsBodyFor(language), vars);
             }
             String effectiveEmail = effectiveEmail(target, override, targets.size());
             List<String> effectiveChannels = new ArrayList<>(channels);
@@ -272,6 +276,7 @@ public class CommunicationService {
                     .recipientLabel(external ? blankToNull(request.externalName()) : null)
                     .subject(subject)
                     .content(content)
+                    .smsContent(smsContent)
                     .read(false)
                     .createdAt(Instant.now())
                     .taxpayerId(target.taxpayerId)
@@ -279,6 +284,8 @@ public class CommunicationService {
                     .channels(String.join(",", effectiveChannels))
                     .messageType(messageType)
                     .templateCode(request.templateCode())
+                    .contextType(request.contextType() == null ? MessageContextType.GENERAL : request.contextType())
+                    .contextRef(request.contextRef())
                     .status(initialStatus)
                     .scheduledAt(scheduledAt)
                     .createdBy(SecurityUtils.currentUsername())
@@ -437,11 +444,13 @@ public class CommunicationService {
     public ProvidersStatusDto providersStatus() {
         List<ProviderStatusDto> providers = new ArrayList<>();
         providers.add(new ProviderStatusDto("EMAIL", emailProvider.providerName(),
-                statusOf(emailProvider.isConfigured()), emailProvider.isConfigured()
-                        ? "SMTP configuré via MAIL_HOST." : "Configuration incomplète : MAIL_HOST absent."));
+                statusOf(emailProvider.isConfigured()), providerDetail(emailProvider.isConfigured(),
+                        emailProvider.providerName(), "SMTP configuré via MAIL_HOST.",
+                        "Configuration incomplète : MAIL_HOST absent.")));
         providers.add(new ProviderStatusDto("SMS", smsProvider.providerName(),
-                statusOf(smsProvider.isConfigured()), smsProvider.isConfigured()
-                        ? "Fournisseur SMS connecté." : "Configuration incomplète : fournisseur SMS absent."));
+                statusOf(smsProvider.isConfigured()), providerDetail(smsProvider.isConfigured(),
+                        smsProvider.providerName(), "Fournisseur SMS connecté.",
+                        "Configuration incomplète : fournisseur SMS absent.")));
         providers.add(new ProviderStatusDto("IN_APP", "MNK-TAX", "CONNECTED",
                 "Notifications persistantes en base — toujours disponible."));
         int pending = (int) deliveryRepository.countByStatus(DeliveryStatus.PENDING);
@@ -452,6 +461,17 @@ public class CommunicationService {
 
     private String statusOf(boolean configured) {
         return configured ? "CONNECTED" : "INCOMPLETE";
+    }
+
+    private String providerDetail(boolean configured, String providerName,
+                                  String connectedDetail, String incompleteDetail) {
+        if (!configured) {
+            return incompleteDetail;
+        }
+        if (providerName != null && providerName.startsWith("DEMO")) {
+            return "Fournisseur de démonstration (log uniquement) — aucun envoi réel.";
+        }
+        return connectedDetail;
     }
 
     // ═══ Envoi test (destination explicite uniquement) ════════════
@@ -665,6 +685,19 @@ public class CommunicationService {
     }
 
     // ═══ Anti-doublon (relances automatiques) ════════════════════
+
+    /**
+     * Anti-doublon exact : vrai si un rappel déjà émis pour cette référence
+     * contextuelle (ex : "12:declaration:-3") existe — indépendamment de la date.
+     */
+    @Transactional(readOnly = true)
+    public boolean deadlineReminderSent(Long taxpayerId, String contextRef) {
+        if (taxpayerId == null || contextRef == null || contextRef.isBlank()) {
+            return false;
+        }
+        return messageRepository.existsByTaxpayerIdAndContextTypeAndContextRef(
+                taxpayerId, MessageContextType.DEADLINE, contextRef);
+    }
 
     /**
      * Communications automatiques récentes d'un contribuable pour un type

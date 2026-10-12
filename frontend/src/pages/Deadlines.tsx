@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { apiDelete, apiErrorMessage, apiGet, apiPost, apiPut } from '../lib/api'
 import { downloadCsv } from '../lib/csv'
+import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { useLocaleFormatters } from '../lib/format'
 import type { Deadline, TaxType } from '../types'
@@ -141,6 +142,8 @@ export default function Deadlines() {
   const toast = useToast()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { can } = useAuth()
+  const canWrite = can('TAXONOMY_WRITE')
 
   const [viewMode, setViewMode] = useState<ViewMode>('calendar')
   const [filterMode, setFilterMode] = useState<FilterMode>('all')
@@ -153,6 +156,7 @@ export default function Deadlines() {
     return { year: now.getFullYear(), month: now.getMonth() }
   })
   const [createOpen, setCreateOpen] = useState(false)
+  const [prefillDate, setPrefillDate] = useState<string | null>(null)
   const [detailDeadline, setDetailDeadline] = useState<Deadline | null>(null)
   const [editDeadline, setEditDeadline] = useState<Deadline | null>(null)
 
@@ -370,6 +374,7 @@ export default function Deadlines() {
             <Download className="h-4 w-4 text-slate-400" />
             Exporter
           </button>
+          {canWrite && (
           <button
             onClick={() => setCreateOpen(true)}
             className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all duration-200 hover:shadow-xl hover:shadow-violet-500/30"
@@ -378,6 +383,7 @@ export default function Deadlines() {
             <Plus className="relative h-4 w-4" />
             <span className="relative">Nouvelle echeance</span>
           </button>
+          )}
         </div>
       </div>
 
@@ -522,7 +528,7 @@ export default function Deadlines() {
 
       {/* ═══════════════ SECTION 3: CALENDAR VIEW ═══════════════ */}
       {viewMode === 'calendar' && (
-        <Card className="overflow-hidden animate-fade-in" style={{ animationDelay: '0.32s' }}>
+        <Card className="overflow-hidden animate-fade-in">
           <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
               {MONTH_NAMES[currentMonth.month]} {currentMonth.year}
@@ -547,13 +553,26 @@ export default function Deadlines() {
             ))}
           </div>
           <div className="grid grid-cols-7">
-            {calendarGrid.map((cell, i) => {
+            {calendarGrid.map((cell) => {
               const isToday = cell.date === today
               return (
                 <div
-                  key={i}
-                  style={{ animationDelay: `${Math.min(i * 0.012, 0.4)}s` }}
-                  className={`min-h-[88px] animate-fade-in border-b border-r border-slate-100 p-1.5 transition-all duration-300 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] hover:z-10 hover:shadow-lg hover:shadow-violet-500/10 hover:bg-slate-50 dark:border-slate-700/50 dark:hover:bg-slate-700/30 dark:hover:shadow-black/30 ${
+                  key={cell.date}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={canWrite ? `Créer une échéance le ${cell.date}` : `Voir les échéances du ${cell.date}`}
+                  onClick={() => {
+                    if (canWrite) { setPrefillDate(cell.date); setCreateOpen(true) }
+                    else if (cell.events.length > 0) { setDetailDeadline(cell.events[0].deadline) }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      if (canWrite) { setPrefillDate(cell.date); setCreateOpen(true) }
+                      else if (cell.events.length > 0) { setDetailDeadline(cell.events[0].deadline) }
+                    }
+                  }}
+                  className={`group min-h-[88px] cursor-pointer border-b border-r border-slate-100 p-1.5 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700/50 dark:hover:bg-slate-700/30 ${
                     !cell.isCurrentMonth ? 'bg-slate-50/30 dark:bg-slate-800/30' : ''
                   } ${isToday ? 'bg-violet-50/60 dark:bg-violet-900/10' : ''}`}
                 >
@@ -563,19 +582,22 @@ export default function Deadlines() {
                         isToday
                           ? 'bg-violet-600 text-white shadow-sm shadow-violet-500/30'
                           : cell.isCurrentMonth
-                            ? 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                            ? 'text-slate-700 dark:text-slate-300'
                             : 'text-slate-300 dark:text-slate-600'
                       }`}
                     >
                       {cell.day}
                     </span>
+                    {canWrite && (
+                    <Plus className="h-3.5 w-3.5 text-slate-300 opacity-0 transition-opacity duration-150 group-hover:opacity-100 dark:text-slate-500" />
+                    )}
                   </div>
                   <div className="mt-1 space-y-0.5">
                     {cell.events.slice(0, 3).map((ev) => (
                       <button
                         key={ev.id}
-                        onClick={() => setDetailDeadline(ev.deadline)}
-                        className={`block w-full truncate rounded px-1.5 py-0.5 text-[10px] font-medium transition hover:opacity-80 ${
+                        onClick={(e) => { e.stopPropagation(); setDetailDeadline(ev.deadline) }}
+                        className={`block w-full truncate rounded px-1.5 py-0.5 text-[10px] font-medium ${
                           ev.type === 'declaration'
                             ? ev.status === 'overdue'
                               ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
@@ -664,10 +686,12 @@ export default function Deadlines() {
                 subtitle="Aucune echeance fiscale ne correspond aux filtres selectionnes."
               />
               <div className="mt-4 flex justify-center">
+                {canWrite && (
                 <Button onClick={() => setCreateOpen(true)}>
                   <Plus className="h-4 w-4" />
                   Creer une echeance
                 </Button>
+                )}
               </div>
             </div>
           ) : (
@@ -724,9 +748,11 @@ export default function Deadlines() {
                             <button onClick={() => { setDetailDeadline(d) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                               <Target className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir les details
                             </button>
+                            {canWrite && (
                             <button onClick={() => { setEditDeadline(d) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                               <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
                             </button>
+                            )}
                             <button onClick={() => { toast.success('Echeance marquee comme terminee') }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                               <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" /> Marquer terminee
                             </button>
@@ -737,9 +763,11 @@ export default function Deadlines() {
                               <CalendarClock className="h-4 w-4 shrink-0 text-violet-500" /> Enregistrer paiement
                             </button>
                             <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                            {canWrite && (
                             <button onClick={() => { if (confirm('Supprimer cette échéance ?')) remove.mutate(d.id) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20">
                               <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
                             </button>
+                            )}
                           </RowActionPortal>
                         </td>
                       </tr>
@@ -920,7 +948,13 @@ export default function Deadlines() {
       )}
 
       {/* ═══════════════ CREATE MODAL ═══════════════ */}
-      {createOpen && <CreateDeadlineModal onClose={() => setCreateOpen(false)} />}
+      {createOpen && (
+        <CreateDeadlineModal
+          key={prefillDate ?? 'empty'}
+          initialDate={prefillDate}
+          onClose={() => { setCreateOpen(false); setPrefillDate(null) }}
+        />
+      )}
     </div>
   )
 }
@@ -973,6 +1007,8 @@ function KpiCard({
 /* ── Detail Panel (slide-in from right) ── */
 function DetailPanel({ deadline, onClose, onEdit }: { deadline: Deadline; onClose: () => void; onEdit: () => void }) {
   const { fmtDate } = useLocaleFormatters()
+  const { can } = useAuth()
+  const canWrite = can('TAXONOMY_WRITE')
   const days = daysUntil(deadline.declarationDeadline)
   const status = getDeadlineStatus(deadline)
   const tc = getTaxColor(deadline.taxTypeCode)
@@ -1076,9 +1112,11 @@ function DetailPanel({ deadline, onClose, onEdit }: { deadline: Deadline; onClos
             <Button variant="secondary" onClick={onClose} className="flex-1">
               Fermer
             </Button>
+            {canWrite && (
             <Button onClick={() => onEdit()} className="flex-1">
               <Pencil className="h-4 w-4" /> Modifier
             </Button>
+            )}
           </div>
         </div>
       </div>
@@ -1112,15 +1150,17 @@ function DeadlinesSkeleton() {
 }
 
 /* ── Create modal ── */
-function CreateDeadlineModal({ onClose }: { onClose: () => void }) {
+function CreateDeadlineModal({ onClose, initialDate }: { onClose: () => void; initialDate?: string | null }) {
   const queryClient = useQueryClient()
   const toast = useToast()
   const { t } = useI18n()
   const [step, setStep] = useState(0)
   const [taxTypeCode, setTaxTypeCode] = useState('')
-  const [period, setPeriod] = useState('')
-  const [declarationDeadline, setDeclarationDeadline] = useState('')
-  const [paymentDeadline, setPaymentDeadline] = useState('')
+  const [period, setPeriod] = useState(() =>
+    initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate.slice(0, 7) : '',
+  )
+  const [declarationDeadline, setDeclarationDeadline] = useState(initialDate ?? '')
+  const [paymentDeadline, setPaymentDeadline] = useState(initialDate ?? '')
 
   const { data: taxTypes } = useQuery({
     queryKey: ['tax-types'],
@@ -1141,6 +1181,11 @@ function CreateDeadlineModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal open onClose={onClose} title={`${t("deadlines.newDeadline")} — Étape ${step + 1}/3`} subtitle="Date configurable, jamais codee en dur." size="full">
       <form onSubmit={(e) => { e.preventDefault(); if (step === 2) create.mutate() }} className="space-y-4">
+        {initialDate && (
+          <p className="rounded-lg bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">
+            Jour sélectionné : {initialDate} — dates de déclaration et de paiement pré-remplies, modifiables à l'étape suivante.
+          </p>
+        )}
         {create.isError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{apiErrorMessage(create.error)}</div>
         )}

@@ -45,18 +45,31 @@ public class TwilioSmsProvider implements SmsProvider {
         }
     }
 
+    private boolean realConfigured() {
+        return initialized && notBlank(properties.getSms().getFromNumber());
+    }
+
+    /** Démo active uniquement lorsqu'aucun fournisseur SMS réel n'est configuré. */
+    private boolean demoActive() {
+        return properties.isDemoProviderEnabled() && !realConfigured();
+    }
+
     @Override
     public boolean isConfigured() {
-        return initialized && notBlank(properties.getSms().getFromNumber());
+        return realConfigured() || properties.isDemoProviderEnabled();
     }
 
     @Override
     public String providerName() {
-        return "TWILIO";
+        return demoActive() ? "DEMO (log uniquement)" : "TWILIO";
     }
 
     @Override
     public ProviderResult send(String toNormalized, String text) {
+        if (demoActive()) {
+            log.info("[DEMO] SMS simulé vers {} : {} — aucun envoi réel", toNormalized, text);
+            return ProviderResult.ok("demo-sms");
+        }
         if (!isConfigured()) {
             return ProviderResult.failure("Service SMS non configuré (fournisseur absent).", false);
         }

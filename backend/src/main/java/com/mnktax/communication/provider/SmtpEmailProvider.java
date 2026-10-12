@@ -37,17 +37,26 @@ public class SmtpEmailProvider implements EmailProvider {
 
     @Override
     public boolean isConfigured() {
-        return properties.isMailHostConfigured();
+        return properties.isMailHostConfigured() || properties.isDemoProviderEnabled();
+    }
+
+    /** Démo active uniquement lorsqu'aucun SMTP réel n'est fourni. */
+    private boolean demoActive() {
+        return properties.isDemoProviderEnabled() && !properties.isMailHostConfigured();
     }
 
     @Override
     public String providerName() {
-        return "SMTP";
+        return demoActive() ? "DEMO (log uniquement)" : "SMTP";
     }
 
     @Override
     public ProviderResult send(String to, String subject, String htmlBody, String textBody,
                                List<EmailAttachment> attachments) {
+        if (demoActive()) {
+            log.info("[DEMO] Email simulé vers {} (sujet : {}) — aucun envoi réel", to, subject);
+            return ProviderResult.ok("demo-email");
+        }
         if (!isConfigured()) {
             return ProviderResult.failure("Service email non configuré (MAIL_HOST absent).", false);
         }

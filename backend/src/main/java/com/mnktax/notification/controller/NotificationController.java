@@ -1,5 +1,6 @@
 package com.mnktax.notification.controller;
 
+import com.mnktax.auth.security.Permissions;
 import com.mnktax.notification.entity.Notification;
 import com.mnktax.notification.service.NotificationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -8,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,18 +31,21 @@ public class NotificationController {
 
     @GetMapping
     @Operation(summary = "Mes notifications")
+    @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_READ + "')")
     public ResponseEntity<Page<Notification>> myNotifications(@PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(notificationService.myNotifications(pageable));
     }
 
     @GetMapping("/unread-count")
     @Operation(summary = "Nombre de notifications non lues")
+    @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_READ + "')")
     public ResponseEntity<Map<String, Long>> unreadCount() {
         return ResponseEntity.ok(Map.of("count", notificationService.unreadCount()));
     }
 
     @PostMapping("/read-all")
     @Operation(summary = "Marquer toutes mes notifications comme lues")
+    @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_READ + "')")
     public ResponseEntity<Void> markAllRead() {
         notificationService.markAllRead();
         return ResponseEntity.noContent().build();
@@ -48,6 +53,7 @@ public class NotificationController {
 
     @PostMapping("/{id}/read")
     @Operation(summary = "Marquer une notification comme lue")
+    @PreAuthorize("hasAuthority('" + Permissions.NOTIFICATION_READ + "')")
     public ResponseEntity<Void> markRead(@PathVariable Long id) {
         notificationService.markRead(id);
         return ResponseEntity.noContent().build();

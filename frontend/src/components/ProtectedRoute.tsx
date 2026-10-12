@@ -19,7 +19,7 @@ export default function ProtectedRoute({ permission }: { permission?: string }) 
   }
 
   if (permission && !can(permission)) {
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to="/forbidden" state={{ from: location }} replace />
   }
 
   return <Outlet />

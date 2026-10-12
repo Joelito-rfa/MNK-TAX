@@ -248,7 +248,10 @@ public class DeliveryQueueService {
         if (!smsProvider.isConfigured()) {
             return ProviderResult.failure("Envoi impossible : fournisseur SMS non configuré.", false);
         }
-        String text = truncate(message.getContent(), 300);
+        // Corps SMS rendu depuis le modèle (repli : email tronqué pour les messages libres).
+        String text = message.getSmsContent() != null && !message.getSmsContent().isBlank()
+                ? message.getSmsContent()
+                : truncate(message.getContent(), 300);
         return smsProvider.send(to, text);
     }
 

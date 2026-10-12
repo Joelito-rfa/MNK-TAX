@@ -76,6 +76,9 @@ const tabs: { id: Tab; label: string }[] = [
   { id: 'documents', label: 'Documents' },
 ]
 
+const languageLabels: Record<string, string> = { FR: 'Français', MG: 'Malagasy', EN: 'English' }
+const channelLabels: Record<string, string> = { IN_APP: 'Site', EMAIL: 'Email', SMS: 'SMS' }
+
 const auditActionLabels: Record<string, string> = {
   CREATE: 'Création',
   UPDATE: 'Modification',
@@ -591,6 +594,20 @@ function EditModal({ taxpayer, onClose }: { taxpayer: TaxpayerDetail; onClose: (
   const [registrationDate, setRegistrationDate] = useState(taxpayer.registrationDate ?? '')
   const [taxCenterId, setTaxCenterId] = useState(taxpayer.taxCenterId?.toString() || '')
   const [taxRegimeId, setTaxRegimeId] = useState(taxpayer.taxRegimeId?.toString() || '')
+  const [language, setLanguage] = useState(taxpayer.language || 'FR')
+  const [channels, setChannels] = useState<string[]>(() => {
+    const parsed = (taxpayer.preferredChannels || 'IN_APP').split(',').map((c) => c.trim()).filter(Boolean)
+    return parsed.includes('IN_APP') ? parsed : ['IN_APP', ...parsed]
+  })
+
+  const toggleChannel = (ch: string) => {
+    setChannels((prev) => {
+      if (ch === 'IN_APP') return prev // la lettre in-app reste toujours active
+      return prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch]
+    })
+  }
+  // Le SMS n'est proposé que si un numéro exploitable existe (normalisé côté serveur).
+  const smsAvailable = Boolean(taxpayer.phoneNormalized || phone.trim())
 
   const { data: taxCenters } = useQuery({
     queryKey: ['tax-centers'],
@@ -619,6 +636,8 @@ function EditModal({ taxpayer, onClose }: { taxpayer: TaxpayerDetail; onClose: (
         taxCenterId: taxCenterId ? Number(taxCenterId) : null,
         taxRegimeId: taxRegimeId ? Number(taxRegimeId) : null,
         status: taxpayer.status,
+        language,
+        preferredChannels: channels.join(','),
       }
       return apiPut(`/taxpayers/${taxpayer.id}`, body)
     },
@@ -687,6 +706,61 @@ function EditModal({ taxpayer, onClose }: { taxpayer: TaxpayerDetail; onClose: (
         <Field label="Adresse">
           <Input value={address} onChange={(e) => setAddress(e.target.value)} />
         </Field>
+        <div className="rounded-xl border border-slate-200/70 bg-slate-50/60 p-4 dark:border-slate-700/50 dark:bg-slate-800/30">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Préférences de communication
+          </p>
+          <Field label="Langue des messages">
+            <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+              <option value="FR">Français</option>
+              <option value="MG">Malagasy</option>
+              <option value="EN">English</option>
+            </Select>
+          </Field>
+          <div className="mt-4">
+            <span className="mb-1.5 block text-xs font-medium text-slate-600 dark:text-slate-400">Canaux autorisés</span>
+            <div className="flex flex-wrap gap-2">
+              {([
+                { code: 'IN_APP', label: 'Site (lettre in-app)', disabled: false, hint: '' },
+                {
+                  code: 'EMAIL',
+                  label: 'Email',
+                  disabled: !email.trim(),
+                  hint: 'Renseignez un email pour activer ce canal',
+                },
+                {
+                  code: 'SMS',
+                  label: 'SMS',
+                  disabled: !smsAvailable,
+                  hint: 'Renseignez un téléphone exploitable pour activer ce canal',
+                },
+              ] as const).map((ch) => {
+                const active = channels.includes(ch.code)
+                return (
+                  <button
+                    key={ch.code}
+                    type="button"
+                    disabled={ch.disabled}
+                    title={ch.disabled ? ch.hint : undefined}
+                    onClick={() => toggleChannel(ch.code)}
+                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                      ch.disabled
+                        ? 'cursor-not-allowed border-slate-200 text-slate-300 dark:border-slate-700 dark:text-slate-600'
+                        : active
+                          ? 'border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-300'
+                          : 'border-slate-200 text-slate-500 hover:border-brand-300 dark:border-slate-700 dark:text-slate-400'
+                    }`}
+                  >
+                    {ch.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+              Les rappels automatiques n'emprunteront que les canaux cochés et disponibles.
+            </p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Centre fiscal">
             <Select value={taxCenterId} onChange={(e) => setTaxCenterId(e.target.value)}>
@@ -733,6 +807,15 @@ function Overview({ taxpayer }: { taxpayer: TaxpayerDetail }) {
     ['Adresse', taxpayer.address || '—'],
     ['Centre fiscal', taxpayer.taxCenterName || '—'],
     ['Régime', taxpayer.taxRegimeName || '—'],
+    ['Langue', languageLabels[taxpayer.language] ?? taxpayer.language],
+    [
+      'Canaux autorisés',
+      (taxpayer.preferredChannels || 'IN_APP')
+        .split(',')
+        .map((c) => channelLabels[c.trim()] ?? c.trim())
+        .filter(Boolean)
+        .join(' · ') || '—',
+    ],
     ['Obligations', String(taxpayer.obligationsCount)],
   ]
 

@@ -24,14 +24,17 @@ import { useToast } from '../components/Toast'
 import { useAuth } from '../lib/auth'
 import RowActionPortal from '../components/RowActionPortal'
 
-/* ─────────── Catégories de permissions ─────────── */
+/* ─────────── Catégories de permissions ───────────
+ * Liste alignée sur le catalogue applicatif (Permissions.java / table `permissions`).
+ * Toute permission absente de la base est ignorée à l'affichage (voir availablePermissions).
+ */
 
 const permCategories: Record<string, string[]> = {
   'Contribuables': ['TAXPAYER_READ', 'TAXPAYER_WRITE', 'TAXPAYER_DELETE', 'TAXPAYER_EXPORT', 'TAXPAYER_VIEW_HISTORY', 'TAXPAYER_SUSPEND', 'TAXPAYER_CLOSE'],
   'Déclarations': ['DECLARATION_READ', 'DECLARATION_CREATE', 'DECLARATION_UPDATE', 'DECLARATION_WRITE', 'DECLARATION_SUBMIT', 'DECLARATION_REVIEW', 'DECLARATION_VALIDATE', 'DECLARATION_REJECT', 'DECLARATION_CORRECT', 'DECLARATION_CANCEL', 'DECLARATION_EXPORT', 'DECLARATION_ATTACH'],
-  'Créances': ['DEBT_READ', 'DEBT_CREATE', 'DEBT_WRITE', 'DEBT_UPDATE', 'DEBT_DELETE', 'DEBT_RECALCULATE', 'DEBT_SUSPEND', 'DEBT_CLOSE', 'DEBT_CANCEL', 'DEBT_EXPORT', 'DEBT_DETECT_ARREARS', 'DEBT_ASSIGN_RECOVERY', 'DEBT_VIEW_HISTORY'],
-  'Paiements': ['PAYMENT_READ', 'PAYMENT_CREATE', 'PAYMENT_WRITE', 'PAYMENT_CONFIRM', 'PAYMENT_ALLOCATE', 'PAYMENT_CANCEL', 'PAYMENT_REFUND', 'PAYMENT_EXPORT', 'PAYMENT_RECONCILE', 'PAYMENT_VIEW_HISTORY'],
-  'Quittances': ['RECEIPT_READ', 'RECEIPT_GENERATE', 'RECEIPT_CREATE', 'RECEIPT_DOWNLOAD', 'RECEIPT_VERIFY', 'RECEIPT_CANCEL', 'RECEIPT_REPLACE', 'RECEIPT_REFUND', 'RECEIPT_EXPORT', 'RECEIPT_VIEW_HISTORY'],
+  'Créances': ['DEBT_READ', 'DEBT_CREATE', 'DEBT_WRITE', 'DEBT_DELETE', 'DEBT_RECALCULATE', 'DEBT_SUSPEND', 'DEBT_CLOSE', 'DEBT_EXPORT', 'DEBT_DETECT_ARREARS', 'DEBT_ASSIGN_RECOVERY', 'DEBT_VIEW_HISTORY'],
+  'Paiements': ['PAYMENT_READ', 'PAYMENT_WRITE', 'PAYMENT_CONFIRM', 'PAYMENT_ALLOCATE', 'PAYMENT_CANCEL', 'PAYMENT_REFUND', 'PAYMENT_EXPORT', 'PAYMENT_RECONCILE', 'PAYMENT_VIEW_HISTORY'],
+  'Quittances': ['RECEIPT_READ', 'RECEIPT_GENERATE', 'RECEIPT_DOWNLOAD', 'RECEIPT_VERIFY', 'RECEIPT_CANCEL', 'RECEIPT_REPLACE', 'RECEIPT_REFUND', 'RECEIPT_EXPORT', 'RECEIPT_VIEW_HISTORY'],
   'Recouvrement': ['COLLECTION_READ', 'COLLECTION_WRITE'],
   'Messages': ['MESSAGE_READ', 'MESSAGE_WRITE', 'MESSAGE_MANAGE', 'MESSAGE_DELETE'],
   'Contrôles fiscaux': ['CONTROL_READ', 'CONTROL_WRITE'],
@@ -42,7 +45,7 @@ const permCategories: Record<string, string[]> = {
   'Référentiels': ['TAXONOMY_READ', 'TAXONOMY_WRITE'],
   'Impositions': ['ASSESSMENT_READ', 'ASSESSMENT_WRITE'],
   'Rapports': ['REPORT_READ', 'REPORT_EXPORT', 'REPORT_FINANCIAL', 'REPORT_TAX', 'REPORT_RECOVERY'],
-  'Administration': ['USER_READ', 'USER_CREATE', 'USER_WRITE', 'USER_DISABLE', 'USER_RESET_PASSWORD', 'ROLE_READ', 'ROLE_CREATE', 'ROLE_WRITE', 'ROLE_DELETE', 'ROLE_ASSIGN', 'PERMISSION_READ', 'PARAMETER_READ', 'PARAMETER_WRITE', 'SYSTEM_SETTINGS_READ', 'SYSTEM_SETTINGS_UPDATE'],
+  'Administration': ['USER_READ', 'USER_WRITE', 'USER_DISABLE', 'USER_RESET_PASSWORD', 'ROLE_READ', 'ROLE_WRITE', 'ROLE_ASSIGN', 'PERMISSION_READ', 'PARAMETER_READ', 'PARAMETER_WRITE', 'SYSTEM_SETTINGS_READ', 'SYSTEM_SETTINGS_UPDATE'],
   'Audit': ['AUDIT_READ', 'NOTIFICATION_READ'],
 }
 
@@ -144,7 +147,7 @@ export default function Roles() {
         title="Rôles et permissions"
         subtitle="Centre de gouvernance des accès"
         actions={
-          can('ROLE_WRITE') && (
+          can('ROLE_WRITE') && can('ROLE_ASSIGN') && (
             <Button onClick={() => { setDuplicateRole(null); setCreateOpen(true) }}>
               <Plus className="h-4 w-4" /> Nouveau rôle
             </Button>
@@ -238,7 +241,7 @@ export default function Roles() {
                               >
                                 <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {r.system ? 'Verrouillé' : 'Éditer'}
                               </button>
-                              {!r.system && can('ROLE_WRITE') && (
+                              {!r.system && can('ROLE_WRITE') && can('ROLE_ASSIGN') && (
                                 <>
                                   <button
                                     onClick={() => { openRoleForDuplication(r) }}

@@ -22,3 +22,7 @@ mnk-tax:
     base-url: http://localhost:5177
     storage-dir: ./target/test-receipts
   seed-demo: false
+  # Les tests vérifient l'échec explicite sans fournisseur réel : pas de démo.
+  communication:
+    demo-provider:
+      enabled: false

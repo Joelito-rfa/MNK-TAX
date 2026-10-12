@@ -4,26 +4,35 @@ import com.mnktax.audit.service.AuditService;
 import com.mnktax.auth.dto.RegisterRequest;
 import com.mnktax.auth.dto.RegistrationRequestDto;
 import com.mnktax.auth.entity.RegistrationRequest;
+import com.mnktax.auth.entity.Role;
 import com.mnktax.auth.entity.User;
 import com.mnktax.auth.repository.RegistrationRequestRepository;
 import com.mnktax.auth.repository.RoleRepository;
 import com.mnktax.auth.repository.UserRepository;
+import com.mnktax.auth.security.Permissions;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.ReferenceGenerator;
+import com.mnktax.common.util.SecurityUtils;
+import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class RegistrationService {
@@ -35,17 +44,20 @@ public class RegistrationService {
     private final RoleRepository roleRepository;
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
+    private final TaxpayerRepository taxpayerRepository;
 
     public RegistrationService(RegistrationRequestRepository repo,
                                UserRepository userRepository,
                                RoleRepository roleRepository,
                                AuditService auditService,
-                               PasswordEncoder passwordEncoder) {
+                               PasswordEncoder passwordEncoder,
+                               TaxpayerRepository taxpayerRepository) {
         this.repo = repo;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
+        this.taxpayerRepository = taxpayerRepository;
     }
 
     /* ── Création (publique) ─────────────────────────────── */
@@ -167,12 +179,12 @@ public class RegistrationService {
 
         // Valider le rôle
         String finalRole = (roleCode != null && !roleCode.isBlank()) ? roleCode : r.getRole();
-        finalRole = finalRole.toUpperCase().replace(" ", "_");
+        String normalizedRole = finalRole.toUpperCase().replace(" ", "_");
 
         // Protéger les rôles administratifs
-        if ("SUPER_ADMIN".equals(finalRole) || "ADMIN".equals(finalRole)) {
+        if ("SUPER_ADMIN".equals(normalizedRole) || "ADMIN".equals(normalizedRole)) {
             throw new BusinessException("FORBIDDEN",
-                    "Le rôle " + finalRole + " ne peut pas être attribué via une demande d'inscription.");
+                    "Le rôle " + normalizedRole + " ne peut pas être attribué via une demande d'inscription.");
         }
 
         // Approuver
@@ -198,15 +210,29 @@ public class RegistrationService {
                 .roles(new HashSet<>())
                 .build();
 
-        roleRepository.findByCode(finalRole).ifPresent(user.getRoles()::add);
-        userRepository.save(user);
+        Role role = roleRepository.findByCode(normalizedRole)
+                .orElseThrow(() -> new BusinessException("VALIDATION_ERROR", "Rôle inconnu : " + normalizedRole));
+        requireAssignable(role);
+        user.getRoles().add(role);
+        User savedUser = userRepository.save(user);
+
+        // Rattacher le compte au dossier contribuable portant le même email,
+        // afin que le contributeur accède à ses propres données (cf. DataScope).
+        if (r.getEmail() != null && !r.getEmail().isBlank()) {
+            taxpayerRepository.findByEmailIgnoreCase(r.getEmail().trim()).ifPresent(tp -> {
+                if (tp.getUserId() == null) {
+                    tp.setUserId(savedUser.getId());
+                    taxpayerRepository.save(tp);
+                }
+            });
+        }
 
         auditService.record("REGISTRATION_APPROVED", "REGISTRATION_REQUEST",
                 String.valueOf(id), "PENDING/UNDER_REVIEW", "APPROVED", httpRequest);
         auditService.record("ACCOUNT_CREATED_FROM_REGISTRATION", "USER",
                 String.valueOf(user.getId()), null, user.getUsername(), httpRequest);
 
-        log.info("Demande {} approuvée. Compte créé: {} (rôle: {})", r.getReference(), user.getUsername(), finalRole);
+        log.info("Demande {} approuvée. Compte créé: {} (rôle: {})", r.getReference(), user.getUsername(), normalizedRole);
         return RegistrationRequestDto.from(r);
     }
 
@@ -239,6 +265,32 @@ public class RegistrationService {
     }
 
     /* ── Helpers ─────────────────────────────────────────── */
+
+    /**
+     * Anti-escalade : le rôle accordé doit exister et ses permissions ne doivent
+     * pas excéder celles du validateur, sauf si celui-ci détient ROLE_ASSIGN.
+     */
+    private void requireAssignable(Role role) {
+        if (SecurityUtils.hasAuthority(Permissions.ROLE_ASSIGN)) {
+            return;
+        }
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Set<String> own = auth == null ? Set.of() : auth.getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .filter(a -> a.startsWith("PERMISSION_"))
+                .map(a -> a.substring("PERMISSION_".length()))
+                .collect(Collectors.toSet());
+        List<String> excessive = role.getPermissions().stream()
+                .map(p -> p.getCode())
+                .filter(code -> !own.contains(code))
+                .sorted()
+                .toList();
+        if (!excessive.isEmpty()) {
+            throw new BusinessException("FORBIDDEN",
+                    "Vous ne pouvez pas accorder le rôle " + role.getCode()
+                            + " : permissions en excédent (" + String.join(", ", excessive) + ").");
+        }
+    }
 
     private String buildName(RegisterRequest r) {
         if (r.firstName() != null && r.lastName() != null) {

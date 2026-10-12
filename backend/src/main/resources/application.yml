@@ -8,6 +8,12 @@ spring:
     name: mnk-tax
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  task:
+    scheduling:
+      # Plusieurs crons quotidiens + le worker de file d'envoi partagent ce pool.
+      pool:
+        size: ${SCHEDULER_POOL_SIZE:4}
+      thread-name-prefix: mnk-sched-
   jackson:
     default-property-inclusion: non_null
     serialization:
@@ -62,11 +68,18 @@ mnk-tax:
   scheduler:
     zone: ${SCHEDULER_TIMEZONE:Indian/Antananarivo}
     communication-cron: ${COMM_SCHEDULER_CRON:0 15 7 * * *}
+    # Détection des retards (créances/obligations) à 06h30.
+    overdue-cron: ${OVERDUE_SCHEDULER_CRON:0 30 6 * * *}
+    # Notifications internes d'échéance aux agents à 07h00.
+    deadline-cron: ${DEADLINE_SCHEDULER_CRON:0 0 7 * * *}
   document:
     storage-dir: ${DOCUMENT_STORAGE_DIR:./data/documents}
   avatar:
     storage-dir: ${AVATAR_STORAGE_DIR:./data/avatars}
   seed-demo: ${SEED_DEMO:true}
+  security:
+    # Swagger / H2-Console : à false en production (cf. application-prod.yml)
+    expose-api-docs: ${EXPOSE_API_DOCS:true}
   communication:
     mail:
       # Réel uniquement si MAIL_HOST est défini — l'état effectif est vérifié sur MAIL_HOST
@@ -85,6 +98,13 @@ mnk-tax:
       batch-size: ${COMM_QUEUE_BATCH_SIZE:50}
       max-attempts: ${COMM_QUEUE_MAX_ATTEMPTS:3}
       retry-backoff-minutes: ${COMM_QUEUE_RETRY_BACKOFF_MINUTES:5}
+      # Fréquence du worker de livraison (ms).
+      poll-delay-ms: ${COMM_QUEUE_POLL_DELAY_MS:20000}
+    # Fournisseur de démonstration (log uniquement) : permet à la démo de bout
+    # en bout de fonctionner sans SMTP/Twilio réels. Désactivé en production
+    # réelle si COMM_DEMO_PROVIDER=false (les envois passent alors en FAILED).
+    demo-provider:
+      enabled: ${COMM_DEMO_PROVIDER:true}
     test:
       email-recipient: ${COMM_TEST_EMAIL:}
       sms-recipient: ${COMM_TEST_SMS:}

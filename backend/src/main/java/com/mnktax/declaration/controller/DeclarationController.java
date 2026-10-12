@@ -4,6 +4,7 @@ import com.mnktax.auth.security.Permissions;
 import com.mnktax.declaration.dto.DeclarationDtos.*;
 import com.mnktax.declaration.entity.DeclarationStatus;
 import com.mnktax.declaration.service.DeclarationService;
+import com.mnktax.taxpayer.service.DataScope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,9 +24,11 @@ import java.util.List;
 public class DeclarationController {
 
     private final DeclarationService declarationService;
+    private final DataScope dataScope;
 
-    public DeclarationController(DeclarationService declarationService) {
+    public DeclarationController(DeclarationService declarationService, DataScope dataScope) {
         this.declarationService = declarationService;
+        this.dataScope = dataScope;
     }
 
     @GetMapping
@@ -41,7 +44,7 @@ public class DeclarationController {
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(declarationService.search(status, taxTypeCode, period,
-                taxpayerId, exercice, rectificative, q, pageable));
+                dataScope.effectiveTaxpayerId(taxpayerId), exercice, rectificative, q, pageable));
     }
 
     @GetMapping("/statistics")
@@ -49,6 +52,7 @@ public class DeclarationController {
     @Operation(summary = "Statistiques des déclarations")
     public ResponseEntity<StatisticsDto> statistics(
             @RequestParam(required = false) String period) {
+        dataScope.assertNotSelfService("déclarations");
         return ResponseEntity.ok(declarationService.statistics(period));
     }
 
@@ -57,6 +61,7 @@ public class DeclarationController {
     @Operation(summary = "Calendrier fiscal")
     public ResponseEntity<List<CalendarEntryDto>> calendar(
             @RequestParam(defaultValue = "2026") int year) {
+        dataScope.assertNotSelfService("calendrier fiscal");
         return ResponseEntity.ok(declarationService.calendar(year));
     }
 
@@ -64,7 +69,9 @@ public class DeclarationController {
     @PreAuthorize("hasAuthority('" + Permissions.DECLARATION_READ + "')")
     @Operation(summary = "Détail d'une déclaration")
     public ResponseEntity<DeclarationDto> get(@PathVariable Long id) {
-        return ResponseEntity.ok(declarationService.get(id));
+        DeclarationDto declaration = declarationService.get(id);
+        dataScope.requireOwnership(declaration.taxpayerId());
+        return ResponseEntity.ok(declaration);
     }
 
     @PostMapping
@@ -162,6 +169,7 @@ public class DeclarationController {
     @PreAuthorize("hasAuthority('" + Permissions.DECLARATION_READ + "')")
     @Operation(summary = "Historique d'une déclaration")
     public ResponseEntity<List<HistoryDto>> history(@PathVariable Long id) {
+        dataScope.requireOwnership(declarationService.get(id).taxpayerId());
         return ResponseEntity.ok(declarationService.history(id));
     }
 }

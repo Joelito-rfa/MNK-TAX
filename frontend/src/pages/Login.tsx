@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { Link, useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { FileText, Fingerprint, Lock, Moon, ShieldCheck, Sun, TrendingDown, User, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { homeRouteFor } from '../lib/navigation'
 import { useTheme } from '../lib/theme'
 import { useI18n, type Locale } from '../lib/i18n'
 import { apiErrorMessage } from '../lib/api'
@@ -39,6 +40,7 @@ export default function Login() {
   const location = useLocation()
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
   const { locale, setLocale, t } = useI18n()
@@ -59,7 +61,7 @@ export default function Login() {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  if (user) return <Navigate to="/dashboard" replace />
+  if (user) return <Navigate to={homeRouteFor(user.permissions)} replace />
 
   const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? '/'
 
@@ -67,8 +69,8 @@ export default function Login() {
     setError('')
     setSubmitting(true)
     try {
-      await login(values)
-      navigate(from, { replace: true })
+      const logged = await login(values)
+      navigate(from !== '/' ? from : homeRouteFor(logged.permissions), { replace: true })
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
@@ -225,7 +227,19 @@ export default function Login() {
             <Field label={t('login.password')}>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input className="pl-10" type="password" placeholder={t('login.password.placeholder')} autoComplete="current-password" {...register('password')} />
+                <Input className="pl-10 pr-10" type={showPassword ? 'text' : 'password'} placeholder={t('login.password.placeholder')} autoComplete={showPassword ? 'off' : 'current-password'} {...register('password')} />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded-lg flex items-center justify-center text-slate-400 transition-all duration-200 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                  aria-label={showPassword ? t('login.showPassword.hide') : t('login.showPassword.show')}
+                >
+                  {showPassword ? (
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a13.53 13.53 0 0 0 11.19-7.49" /><line x1="2" y1="2" x2="22" y2="22" /></svg>
+                  ) : (
+                    <Lock className="h-4 w-4" />
+                  )}
+                </button>
               </div>
               {errors.password && <p className="mt-1 text-xs text-rose-600">{t('login.password.required')}</p>}
             </Field>

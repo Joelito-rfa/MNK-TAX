@@ -50,6 +50,16 @@ services:
       # Envois test (destination explicite uniquement)
       COMM_TEST_EMAIL: ${COMM_TEST_EMAIL:-}
       COMM_TEST_SMS: ${COMM_TEST_SMS:-}
+      # Fournisseur de démonstration (log uniquement) — false en production réelle
+      COMM_DEMO_PROVIDER: ${COMM_DEMO_PROVIDER:-true}
+      # File d'envoi
+      COMM_QUEUE_POLL_DELAY_MS: ${COMM_QUEUE_POLL_DELAY_MS:-20000}
+      # Planificateur (crons + pool)
+      COMM_SCHEDULER_CRON: ${COMM_SCHEDULER_CRON:-0 15 7 * * *}
+      OVERDUE_SCHEDULER_CRON: ${OVERDUE_SCHEDULER_CRON:-0 30 6 * * *}
+      DEADLINE_SCHEDULER_CRON: ${DEADLINE_SCHEDULER_CRON:-0 0 7 * * *}
+      SCHEDULER_TIMEZONE: ${SCHEDULER_TIMEZONE:-Indian/Antananarivo}
+      SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-4}
       # Centre de communication — SMS (fournisseur réel)
       SMS_PROVIDER: ${SMS_PROVIDER:-none}
       SMS_ACCOUNT_SID: ${SMS_ACCOUNT_SID:-}

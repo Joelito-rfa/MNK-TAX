@@ -6,6 +6,7 @@ import com.mnktax.receipt.dto.ReceiptStatsDto;
 import com.mnktax.receipt.dto.ReceiptVerificationDto;
 import com.mnktax.receipt.entity.ReceiptStatus;
 import com.mnktax.receipt.service.ReceiptService;
+import com.mnktax.taxpayer.service.DataScope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,9 +39,11 @@ import java.util.Map;
 public class ReceiptController {
 
     private final ReceiptService receiptService;
+    private final DataScope dataScope;
 
-    public ReceiptController(ReceiptService receiptService) {
+    public ReceiptController(ReceiptService receiptService, DataScope dataScope) {
         this.receiptService = receiptService;
+        this.dataScope = dataScope;
     }
 
     @GetMapping
@@ -58,13 +61,15 @@ public class ReceiptController {
             @PageableDefault(size = 25) Pageable pageable) {
         Instant from = fromDate != null ? fromDate.atStartOfDay(ZoneOffset.UTC).toInstant() : null;
         Instant to = toDate != null ? toDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant() : null;
-        return ResponseEntity.ok(receiptService.search(status, taxpayerId, taxTypeCode, method, from, to, center, q, pageable));
+        return ResponseEntity.ok(receiptService.search(status, dataScope.effectiveTaxpayerId(taxpayerId),
+                taxTypeCode, method, from, to, center, q, pageable));
     }
 
     @GetMapping("/stats")
     @PreAuthorize("hasAuthority('" + Permissions.RECEIPT_READ + "')")
     @Operation(summary = "Statistiques des quittances")
     public ResponseEntity<ReceiptStatsDto> stats() {
+        dataScope.assertNotSelfService("quittances");
         return ResponseEntity.ok(receiptService.stats());
     }
 
@@ -72,15 +77,18 @@ public class ReceiptController {
     @PreAuthorize("hasAuthority('" + Permissions.RECEIPT_READ + "')")
     @Operation(summary = "Détail d'une quittance")
     public ResponseEntity<ReceiptDto> get(@PathVariable Long id) {
-        return ResponseEntity.ok(receiptService.get(id));
+        ReceiptDto receipt = receiptService.get(id);
+        dataScope.requireOwnership(receipt.taxpayerId());
+        return ResponseEntity.ok(receipt);
     }
 
     @GetMapping("/{id}/pdf")
     @PreAuthorize("hasAuthority('" + Permissions.RECEIPT_DOWNLOAD + "')")
     @Operation(summary = "Télécharger la quittance en PDF")
     public ResponseEntity<byte[]> pdf(@PathVariable Long id, HttpServletRequest request) {
-        byte[] content = receiptService.pdf(id, request);
         ReceiptDto dto = receiptService.get(id);
+        dataScope.requireOwnership(dto.taxpayerId());
+        byte[] content = receiptService.pdf(id, request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=quittance-" + dto.receiptNumber() + ".pdf")

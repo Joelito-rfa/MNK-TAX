@@ -214,26 +214,32 @@ export default function Profile() {
   if (!user) return null
 
   return (
-    <div className="space-y-6">
+    <div className="fx-page space-y-6">
       <PageHeader title="Mon profil" subtitle="Gestion de votre compte et sécurité" />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* ═══ Carte d'identité ═══ */}
         <div className="lg:col-span-1">
-          <Card className="overflow-hidden">
-            <div className="flex flex-col items-center gap-4 bg-brand-700 px-6 py-8 text-center">
-              <div className="group relative">
-                <Avatar
-                  name={fullName || user.username}
-                  size="lg"
-                  src={avatarUrl}
-                  className="h-20 w-20 text-2xl ring-4 ring-white/25"
-                />
+          <Card hover className="profile-cover-3d overflow-hidden p-0">
+            <div className="profile-cover relative flex flex-col items-center gap-4 overflow-hidden px-6 py-8 text-center">
+              {/* Halos décoratifs flottants */}
+              <span aria-hidden="true" className="pointer-events-none absolute -left-12 -top-12 h-40 w-40 animate-float rounded-full bg-indigo-400/30 blur-3xl" />
+              <span aria-hidden="true" className="pointer-events-none absolute -bottom-14 -right-10 h-44 w-44 animate-float-slow rounded-full bg-emerald-300/25 blur-3xl" />
+              <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-700 via-brand-600 to-indigo-600 dark:from-brand-800 dark:via-brand-700 dark:to-indigo-800" />
+              <div className="profile-float group relative z-10">
+                <div className="animate-float">
+                  <Avatar
+                    name={fullName || user.username}
+                    size="lg"
+                    src={avatarUrl}
+                    className="h-20 w-20 text-2xl shadow-xl shadow-black/25 ring-4 ring-white/40 transition-transform duration-300 group-hover:rotate-1 group-hover:scale-105"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadAvatar.isPending || removeAvatar.isPending}
-                  className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 text-transparent transition group-hover:bg-black/45 group-hover:text-white disabled:opacity-50"
+                  className="absolute inset-0 z-10 flex items-center justify-center rounded-full bg-black/0 text-transparent transition group-hover:bg-black/45 group-hover:text-white disabled:opacity-50"
                   aria-label="Changer la photo de profil"
                 >
                   <Camera className="h-6 w-6" />
@@ -246,28 +252,28 @@ export default function Profile() {
                   onChange={(e) => { onAvatarSelected(e.target.files?.[0]); e.target.value = '' }}
                 />
               </div>
-              <div>
-                <p className="text-lg font-semibold text-white">{fullName || user.username}</p>
+              <div className="relative z-10">
+                <p className="text-xl font-bold tracking-tight text-white">{fullName || user.username}</p>
                 <p className="text-sm text-brand-100">@{user.username}</p>
               </div>
-              <div className="flex flex-wrap items-center justify-center gap-1.5">
+              <div className="relative z-10 flex flex-wrap items-center justify-center gap-1.5">
                 {user.roles.map((r) => (
-                  <Badge key={r} tone="violet" className="bg-white/15 text-white">{roleLabel([r], t)}</Badge>
+                  <Badge key={r} tone="violet" className="bg-white/15 text-white backdrop-blur">{roleLabel([r], t)}</Badge>
                 ))}
                 <Badge tone={user.enabled ? 'green' : 'red'}>{user.enabled ? 'Actif' : 'Désactivé'}</Badge>
               </div>
               {(uploadAvatar.isPending || removeAvatar.isPending) && (
-                <p className="text-xs text-brand-100">Chargement de l'image…</p>
+                <p className="relative z-10 text-xs text-brand-100">Chargement de l'image…</p>
               )}
               {avatarError && (
-                <p className="max-w-60 text-xs text-rose-200">{avatarError}</p>
+                <p className="relative z-10 max-w-60 text-xs text-rose-200">{avatarError}</p>
               )}
               {hasAvatar && (
                 <button
                   type="button"
                   onClick={() => setConfirmRemoveAvatar(true)}
                   disabled={removeAvatar.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
+                  className="relative z-10 inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-white/20 disabled:opacity-50"
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Supprimer la photo
                 </button>
@@ -308,11 +314,15 @@ export default function Profile() {
         {/* ═══ Contenu principal ═══ */}
         <div className="space-y-6 lg:col-span-2">
           {/* ── Informations personnelles ── */}
-          <Card>
+          <Card hover>
             <CardHeader
               title="Informations personnelles"
               subtitle="Ces informations sont visibles par les autres agents"
-              actions={<UserIcon className="h-5 w-5 text-slate-300 dark:text-slate-600" />}
+              actions={
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-300">
+                  <UserIcon className="h-5 w-5" />
+                </span>
+              }
             />
             <form onSubmit={(e) => { e.preventDefault(); saveProfile.mutate() }} className="space-y-4 px-5 py-5">
               {saveProfile.isError && (
@@ -363,11 +373,15 @@ export default function Profile() {
           </Card>
 
           {/* ── Sécurité ── */}
-          <Card>
+          <Card hover>
             <CardHeader
               title="Sécurité"
               subtitle="Changer le mot de passe et gérer les sessions"
-              actions={<Key className="h-5 w-5 text-slate-300 dark:text-slate-600" />}
+              actions={
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
+                  <Key className="h-5 w-5" />
+                </span>
+              }
             />
             <div className="px-5 py-5">
               <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
@@ -384,7 +398,7 @@ export default function Profile() {
       </div>
 
       {/* ═══ Sessions actives ═══ */}
-      <Card>
+      <Card hover>
         <CardHeader
           title="Sessions actives"
           subtitle={`${sessions.length} session(s) active(s)`}
@@ -405,7 +419,7 @@ export default function Profile() {
             sessions.map((s) => {
               const parsed = parseUserAgent(s.userAgent)
               return (
-                <div key={s.id} className="flex items-center justify-between gap-4 px-5 py-4">
+                <div key={s.id} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-700/30">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
                       {parsed.device === 'Mobile' ? <Smartphone className="h-5 w-5" /> : <Laptop className="h-5 w-5" />}
@@ -443,11 +457,15 @@ export default function Profile() {
       </Card>
 
       {/* ═══ Activité récente ═══ */}
-      <Card>
+      <Card hover>
         <CardHeader
           title="Activité récente"
           subtitle="Historique de sécurité de votre compte"
-          actions={<Activity className="h-5 w-5 text-slate-300 dark:text-slate-600" />}
+          actions={
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
+              <Activity className="h-5 w-5" />
+            </span>
+          }
         />
         <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
           {historyLoading ? (
@@ -456,7 +474,7 @@ export default function Profile() {
             <div className="px-5 py-8 text-center text-sm text-slate-500">Aucune activité récente</div>
           ) : (
             securityHistory.map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-4 px-5 py-3">
+              <div key={e.id} className="flex items-center justify-between gap-4 px-5 py-3 transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-700/30">
                 <div className="flex items-center gap-3">
                   <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
                     e.action === 'LOGIN' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
@@ -485,15 +503,19 @@ export default function Profile() {
       </Card>
 
       {/* ═══ Préférences de notification ═══ */}
-      <Card>
+      <Card hover>
         <CardHeader
           title="Préférences de notification"
           subtitle="Choisissez les notifications que vous souhaitez recevoir"
-          actions={<Bell className="h-5 w-5 text-slate-300 dark:text-slate-600" />}
+          actions={
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
+              <Bell className="h-5 w-5" />
+            </span>
+          }
         />
         <div className="divide-y divide-slate-100 dark:divide-slate-700/50">
           {NOTIFICATION_PREFS.map((pref) => (
-            <div key={pref.key} className="flex items-center justify-between px-5 py-3.5">
+            <div key={pref.key} className="flex items-center justify-between px-5 py-3.5 transition-colors hover:bg-slate-50/60 dark:hover:bg-slate-700/30">
               <div className="flex items-center gap-3">
                 <span className="text-slate-400 dark:text-slate-500">{pref.icon}</span>
                 <span className="text-sm text-slate-700 dark:text-slate-300">{pref.label}</span>
@@ -503,8 +525,8 @@ export default function Profile() {
               </div>
               <button
                 onClick={() => toggleNotifPref(pref.key)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  notifPrefs[pref.key] ? 'bg-brand-600' : 'bg-slate-300 dark:bg-slate-600'
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-200 active:scale-90 ${
+                  notifPrefs[pref.key] ? 'bg-brand-600 shadow-md shadow-brand-500/30' : 'bg-slate-300 dark:bg-slate-600'
                 }`}
               >
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -573,7 +595,7 @@ export default function Profile() {
 
 function InfoRow({ icon, value }: { icon: React.ReactNode; value: string }) {
   return (
-    <div className="flex items-center gap-2.5 text-slate-600 dark:text-slate-400">
+    <div className="flex items-center gap-2.5 text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">
       <span className="text-slate-400 dark:text-slate-500">{icon}</span>
       <span className="truncate">{value}</span>
     </div>

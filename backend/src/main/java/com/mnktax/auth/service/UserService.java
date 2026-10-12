@@ -14,12 +14,17 @@ import com.mnktax.auth.entity.User;
 import com.mnktax.auth.repository.RefreshTokenRepository;
 import com.mnktax.auth.repository.RoleRepository;
 import com.mnktax.auth.repository.UserRepository;
+import com.mnktax.auth.security.Permissions;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
+import com.mnktax.common.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +39,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class UserService {
@@ -116,6 +122,10 @@ public class UserService {
         user.setPhone(request.phone());
         user.setUpdatedAt(Instant.now());
         if (request.roleCodes() != null) {
+            if (user.getRoles().stream().anyMatch(Role::isSystem) && !SecurityUtils.hasAuthority(Permissions.ROLE_ASSIGN)) {
+                throw new BusinessException("FORBIDDEN",
+                        "Modifier les rôles d'un utilisateur système requiert la permission ROLE_ASSIGN.");
+            }
             user.getRoles().clear();
             resolveRoles(user, request.roleCodes());
         }
@@ -128,6 +138,11 @@ public class UserService {
     public void setEnabled(Long id, boolean enabled, HttpServletRequest httpRequest) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
+        if (!enabled && user.getRoles().stream().anyMatch(Role::isSystem)
+                && !SecurityUtils.hasAuthority(Permissions.ROLE_ASSIGN)) {
+            throw new BusinessException("FORBIDDEN",
+                    "Désactiver un utilisateur système requiert la permission ROLE_ASSIGN.");
+        }
         boolean old = user.isEnabled();
         user.setEnabled(enabled);
         user.setUpdatedAt(Instant.now());
@@ -348,7 +363,43 @@ public class UserService {
         for (String code : roleCodes) {
             Role role = roleRepository.findByCode(code)
                     .orElseThrow(() -> new BusinessException("VALIDATION_ERROR", "Rôle inconnu : " + code));
+            requireAssignable(role);
             user.getRoles().add(role);
         }
+    }
+
+    /**
+     * Anti-escalade : un utilisateur ne peut pas attribuer un rôle dont il ne
+     * détient pas lui-même l'ensemble des permissions, sauf s'il possède
+     * {@code ROLE_ASSIGN} (réservé aux administrateurs). Empêche qu'un
+     * {@code USER_WRITE} s'attribue un rôle « tout permis ».
+     */
+    private void requireAssignable(Role role) {
+        if (SecurityUtils.hasAuthority(Permissions.ROLE_ASSIGN)) {
+            return;
+        }
+        Set<String> own = currentAuthorities();
+        List<String> excessive = role.getPermissions().stream()
+                .map(p -> p.getCode())
+                .filter(code -> !own.contains(code))
+                .sorted()
+                .toList();
+        if (!excessive.isEmpty()) {
+            throw new BusinessException("FORBIDDEN",
+                    "Vous ne pouvez pas attribuer le rôle " + role.getCode()
+                            + " : permissions en excédent (" + String.join(", ", excessive) + ").");
+        }
+    }
+
+    private static Set<String> currentAuthorities() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return Set.of();
+        }
+        return auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .filter(a -> a.startsWith("PERMISSION_"))
+                .map(a -> a.substring("PERMISSION_".length()))
+                .collect(Collectors.toSet());
     }
 }

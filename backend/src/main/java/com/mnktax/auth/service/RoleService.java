@@ -6,8 +6,10 @@ import com.mnktax.auth.entity.Permission;
 import com.mnktax.auth.entity.Role;
 import com.mnktax.auth.repository.PermissionRepository;
 import com.mnktax.auth.repository.RoleRepository;
+import com.mnktax.auth.security.Permissions;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
+import com.mnktax.common.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +41,7 @@ public class RoleService {
 
     @Transactional
     public RoleDto updatePermissions(Long roleId, List<String> permissionCodes, HttpServletRequest request) {
+        requireRoleAssign();
         Role role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Rôle", roleId));
         if (role.isSystem()) {
@@ -61,6 +64,7 @@ public class RoleService {
     @Transactional
     public RoleDto create(String code, String name, String description, List<String> permissionCodes,
                           HttpServletRequest request) {
+        requireRoleAssign();
         if (code == null || code.isBlank()) {
             throw new BusinessException("VALIDATION_ERROR", "Le code du rôle est requis.");
         }
@@ -101,5 +105,18 @@ public class RoleService {
     private RoleDto toDto(Role role) {
         return new RoleDto(role.getId(), role.getCode(), role.getName(), role.getDescription(), role.isSystem(),
                 role.getPermissions().stream().map(p -> p.getCode()).sorted().toList());
+    }
+
+    /**
+     * Garde-fou anti-escalade : gérer les permissions d'un rôle exige
+     * {@code ROLE_ASSIGN} en plus de {@code ROLE_WRITE}. Sans cela, un simple
+     * {@code ROLE_WRITE} suffit à fabriquer un rôle « tout permis » puis à se
+     * l'attribuer (cf. UserService#resolveRoles).
+     */
+    private void requireRoleAssign() {
+        if (!SecurityUtils.hasAuthority(Permissions.ROLE_ASSIGN)) {
+            throw new BusinessException("FORBIDDEN",
+                    "La permission ROLE_ASSIGN est requise pour gérer les rôles et leurs permissions.");
+        }
     }
 }

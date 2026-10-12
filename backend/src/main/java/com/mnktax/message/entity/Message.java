@@ -56,6 +56,10 @@ public class Message {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    /** Corps SMS court rendu depuis le modèle (jamais l'email tronqué). */
+    @Column(name = "sms_content", columnDefinition = "TEXT")
+    private String smsContent;
+
     @Column(name = "is_read", nullable = false)
     private boolean read;
 

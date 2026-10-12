@@ -24,6 +24,8 @@ export const fr: Record<string, string> = {
   'login.remember': 'Se souvenir de moi',
   'login.password': 'Mot de passe',
   'login.password.placeholder': '••••••••',
+  'login.showPassword.show': 'Afficher le mot de passe',
+  'login.showPassword.hide': 'Masquer le mot de passe',
   'login.submit': 'Se connecter',
   'login.submitting': 'Connexion…',
   'login.username.required': "Le nom d'utilisateur est requis.",
@@ -251,6 +253,7 @@ export const fr: Record<string, string> = {
   'error.notFound': 'Page non trouvée',
   'error.notFound.text': "La page que vous recherchez n'existe pas ou a été déplacée.",
   'error.backHome': "Retour à l'accueil",
+  'error.backToApp': "Retour à l'application",
   'error.unauthorized': 'Accès non autorisé',
   'error.server': 'Erreur serveur',
 

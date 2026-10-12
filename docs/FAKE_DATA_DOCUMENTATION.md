@@ -19,7 +19,9 @@
 | `accountant` | accountant@mnk-tax.mg | ACCOUNTANT | Agent@123 | Comptable |
 | `taxpayer.demo` | taxpayer@mnk-tax.mg | TAXPAYER | Taxpayer@123 | Contribuable démo |
 
-> **Permissions** : Voir `seedPermissions()` (89 permissions) et `seedRoles()` (5 rôles avec mappings)
+> **Permissions** : Voir `seedPermissions()` (56 permissions insérées par le seeder, complétées
+> par les migrations `V19`, `V21`, `V35`) et `seedRoles()` (6 rôles avec mappings).
+> Détail : [`ACCESS_MATRIX.md`](ACCESS_MATRIX.md).
 
 ---
 

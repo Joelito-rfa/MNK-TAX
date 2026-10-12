@@ -79,6 +79,8 @@ public interface TaxpayerRepository extends JpaRepository<Taxpayer, Long> {
 
     Optional<Taxpayer> findByUserId(Long userId);
 
+    Optional<Taxpayer> findByEmailIgnoreCase(String email);
+
     /** Contribuables soumis à un impôt donné (audience de diffusion). */
     @Query("SELECT DISTINCT t FROM Taxpayer t WHERE EXISTS (" +
            "SELECT 1 FROM com.mnktax.tax.entity.TaxObligation o WHERE o.taxpayer = t " +

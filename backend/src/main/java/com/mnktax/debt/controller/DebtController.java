@@ -10,6 +10,7 @@ import com.mnktax.debt.entity.DebtOrigin;
 import com.mnktax.debt.entity.DebtStatus;
 import com.mnktax.debt.entity.TaxDebt;
 import com.mnktax.debt.service.DebtService;
+import com.mnktax.taxpayer.service.DataScope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,9 +41,11 @@ import java.util.Map;
 public class DebtController {
 
     private final DebtService debtService;
+    private final DataScope dataScope;
 
-    public DebtController(DebtService debtService) {
+    public DebtController(DebtService debtService, DataScope dataScope) {
         this.debtService = debtService;
+        this.dataScope = dataScope;
     }
 
     @GetMapping
@@ -57,7 +60,8 @@ public class DebtController {
                                                  @RequestParam(required = false) String center,
                                                  @RequestParam(required = false) String q,
                                                  @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(debtService.search(status, taxTypeCode, period, taxpayerId,
+        return ResponseEntity.ok(debtService.search(status, taxTypeCode, period,
+                dataScope.effectiveTaxpayerId(taxpayerId),
                 origin, priority, center, false, q, pageable));
     }
 
@@ -66,20 +70,24 @@ public class DebtController {
     @Operation(summary = "Créances en retard (OVERDUE / en recouvrement / échues non payées)")
     public ResponseEntity<Page<TaxDebtDto>> overdue(@RequestParam(required = false) String q,
                                                     @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(debtService.search(null, null, null, null, null, null, null, true, q, pageable));
+        return ResponseEntity.ok(debtService.search(null, null, null, dataScope.effectiveTaxpayerId(null),
+                null, null, null, true, q, pageable));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_READ + "')")
     @Operation(summary = "Détail d'une créance")
     public ResponseEntity<TaxDebtDto> get(@PathVariable Long id) {
-        return ResponseEntity.ok(debtService.get(id));
+        TaxDebtDto debt = debtService.get(id);
+        dataScope.requireOwnership(debt.taxpayerId());
+        return ResponseEntity.ok(debt);
     }
 
     @GetMapping("/{id}/history")
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_READ + "')")
     @Operation(summary = "Historique d'événements d'une créance")
     public ResponseEntity<List<DebtHistoryDto>> history(@PathVariable Long id) {
+        dataScope.requireOwnership(debtService.get(id).taxpayerId());
         return ResponseEntity.ok(debtService.getHistory(id));
     }
 
@@ -87,6 +95,7 @@ public class DebtController {
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_READ + "')")
     @Operation(summary = "Statistiques détaillées des créances")
     public ResponseEntity<DebtStatsDto> stats() {
+        dataScope.assertNotSelfService("créances");
         return ResponseEntity.ok(debtService.stats());
     }
 

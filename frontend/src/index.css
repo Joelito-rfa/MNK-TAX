@@ -2452,3 +2452,17 @@ html.dark .chart-peak-label { fill: #94a3b8; }
   .ai-panel-3d { transform: none !important; transition: none !important; }
   .ai-panel-3d:hover { transform: none !important; }
 }
+
+/* ── Profil : cover 3D (avatar en relief au survol) ── */
+.profile-cover-3d .profile-cover { transform-style: preserve-3d; }
+.profile-cover-3d .profile-float {
+  transform: translateZ(0);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (hover: hover) {
+  .profile-cover-3d:hover .profile-float { transform: translateZ(30px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-cover-3d .profile-float { transform: none !important; transition: none !important; }
+  .profile-cover-3d .animate-float { animation: none !important; }
+}
