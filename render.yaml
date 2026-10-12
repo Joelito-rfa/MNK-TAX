@@ -3,8 +3,8 @@ services:
     name: mnk-tax-api
     runtime: docker
     rootDir: backend
-    dockerContext: ./backend
-    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /actuator/health
     envVars:
