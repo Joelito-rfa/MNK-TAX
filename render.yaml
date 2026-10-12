@@ -63,7 +63,7 @@ services:
       - key: JAVA_OPTS
         value: "-Xms256m -Xmx384m -XX:+UseG1GC -XX:+UseStringDeduplication"
 
-  - type: static
+  - type: web
     name: mnk-tax-frontend
     runtime: static
     rootDir: frontend
