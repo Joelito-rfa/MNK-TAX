@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './lib/auth'
 import { ThemeProvider } from './lib/theme'
@@ -5,42 +6,49 @@ import { I18nProvider } from './lib/i18n'
 import { ToastProvider } from './components/Toast'
 import ProtectedRoute from './components/ProtectedRoute'
 import Layout from './components/Layout'
+import { Spinner } from './components/ui'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
-import Taxpayers from './pages/Taxpayers'
-import TaxpayerDetail from './pages/TaxpayerDetail'
-import Declarations from './pages/Declarations'
-import Assessments from './pages/Assessments'
-import Debts from './pages/Debts'
-import DebtDetail from './pages/DebtDetail'
-import Complaints from './pages/Complaints'
-import Refunds from './pages/Refunds'
-import Controls from './pages/Controls'
-import CollectionOverview from './pages/collection/Overview'
-import CollectionOverdue from './pages/collection/Overdue'
-import CollectionReminders from './pages/collection/Reminders'
-import CollectionNotices from './pages/collection/Notices'
-import CollectionHistory from './pages/CollectionHistory'
-import CollectionPlans from './pages/CollectionPlans'
-import { PaymentsList } from './pages/payments/PaymentsList'
-import PaymentsPending from './pages/payments/PaymentsPending'
-import PaymentsStats from './pages/payments/PaymentsStats'
-import Receipts from './pages/Receipts'
 import ReceiptVerify from './pages/ReceiptVerify'
-import Reports from './pages/Reports'
-import Deadlines from './pages/Deadlines'
-import TaxRules from './pages/TaxRules'
-import Users from './pages/Users'
-import Roles from './pages/Roles'
-import AuditLogs from './pages/AuditLogs'
-import Parameters from './pages/Parameters'
-import RegistrationRequests from './pages/RegistrationRequests'
-import Profile from './pages/Profile'
-import NotificationsPage from './pages/Notifications'
-import MessagesPage from './pages/Messages'
 import NotFound from './pages/NotFound'
+import Forbidden from './pages/Forbidden'
+
+// Pages protégées chargées à la demande : évite d'embarquer toute
+// l'application (~2,3 Mo) dans le chunk du premier affichage.
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Taxpayers = lazy(() => import('./pages/Taxpayers'))
+const TaxpayerDetail = lazy(() => import('./pages/TaxpayerDetail'))
+const Declarations = lazy(() => import('./pages/Declarations'))
+const Assessments = lazy(() => import('./pages/Assessments'))
+const Debts = lazy(() => import('./pages/Debts'))
+const DebtDetail = lazy(() => import('./pages/DebtDetail'))
+const Complaints = lazy(() => import('./pages/Complaints'))
+const Refunds = lazy(() => import('./pages/Refunds'))
+const Controls = lazy(() => import('./pages/Controls'))
+const CollectionOverview = lazy(() => import('./pages/collection/Overview'))
+const CollectionOverdue = lazy(() => import('./pages/collection/Overdue'))
+const CollectionReminders = lazy(() => import('./pages/collection/Reminders'))
+const CollectionNotices = lazy(() => import('./pages/collection/Notices'))
+const CollectionHistory = lazy(() => import('./pages/CollectionHistory'))
+const CollectionPlans = lazy(() => import('./pages/CollectionPlans'))
+const PaymentsList = lazy(() =>
+  import('./pages/payments/PaymentsList').then((m) => ({ default: m.PaymentsList })),
+)
+const PaymentsPending = lazy(() => import('./pages/payments/PaymentsPending'))
+const PaymentsStats = lazy(() => import('./pages/payments/PaymentsStats'))
+const Receipts = lazy(() => import('./pages/Receipts'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Deadlines = lazy(() => import('./pages/Deadlines'))
+const TaxRules = lazy(() => import('./pages/TaxRules'))
+const Users = lazy(() => import('./pages/Users'))
+const Roles = lazy(() => import('./pages/Roles'))
+const AuditLogs = lazy(() => import('./pages/AuditLogs'))
+const Parameters = lazy(() => import('./pages/Parameters'))
+const RegistrationRequests = lazy(() => import('./pages/RegistrationRequests'))
+const Profile = lazy(() => import('./pages/Profile'))
+const NotificationsPage = lazy(() => import('./pages/Notifications'))
+const MessagesPage = lazy(() => import('./pages/Messages'))
 
 export default function App() {
   return (
@@ -49,6 +57,13 @@ export default function App() {
         <AuthProvider>
           <ToastProvider>
             <BrowserRouter>
+              <Suspense
+                fallback={
+                  <div className="flex min-h-screen items-center justify-center">
+                    <Spinner label="Chargement…" />
+                  </div>
+                }
+              >
               <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
@@ -56,7 +71,9 @@ export default function App() {
               <Route path="/verify/receipt/:reference" element={<ReceiptVerify />} />
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>
-                  <Route path="dashboard" element={<Dashboard />} />
+                  <Route path="dashboard" element={<ProtectedRoute permission="REPORT_READ" />}>
+                    <Route index element={<Dashboard />} />
+                  </Route>
                   <Route path="taxpayers" element={<ProtectedRoute permission="TAXPAYER_READ" />}>
                     <Route index element={<Taxpayers />} />
                     <Route path=":id" element={<TaxpayerDetail />} />
@@ -122,14 +139,18 @@ export default function App() {
                     <Route index element={<RegistrationRequests />} />
                   </Route>
                   <Route path="profile" element={<Profile />} />
-                  <Route path="notifications" element={<NotificationsPage />} />
+                  <Route path="notifications" element={<ProtectedRoute permission="NOTIFICATION_READ" />}>
+                    <Route index element={<NotificationsPage />} />
+                  </Route>
                   <Route path="messages" element={<ProtectedRoute permission="MESSAGE_READ" />}>
                     <Route index element={<MessagesPage />} />
                   </Route>
                 </Route>
               </Route>
-              <Route path="*" element={<NotFound />} />
+              <Route path="forbidden" element={<Forbidden />} />
+                  <Route path="*" element={<NotFound />} />
             </Routes>
+              </Suspense>
           </BrowserRouter>
         </ToastProvider>
       </AuthProvider>
