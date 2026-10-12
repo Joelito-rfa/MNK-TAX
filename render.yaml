@@ -75,4 +75,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://mnk-tax-api.onrender.com
+        value: https://mnk-tax-api.onrender.com/api
