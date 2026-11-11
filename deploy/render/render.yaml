@@ -73,7 +73,7 @@ services:
       - key: MAIL_SMTP_SSL
         value: "false"
       - key: MAIL_FROM_ADDRESS
-        value: "no-reply@mnk-tax.mg"
+        sync: false
       - key: MAIL_FROM_NAME
         value: "MNK-TAX — Administration fiscale"
       - key: MAIL_BASE_URL
