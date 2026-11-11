@@ -205,11 +205,11 @@ public class CollectionController {
     // ── Documents (PDF) ──────────────────────────────────────
 
     @GetMapping("/documents/mise-en-demeure/{debtId}")
-    @PreAuthorize("hasAuthority('" + Permissions.COLLECTION_READ + "')")
+    @PreAuthorize("hasAuthority('" + Permissions.COLLECTION_WRITE + "')")
     @Operation(summary = "Générer la mise en demeure PDF d'une créance",
-            description = "Document professionnel basé uniquement sur les données enregistrées — aucun délai ni mention juridique inventé.")
-    public ResponseEntity<byte[]> miseEnDemeurePdf(@PathVariable Long debtId) {
-        byte[] content = documentService.miseEnDemeure(debtId);
+            description = "Document professionnel basé uniquement sur les données enregistrées — aucun délai ni mention juridique inventé. Exige un acte formel déjà émis (400 sinon) ; la génération est tracée au journal et à l'audit.")
+    public ResponseEntity<byte[]> miseEnDemeurePdf(@PathVariable Long debtId, HttpServletRequest http) {
+        byte[] content = documentService.miseEnDemeure(debtId, http);
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=mise-en-demeure-" + debtId + ".pdf")
@@ -218,10 +218,11 @@ public class CollectionController {
     }
 
     @GetMapping("/documents/relance/{debtId}")
-    @PreAuthorize("hasAuthority('" + Permissions.COLLECTION_READ + "')")
-    @Operation(summary = "Générer la lettre de relance PDF d'une créance")
-    public ResponseEntity<byte[]> relancePdf(@PathVariable Long debtId) {
-        byte[] content = documentService.relance(debtId);
+    @PreAuthorize("hasAuthority('" + Permissions.COLLECTION_WRITE + "')")
+    @Operation(summary = "Générer la lettre de relance PDF d'une créance",
+            description = "Lettre de relance amiable (aucun acte formel exigé) ; la génération est tracée au journal et à l'audit.")
+    public ResponseEntity<byte[]> relancePdf(@PathVariable Long debtId, HttpServletRequest http) {
+        byte[] content = documentService.relance(debtId, http);
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=relance-" + debtId + ".pdf")

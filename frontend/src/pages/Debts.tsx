@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react'
-import { useMutation } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -7,7 +6,6 @@ import {
   Check,
   Clock,
   CreditCard,
-  Download,
   Eye,
   FileText,
   Filter,
@@ -30,8 +28,8 @@ import { apiErrorMessage } from '../lib/api'
 import { fetchDebts, useDebts, useDebtStats, useTaxpayersRef, useTaxTypesRef } from '../features/debt/api/queries'
 import { useCloseDebt, useCreateDebt, useMarkOverdue, useResumeDebt, useSuspendDebt } from '../features/debt/api/mutations'
 import { fmtMGA } from '../lib/format'
-import { downloadCsv } from '../lib/csv'
-import type { TaxpayerSummary } from '../types'
+import { ExportButton } from '../components/ExportButton'
+import type { MarkOverdueResult, TaxpayerSummary } from '../types'
 import {
   Badge,
   Button,
@@ -49,7 +47,6 @@ import {
   Td,
   Th,
 } from '../components/ui'
-import { useToast } from '../components/Toast'
 import RowActionPortal from '../components/RowActionPortal'
 
 /* ── Constants ── */
@@ -150,7 +147,7 @@ export default function Debts() {
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
   const [createOpen, setCreateOpen] = useState(false)
   const [createStep, setCreateStep] = useState(0)
-  const toast = useToast()
+  const [detection, setDetection] = useState<{ result: MarkOverdueResult; scope: string } | null>(null)
 
   const {
     register,
@@ -193,28 +190,27 @@ export default function Debts() {
   const resumeMutation = useResumeDebt()
   const closeMutation = useCloseDebt()
 
-  const exportCsv = useMutation({
-    mutationFn: async () => {
-      const p = new URLSearchParams(params)
-      p.delete('page')
-      p.delete('size')
-      const rows = await fetchDebts(`${p.toString()}&size=9999`)
-      downloadCsv(
-        `creances_${new Date().toISOString().slice(0, 10)}.csv`,
-        ['Référence', 'NIF', 'Contribuable', 'Impôt', 'Période', 'Origine', 'Priorité', 'Total', 'Payé', 'Solde', 'Jours retard', 'Statut'],
-        rows.content.map((d) => [
-          d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period,
-          originLabels[d.origin] ?? d.origin, priorityLabels[d.collectionPriority] ?? d.collectionPriority,
-          d.totalAmount, d.paidAmount, d.balance, d.daysOverdue, d.status,
-        ]),
-      )
-    },
-    onSuccess: () => toast.success('Export terminé'),
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
+  const exportDebtRows = async () => {
+    const p = new URLSearchParams(params)
+    p.delete('page')
+    p.delete('size')
+    const rows = await fetchDebts(`${p.toString()}&size=9999`)
+    return rows.content.map((d) => [
+      d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period,
+      originLabels[d.origin] ?? d.origin, priorityLabels[d.collectionPriority] ?? d.collectionPriority,
+      d.totalAmount, d.paidAmount, d.balance, d.daysOverdue, d.status,
+    ])
+  }
 
   /* ── Derived ── */
   const hasFilters = !!(q || status || taxType || period || origin || priority)
+
+  /** Périmètre réellement transmis à la détection (mêmes filtres que la liste). */
+  const detectionScope = [
+    taxType ? `impôt ${taxType}` : '',
+    period ? `période ${period}` : '',
+    q ? `recherche « ${q} »` : '',
+  ].filter(Boolean).join(' · ') || 'toutes les créances éligibles'
   const activeFilterCount = [q, status, taxType, period, origin, priority].filter(Boolean).length
 
   const priorityCounts = useMemo(() => {
@@ -289,12 +285,18 @@ export default function Debts() {
         subtitle="Suivi des impayés, retards et actions de recouvrement."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => exportCsv.mutate()} disabled={exportCsv.isPending}>
-              <Download className="h-4 w-4" /> Exporter
-            </Button>
+            <ExportButton
+              filenameBase={`creances_${new Date().toISOString().slice(0, 10)}`}
+              title="Créances fiscales"
+              headers={['Référence', 'NIF', 'Contribuable', 'Impôt', 'Période', 'Origine', 'Priorité', 'Total', 'Payé', 'Solde', 'Jours retard', 'Statut']}
+              rows={exportDebtRows}
+            />
             <Button
               variant="secondary"
-              onClick={() => markOverdue({ taxTypeCode: taxType, period, q })}
+              onClick={() => markOverdue(
+                { taxTypeCode: taxType, period, q },
+                { onSuccess: (result) => setDetection({ result, scope: detectionScope }) },
+              )}
               disabled={markOverduePending}
               className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-900/20"
             >
@@ -979,6 +981,105 @@ export default function Debts() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      {/* ── Résultat de la détection des impayés ── */}
+      <Modal
+        open={!!detection}
+        onClose={() => setDetection(null)}
+        title="Détection des impayés"
+        subtitle={`Périmètre : ${detection?.scope ?? ''}`}
+        size="wide"
+      >
+        {detection && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Créances mises à jour</p>
+                <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{detection.result.updated}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {detection.result.marked} nouvelle(s) mise(s) en retard
+                  {detection.result.alreadyOverdue > 0 && ` · ${detection.result.alreadyOverdue} frais complétés`}
+                </p>
+              </div>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20">
+                <p className="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">Frais de retard ajoutés</p>
+                <p className="mt-1 text-lg font-bold text-amber-700 dark:text-amber-400">
+                  {fmtMGA(detection.result.totalPenalties + detection.result.totalInterest)}
+                </p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
+                  Pénalités {fmtMGA(detection.result.totalPenalties)} · Intérêts {fmtMGA(detection.result.totalInterest)}
+                </p>
+              </div>
+            </div>
+
+            {detection.result.debts.length > 0 ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Détail des créances traitées</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Solde cumulé : <span className="font-semibold text-slate-700 dark:text-slate-300">{fmtMGA(detection.result.totalBalance)}</span>
+                  </p>
+                </div>
+                <div className="max-h-80 overflow-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                  <Table>
+                    <thead className="sticky top-0 bg-slate-50 dark:bg-slate-800">
+                      <tr>
+                        <Th>Référence</Th>
+                        <Th>Contribuable</Th>
+                        <Th className="text-right">Solde</Th>
+                        <Th className="text-right">Pénalité</Th>
+                        <Th className="text-right">Intérêts</Th>
+                        <Th>Retard</Th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/40">
+                      {detection.result.debts.map((d) => (
+                        <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                          <Td>
+                            <div className="flex items-center gap-2">
+                              <Link
+                                to={`/debts/${d.id}`}
+                                onClick={() => setDetection(null)}
+                                className="font-mono text-xs font-semibold text-violet-700 hover:underline dark:text-violet-400"
+                              >
+                                {d.reference}
+                              </Link>
+                              {d.newlyMarked && <Badge tone="rose">Nouveau</Badge>}
+                            </div>
+                          </Td>
+                          <Td>
+                            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{d.taxpayerName}</p>
+                            <p className="font-mono text-[11px] text-slate-400 dark:text-slate-500">{d.nif}</p>
+                          </Td>
+                          <Td className="text-right text-sm font-semibold text-slate-900 dark:text-slate-100">{fmtMGA(d.balance)}</Td>
+                          <Td className="text-right text-sm text-amber-600 dark:text-amber-400">{d.penalty > 0 ? `+${fmtMGA(d.penalty)}` : '—'}</Td>
+                          <Td className="text-right text-sm text-amber-600 dark:text-amber-400">{d.interest > 0 ? `+${fmtMGA(d.interest)}` : '—'}</Td>
+                          <Td className="text-sm text-slate-600 dark:text-slate-400">{d.daysOverdue}j</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </Table>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-300">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-medium">Aucune créance à mettre à jour</p>
+                  <p className="mt-1 text-sky-700 dark:text-sky-400">
+                    La détection ne retient que les créances avec un solde restant dont l'échéance est dépassée,
+                    hors recouvrement, contestation ou suspension, et qui n'ont pas déjà leurs pénalités et intérêts.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end border-t border-slate-100 pt-4 dark:border-slate-700/50">
+              <Button variant="secondary" size="sm" onClick={() => setDetection(null)}>Fermer</Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

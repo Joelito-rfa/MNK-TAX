@@ -36,8 +36,7 @@ public record RegisterRequest(
         @Schema(example = "Antananarivo")
         String address,
 
-        @NotBlank(message = "Le nom de l'organisation est requis.")
-        @Size(min = 2, max = 200, message = "L'organisation doit contenir entre 2 et 200 caractères.")
+        @Size(max = 200)
         @Schema(example = "DGI Antananarivo")
         String organization,
 
@@ -45,8 +44,8 @@ public record RegisterRequest(
         @Schema(example = "Agent fiscal")
         String position,
 
-        @NotBlank(message = "Le rôle est requis.")
-        @Schema(example = "Agent fiscal")
+        @Size(max = 50)
+        @Schema(example = "TAXPAYER", allowableValues = {"TAXPAYER", "TAX_AGENT", "COLLECTION_AGENT", "ACCOUNTANT"})
         String role,
 
         @Size(max = 50)

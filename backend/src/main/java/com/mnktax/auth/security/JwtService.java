@@ -17,6 +17,15 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
+    /**
+     * Ancienne valeur de repli publiée dans le dépôt : refusée explicitement
+     * pour empêcher tout déploiement de signer ses jetons avec un secret connu.
+     */
+    private static final String LEGACY_INSECURE_SECRET =
+            "Y2hhbmdlLW1lLWludGVybmFsLXNlY3JldC1mb3ItbW5rLXRheC1wcm90b3R5cGUtMDAx";
+
+    private static final int MIN_SECRET_BYTES = 32;
+
     private final SecretKey signingKey;
     private final long accessTtlSeconds;
     private final long refreshTtlSeconds;
@@ -24,9 +33,32 @@ public class JwtService {
     public JwtService(@Value("${mnk-tax.jwt.secret}") String secret,
                       @Value("${mnk-tax.jwt.access-token-ttl:3600}") long accessTtlSeconds,
                       @Value("${mnk-tax.jwt.refresh-token-ttl:604800}") long refreshTtlSeconds) {
-        this.signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        this.signingKey = buildSigningKey(secret);
         this.accessTtlSeconds = accessTtlSeconds;
         this.refreshTtlSeconds = refreshTtlSeconds;
+    }
+
+    private static SecretKey buildSigningKey(String secret) {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT_SECRET est obligatoire : définissez un secret aléatoire (openssl rand -base64 64).");
+        }
+        if (LEGACY_INSECURE_SECRET.equals(secret.trim())) {
+            throw new IllegalStateException(
+                    "JWT_SECRET utilise l'ancienne valeur de démonstration, publiquement connue. "
+                            + "Générez un nouveau secret (openssl rand -base64 64).");
+        }
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(secret.trim());
+        } catch (RuntimeException ex) {
+            throw new IllegalStateException("JWT_SECRET doit être une chaîne encodée en Base64.", ex);
+        }
+        if (keyBytes.length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "JWT_SECRET doit décoder au moins " + MIN_SECRET_BYTES + " octets (256 bits).");
+        }
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
     public String generateAccessToken(UserDetails userDetails, Map<String, Object> extraClaims) {

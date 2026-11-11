@@ -647,6 +647,14 @@ class ProfileModuleIntegrationTest {
     @DisplayName("Audit trail — Vérification des enregistrements")
     class AuditTrail {
 
+        /** L'écriture d'audit est @Async : attendre son commit avant de compter. */
+        private void awaitAuditCountAbove(long countBefore) throws InterruptedException {
+            long deadline = System.currentTimeMillis() + 3000;
+            while (auditLogRepository.count() <= countBefore && System.currentTimeMillis() < deadline) {
+                Thread.sleep(25);
+            }
+        }
+
         @Test
         @DisplayName("La connexion génère un enregistrement d'audit LOGIN")
         void loginCreatesAuditEntry() throws Exception {
@@ -654,6 +662,7 @@ class ProfileModuleIntegrationTest {
 
             loginAndGetToken("profileadmin", "Admin@123");
 
+            awaitAuditCountAbove(countBefore);
             long countAfter = auditLogRepository.count();
             assertTrue(countAfter > countBefore, "Un nouvel audit doit être enregistré après connexion");
         }
@@ -669,6 +678,7 @@ class ProfileModuleIntegrationTest {
                             .content("{\"firstName\":\"AuditTest\"}"))
                     .andExpect(status().isOk());
 
+            awaitAuditCountAbove(countBefore);
             long countAfter = auditLogRepository.count();
             assertTrue(countAfter > countBefore, "Un audit UPDATE PROFILE doit être enregistré");
         }
@@ -684,6 +694,7 @@ class ProfileModuleIntegrationTest {
                             .content("{\"currentPassword\":\"Admin@123\",\"newPassword\":\"AuditTest@456\"}"))
                     .andExpect(status().isNoContent());
 
+            awaitAuditCountAbove(countBefore);
             long countAfter = auditLogRepository.count();
             assertTrue(countAfter > countBefore, "Un audit PASSWORD_CHANGE doit être enregistré");
 

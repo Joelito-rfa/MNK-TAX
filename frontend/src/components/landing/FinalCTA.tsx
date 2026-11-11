@@ -1,8 +1,11 @@
 import { ArrowRight } from 'lucide-react'
 import { Button } from '../ui'
 import ScrollReveal from './ScrollReveal'
+import { useI18n } from '../../lib/i18n'
 
 export default function FinalCTA({ onLogin, onRequestAccess }: { onLogin: () => void; onRequestAccess: () => void }) {
+  const { t } = useI18n()
+
   return (
     <section className="relative py-24">
       <div className="mx-auto max-w-4xl px-6">
@@ -14,21 +17,21 @@ export default function FinalCTA({ onLogin, onRequestAccess }: { onLogin: () => 
             <span className="cta-orb left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 bg-emerald-400/10" style={{ animationDelay: '-3.5s' }} aria-hidden="true" />
             <div className="relative">
               <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Prêt à moderniser
-                <span className="block text-brand-300">votre gestion fiscale ?</span>
+                {t('landing.final.titleLine1')}
+                <span className="block text-brand-300">{t('landing.final.titleLine2')}</span>
               </h2>
               <p className="mt-4 max-w-lg mx-auto text-slate-400">
-                Centralisez vos données. Suivez vos obligations. Maîtrisez vos recouvrements.
+                {t('landing.final.description')}
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
                 <Button onClick={onLogin} size="lg"
                   className="group rounded-2xl bg-white px-8 text-brand-700 shadow-xl shadow-black/10 transition-all duration-200 hover:shadow-2xl hover:scale-[1.02] active:scale-[0.98]">
-                  Commencer
+                  {t('landing.final.start')}
                   <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                 </Button>
                 <Button onClick={onRequestAccess} variant="secondary" size="lg"
                   className="rounded-2xl border-white/20 bg-white/10 text-white hover:bg-white/20">
-                  Demander un accès
+                  {t('landing.final.requestAccess')}
                 </Button>
               </div>
             </div>

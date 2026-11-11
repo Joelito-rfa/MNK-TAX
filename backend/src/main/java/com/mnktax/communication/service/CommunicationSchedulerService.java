@@ -129,7 +129,7 @@ public class CommunicationSchedulerService {
         Map<String, Deadline> calendar = deadlineIndex();
         int sent = 0;
         for (TaxObligation obligation : obligations) {
-            if (obligation.getTaxpayer() == null || obligation.getTaxpayer().getUserId() == null) {
+            if (!CommunicationEventEngine.isReachable(obligation.getTaxpayer())) {
                 continue;
             }
             Deadline deadline = calendar.get(key(obligation.getTaxType().getCode(), obligation.getPeriod()));
@@ -178,7 +178,7 @@ public class CommunicationSchedulerService {
         Map<String, Deadline> calendar = deadlineIndex();
         int sent = 0;
         for (TaxObligation obligation : obligations) {
-            if (obligation.getTaxpayer() == null || obligation.getTaxpayer().getUserId() == null) {
+            if (!CommunicationEventEngine.isReachable(obligation.getTaxpayer())) {
                 continue;
             }
             Deadline deadline = calendar.get(key(obligation.getTaxType().getCode(), obligation.getPeriod()));
@@ -258,7 +258,7 @@ public class CommunicationSchedulerService {
         int relances30 = 0;
         int relances60 = 0;
         for (TaxDebt debt : overdue) {
-            if (debt.getTaxpayer() == null || debt.getTaxpayer().getUserId() == null) continue;
+            if (!CommunicationEventEngine.isReachable(debt.getTaxpayer())) continue;
             long daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(debt.getDueDate(), today);
             if (daysOverdue < 7) continue;
             if (notified.contains(debt.getTaxpayer().getId())) continue;
@@ -336,7 +336,7 @@ public class CommunicationSchedulerService {
         for (PaymentPlanInstallment inst : overdueInstallments) {
             if (inst.getPlan() == null || inst.getPlan().getDebt() == null) continue;
             Taxpayer taxpayer = inst.getPlan().getDebt().getTaxpayer();
-            if (taxpayer == null || taxpayer.getUserId() == null) continue;
+            if (!CommunicationEventEngine.isReachable(taxpayer)) continue;
 
             int daysOverdue = (int) java.time.temporal.ChronoUnit.DAYS.between(inst.getDueDate(), today);
             // On cible les paliers J+1, J+3, J+7 (anti-doublon par 3 jours).

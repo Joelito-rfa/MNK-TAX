@@ -127,40 +127,42 @@ public class DebtController {
     @PatchMapping("/{id}/in-collection")
     @PreAuthorize("hasAuthority('" + Permissions.COLLECTION_WRITE + "')")
     @Operation(summary = "Passer une créance en recouvrement forcé")
-    public ResponseEntity<Void> inCollection(@PathVariable Long id) {
-        debtService.setInCollection(id);
+    public ResponseEntity<Void> inCollection(@PathVariable Long id, HttpServletRequest http) {
+        debtService.setInCollection(id, http);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/cancel")
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
     @Operation(summary = "Annuler une créance (sans paiement enregistré)")
-    public ResponseEntity<Void> cancel(@PathVariable Long id) {
-        debtService.cancel(id);
+    public ResponseEntity<Void> cancel(@PathVariable Long id, HttpServletRequest http) {
+        debtService.cancel(id, http);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/suspend")
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
     @Operation(summary = "Suspendre une créance (litige, procédure en cours)")
-    public ResponseEntity<Void> suspend(@PathVariable Long id, @RequestBody(required = false) SuspendRequest request) {
-        debtService.suspend(id, request != null ? request.reason() : null);
+    public ResponseEntity<Void> suspend(@PathVariable Long id, @RequestBody(required = false) SuspendRequest request,
+                                        HttpServletRequest http) {
+        debtService.suspend(id, request != null ? request.reason() : null, http);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/resume")
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
     @Operation(summary = "Réactiver une créance suspendue")
-    public ResponseEntity<Void> resume(@PathVariable Long id) {
-        debtService.resume(id);
+    public ResponseEntity<Void> resume(@PathVariable Long id, HttpServletRequest http) {
+        debtService.resume(id, http);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{id}/close")
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
     @Operation(summary = "Clôturer une créance (irrécouvrable, régularisée, autre motif)")
-    public ResponseEntity<Void> close(@PathVariable Long id, @RequestBody(required = false) CloseRequest request) {
-        debtService.close(id, request != null ? request.reason() : null);
+    public ResponseEntity<Void> close(@PathVariable Long id, @RequestBody(required = false) CloseRequest request,
+                                      HttpServletRequest http) {
+        debtService.close(id, request != null ? request.reason() : null, http);
         return ResponseEntity.noContent().build();
     }
 
@@ -168,8 +170,9 @@ public class DebtController {
     @PreAuthorize("hasAuthority('" + Permissions.DEBT_WRITE + "')")
     @Operation(summary = "Modifier la priorité de recouvrement")
     public ResponseEntity<Void> updatePriority(@PathVariable Long id,
-                                               @RequestBody PriorityRequest request) {
-        debtService.updatePriority(id, request.priority());
+                                               @RequestBody PriorityRequest request,
+                                               HttpServletRequest http) {
+        debtService.updatePriority(id, request.priority(), http);
         return ResponseEntity.noContent().build();
     }
 

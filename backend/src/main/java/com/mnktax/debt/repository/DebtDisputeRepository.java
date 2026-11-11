@@ -18,6 +18,15 @@ public interface DebtDisputeRepository extends JpaRepository<DebtDispute, Long> 
 
     List<DebtDispute> findByDebtIdOrderByContestationDateDescCreatedAtDesc(Long debtId);
 
+    /** Litiges d'une créance avec créance chargée (anti N+1 des DTO). */
+    @Query("""
+            SELECT d FROM DebtDispute d
+            JOIN FETCH d.debt t
+            WHERE d.debt.id = :debtId
+            ORDER BY d.contestationDate DESC, d.createdAt DESC
+            """)
+    List<DebtDispute> findByDebtIdWithDebt(@Param("debtId") Long debtId);
+
     boolean existsByDebtIdAndStatus(Long debtId, DisputeStatus status);
 
     @Query("""

@@ -54,7 +54,10 @@ management:
 
 mnk-tax:
   jwt:
-    secret: ${JWT_SECRET:Y2hhbmdlLW1lLWludGVybmFsLXNlY3JldC1mb3ItbW5rLXRheC1wcm90b3R5cGUtMDAx}
+    # Obligatoire : aucun secret de repli n'est fourni par l'application.
+    # En développement, application-dev.yml fournit une valeur locale explicite ;
+    # en production, JWT_SECRET doit être injecté par le gestionnaire de secrets.
+    secret: ${JWT_SECRET}
     access-token-ttl: ${JWT_ACCESS_TTL:3600}
     refresh-token-ttl: ${JWT_REFRESH_TTL:604800}
   cors:
@@ -76,14 +79,32 @@ mnk-tax:
     storage-dir: ${DOCUMENT_STORAGE_DIR:./data/documents}
   avatar:
     storage-dir: ${AVATAR_STORAGE_DIR:./data/avatars}
-  seed-demo: ${SEED_DEMO:true}
+  # Sécurité : désactivé par défaut. Le profil dev l'active explicitement.
+  seed-demo: ${SEED_DEMO:false}
   security:
     # Swagger / H2-Console : à false en production (cf. application-prod.yml)
     expose-api-docs: ${EXPOSE_API_DOCS:true}
   communication:
     mail:
-      # Réel uniquement si MAIL_HOST est défini — l'état effectif est vérifié sur MAIL_HOST
+      # Fournisseur : smtp (défaut) ou mailersend (API HTTPS).
+      provider: ${MAIL_PROVIDER:smtp}
+      # Jeton API MailerSend — utilisé uniquement si provider=mailersend.
+      api-token: ${MAILERSEND_API_TOKEN:}
+      api-url: ${MAILERSEND_API_URL:https://api.mailersend.com/v1/email}
+      # SMTP réel uniquement si MAIL_HOST est défini.
+      # Ces propriétés sont liées par CommunicationProperties : elles fonctionnent
+      # aussi bien avec les variables d'environnement qu'avec .env.local (profil dev).
       enabled: ${MAIL_ENABLED:false}
+      host: ${MAIL_HOST:}
+      port: ${MAIL_PORT:587}
+      username: ${MAIL_USERNAME:}
+      password: ${MAIL_PASSWORD:}
+      smtp-auth: ${MAIL_SMTP_AUTH:true}
+      starttls: ${MAIL_SMTP_STARTTLS:true}
+      # Port 465 : activer MAIL_SMTP_SSL=true (ou laisser le port 465 l'activer).
+      ssl: ${MAIL_SMTP_SSL:false}
+      ssl-trust: ${MAIL_SMTP_SSL_TRUST:}
+      debug: ${MAIL_DEBUG:false}
       from-address: ${MAIL_FROM_ADDRESS:no-reply@mnk-tax.mg}
       from-name: ${MAIL_FROM_NAME:MNK-TAX — Administration fiscale}
       base-url: ${MAIL_BASE_URL:http://localhost:5177}
@@ -100,6 +121,19 @@ mnk-tax:
       retry-backoff-minutes: ${COMM_QUEUE_RETRY_BACKOFF_MINUTES:5}
       # Fréquence du worker de livraison (ms).
       poll-delay-ms: ${COMM_QUEUE_POLL_DELAY_MS:20000}
+      poll-initial-delay-ms: ${COMM_QUEUE_POLL_INITIAL_DELAY_MS:8000}
+      # Filet de sécurité : relance automatique des emails en échec définitif
+      # (erreurs temporaires uniquement) après épuisement des tentatives.
+      auto-retry-enabled: ${COMM_QUEUE_AUTO_RETRY_ENABLED:true}
+      auto-retry-max-cycles: ${COMM_QUEUE_AUTO_RETRY_MAX_CYCLES:6}
+      auto-retry-max-age-hours: ${COMM_QUEUE_AUTO_RETRY_MAX_AGE_HOURS:72}
+      # Délai progressif entre deux cycles : base × (cycle + 1).
+      auto-retry-backoff-minutes: ${COMM_QUEUE_AUTO_RETRY_BACKOFF_MINUTES:15}
+      # Livraison SENDING sans mise à jour depuis N minutes → reprise.
+      stale-sending-minutes: ${COMM_QUEUE_STALE_SENDING_MINUTES:10}
+      # Fréquence du balayage de relance automatique (ms).
+      sweep-delay-ms: ${COMM_QUEUE_SWEEP_DELAY_MS:60000}
+      sweep-initial-delay-ms: ${COMM_QUEUE_SWEEP_INITIAL_DELAY_MS:20000}
     # Fournisseur de démonstration (log uniquement) : permet à la démo de bout
     # en bout de fonctionner sans SMTP/Twilio réels. Désactivé en production
     # réelle si COMM_DEMO_PROVIDER=false (les envois passent alors en FAILED).

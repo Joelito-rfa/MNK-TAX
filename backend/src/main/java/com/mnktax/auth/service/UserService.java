@@ -50,6 +50,7 @@ public class UserService {
     private final AuditService auditService;
     private final RefreshTokenRepository refreshTokenRepository;
     private final AuditLogRepository auditLogRepository;
+    private final AccountCredentialsNotifier credentialsNotifier;
 
     private static final long MAX_AVATAR_BYTES = 2 * 1024 * 1024;
     private static final Set<String> ALLOWED_AVATAR_TYPES = Set.of(
@@ -61,13 +62,15 @@ public class UserService {
     public UserService(UserRepository userRepository, RoleRepository roleRepository,
                        PasswordEncoder passwordEncoder, AuditService auditService,
                        RefreshTokenRepository refreshTokenRepository,
-                       AuditLogRepository auditLogRepository) {
+                       AuditLogRepository auditLogRepository,
+                       AccountCredentialsNotifier credentialsNotifier) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
         this.refreshTokenRepository = refreshTokenRepository;
         this.auditLogRepository = auditLogRepository;
+        this.credentialsNotifier = credentialsNotifier;
     }
 
     @Transactional(readOnly = true)
@@ -154,8 +157,14 @@ public class UserService {
     public void delete(Long id, HttpServletRequest httpRequest) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur", id));
-        if (user.getRoles().stream().anyMatch(Role::isSystem) || user.getUsername().equals("admin")) {
+        if (user.getUsername().equals("admin") || user.getId().equals(SecurityUtils.currentUserId())) {
             throw new BusinessException("FORBIDDEN", "Cet utilisateur système ne peut pas être supprimé.");
+        }
+        boolean superAdmin = user.getRoles().stream()
+                .anyMatch(role -> "SUPER_ADMIN".equals(role.getCode()));
+        if (superAdmin && userRepository.countActiveSuperAdmins() <= 1) {
+            throw new BusinessException("FORBIDDEN",
+                    "Le dernier super administrateur ne peut pas être supprimé.");
         }
         UserDto old = UserDto.from(user);
         deleteAvatarFile(user.getAvatarPath());
@@ -283,6 +292,16 @@ public class UserService {
         auditService.record("PASSWORD_CHANGE", "USER", String.valueOf(userId), null, null, httpRequest);
     }
 
+    /**
+     * Réinitialise le mot de passe et révoque les sessions.
+     *
+     * Le secret est envoyé par email lorsqu'un SMTP réel est configuré ; sans
+     * fournisseur, il est renvoyé à l'administrateur pour une remise manuelle
+     * (comportement historique) au lieu de laisser la réinitialisation échouer.
+     *
+     * @return le mot de passe temporaire à remettre manuellement, ou {@code null}
+     *         s'il a été envoyé par email
+     */
     @Transactional
     public String resetPassword(Long id, HttpServletRequest httpRequest) {
         User user = userRepository.findById(id)
@@ -291,9 +310,15 @@ public class UserService {
         user.setPassword(passwordEncoder.encode(temporaryPassword));
         user.setMustChangePassword(true);
         user.setUpdatedAt(Instant.now());
-        userRepository.save(user);
+        // Flush immédiat : l'API ne doit jamais renvoyer un mot de passe qui ne
+        // serait pas encore écrit en base.
+        userRepository.saveAndFlush(user);
+        // Un mot de passe réinitialisé invalide toutes les sessions existantes.
+        refreshTokenRepository.revokeAllForUser(user.getId());
+        // Email si possible ; sinon l'API renvoie le secret pour remise manuelle.
+        boolean emailed = credentialsNotifier.sendTemporaryPasswordIfPossible(user, temporaryPassword);
         auditService.record("PASSWORD_RESET", "USER", String.valueOf(id), null, null, httpRequest);
-        return temporaryPassword;
+        return emailed ? null : temporaryPassword;
     }
 
     private static String generateTemporaryPassword() {

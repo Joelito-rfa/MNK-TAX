@@ -1,13 +1,18 @@
 package com.mnktax.collection;
 
+import com.mnktax.audit.repository.AuditLogRepository;
 import com.mnktax.collection.dto.CollectionDtos.CollectionDebtRowDto;
+import com.mnktax.collection.dto.CollectionDtos.CollectionDetailDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionEventDto;
 import com.mnktax.collection.dto.CollectionDtos.CollectionStatsDto;
 import com.mnktax.collection.dto.CollectionDtos.CreateActionRequest;
 import com.mnktax.collection.dto.CollectionDtos.CreateNoticeRequest;
 import com.mnktax.collection.entity.CollectionActionType;
+import com.mnktax.collection.service.CollectionDocumentService;
 import com.mnktax.collection.service.CollectionService;
 import com.mnktax.debt.entity.DebtCollectionPriority;
+import com.mnktax.debt.entity.DebtHistory;
+import com.mnktax.debt.entity.DebtOrigin;
 import com.mnktax.debt.entity.DebtStatus;
 import com.mnktax.debt.entity.TaxDebt;
 import com.mnktax.debt.repository.DebtHistoryRepository;
@@ -44,7 +49,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -65,6 +73,8 @@ class CollectionModuleIntegrationTest {
     @Autowired private DebtService debtService;
     @Autowired private PaymentService paymentService;
     @Autowired private CollectionService collectionService;
+    @Autowired private CollectionDocumentService documentService;
+    @Autowired private AuditLogRepository auditLogRepository;
     @Autowired private com.mnktax.debt.repository.DebtDisputeRepository disputeRepository;
 
     private Taxpayer company;
@@ -286,7 +296,7 @@ class CollectionModuleIntegrationTest {
     void suspendThenResume() {
         TaxDebt debt = manualDebt(new BigDecimal("180000"), LocalDate.now().minusDays(12), DebtStatus.OVERDUE);
 
-        debtService.suspend(debt.getId(), "Moratoire accordé");
+        debtService.suspend(debt.getId(), "Moratoire accordé", null);
         TaxDebt suspended = debtRepository.findByIdForUpdate(debt.getId()).orElseThrow();
         assertEquals(DebtStatus.SUSPENDED, suspended.getStatus());
         assertNotNull(suspended.getSuspendedAt());
@@ -297,7 +307,7 @@ class CollectionModuleIntegrationTest {
                 () -> collectionService.createNotice(new CreateNoticeRequest(debt.getId(),
                         "MISE_EN_DEMEURE", "test"), null));
 
-        debtService.resume(debt.getId());
+        debtService.resume(debt.getId(), null);
         TaxDebt resumed = debtRepository.findByIdForUpdate(debt.getId()).orElseThrow();
         assertEquals(DebtStatus.OVERDUE, resumed.getStatus(), "Échue : la créance redevient en retard après réactivation");
         assertTrue(historyRepository.findByDebtIdOrderByEventDateDesc(debt.getId()).stream()
@@ -325,5 +335,291 @@ class CollectionModuleIntegrationTest {
         assertTrue(stats.totalOutstanding().signum() > 0);
         assertTrue(stats.totalCollected().signum() > 0, "Total encaissé = somme réelle des paiements");
         assertTrue(stats.collectionRate() >= 0 && stats.collectionRate() <= 100);
+    }
+
+    @Test
+    @DisplayName("Une action FOLLOW_UP alimente l'onglet Relances et les KPI de relances")
+    void followUpActionFeedsRemindersTabAndKpi() {
+        TaxDebt debt = manualDebt(new BigDecimal("150000"), LocalDate.now().minusDays(8), DebtStatus.OVERDUE);
+
+        long remindersBefore = collectionService.stats().reminderActions();
+        long overdueBefore = collectionService.stats().remindersOverdue();
+
+        // Suivi créé via le wizard : doit compter comme une relance amiable
+        // (même famille que REMINDER dans l'onglet « Relances »).
+        collectionService.createAction(new CreateActionRequest(debt.getId(),
+                CollectionActionType.FOLLOW_UP, "Suivi de la relance amiable",
+                LocalDate.now().minusDays(3), "En attente de paiement", "Relance dans 7 jours",
+                LocalDate.now().minusDays(1)), null);
+
+        Page<CollectionDebtRowDto> reminders = collectionService.getCollectionDebts(
+                null, null, null, null, null, false, false, true,
+                null, null, null, null, null, PageRequest.of(0, 100));
+        CollectionDebtRowDto row = reminders.getContent().stream()
+                .filter(r -> r.id().equals(debt.getId()))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(row, "Le dossier suivi (FOLLOW_UP) doit apparaître dans l'onglet Relances");
+        assertEquals(LocalDate.now().minusDays(3), row.lastReminderDate(),
+                "Le suivi doit alimenter le dernier rappel de relance");
+        assertTrue(row.nextReminderOverdue(), "La prochaine relance prévue est déjà dépassée");
+
+        CollectionStatsDto stats = collectionService.stats();
+        assertTrue(stats.reminderActions() > remindersBefore,
+                "Le KPI reminderActions doit inclure les FOLLOW_UP");
+        assertTrue(stats.remindersOverdue() > overdueBefore,
+                "L'alerte « relances en retard » doit inclure les FOLLOW_UP");
+    }
+
+    @Test
+    @DisplayName("Document mise en demeure : refusé sans acte émis, généré et tracé avec (journal)")
+    void formalActDocumentRequiresNoticeAndIsTraced() {
+        TaxDebt debt = manualDebt(new BigDecimal("220000"), LocalDate.now().minusDays(15), DebtStatus.OVERDUE);
+
+        // Pas d'acte → pas de PDF : aucune mention juridique n'est inventée.
+        com.mnktax.common.exception.BusinessException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                com.mnktax.common.exception.BusinessException.class,
+                () -> documentService.miseEnDemeure(debt.getId(), null));
+        assertEquals("NOTICE_REQUIRED", ex.getCode());
+
+        // La relance amiable n'exige aucun acte formel.
+        byte[] relance = documentService.relance(debt.getId(), null);
+        assertTrue(relance.length > 4, "La lettre de relance doit être générée");
+        assertEquals("%PDF", new String(relance, 0, 4, java.nio.charset.StandardCharsets.US_ASCII));
+
+        collectionService.createNotice(new CreateNoticeRequest(debt.getId(),
+                "MISE_EN_DEMEURE", "Invitation à régulariser"), null);
+
+        byte[] md = documentService.miseEnDemeure(debt.getId(), null);
+        assertTrue(md.length > 4, "La mise en demeure doit être générée après émission de l'acte");
+        assertEquals("%PDF", new String(md, 0, 4, java.nio.charset.StandardCharsets.US_ASCII));
+
+        List<DebtHistory> history = historyRepository.findByDebtIdOrderByEventDateDesc(debt.getId());
+        assertTrue(history.stream().anyMatch(h -> "DOCUMENT_GENERATED".equals(h.getEventType())
+                        && h.getDescription().contains("Document mise en demeure généré")),
+                "La génération de la mise en demeure doit être tracée au journal");
+        assertTrue(history.stream().anyMatch(h -> "DOCUMENT_GENERATED".equals(h.getEventType())
+                        && h.getDescription().contains("Document relance généré")),
+                "La génération de la relance doit être tracée au journal");
+    }
+
+    @Test
+    @DisplayName("État des restes : toutes les pages parcourues — somme et total au-delà de 500 lignes")
+    void etatDesRestesCoversAllPages() throws Exception {
+        String period = LocalDate.now().getYear() + "-" + String.format("%02d", LocalDate.now().getMonthValue());
+        // Insertion directe : ReferenceGenerator (horodatage à la seconde + 4 chiffres)
+        // entrerait en collision sur l'unique référence à cette cadence.
+        for (int i = 0; i < 505; i++) {
+            debtRepository.save(TaxDebt.builder()
+                    .reference(String.format("DEB-ETAT-%04d", i))
+                    .taxpayer(company)
+                    .taxType(tva)
+                    .taxpayerCenter(company.getTaxCenter() != null ? company.getTaxCenter().getCode() : null)
+                    .period(period)
+                    .principalAmount(new BigDecimal("1000"))
+                    .penaltyAmount(BigDecimal.ZERO)
+                    .interestAmount(BigDecimal.ZERO)
+                    .adjustmentsAmount(BigDecimal.ZERO)
+                    .creditsAmount(BigDecimal.ZERO)
+                    .totalAmount(new BigDecimal("1000"))
+                    .paidAmount(BigDecimal.ZERO)
+                    .balance(new BigDecimal("1000"))
+                    .issueDate(LocalDate.now())
+                    .dueDate(LocalDate.now().plusDays(30))
+                    .lastDueDate(LocalDate.now().plusDays(30))
+                    .status(DebtStatus.ISSUED)
+                    .origin(DebtOrigin.OTHER)
+                    .collectionPriority(DebtCollectionPriority.NORMAL)
+                    .observations("Créance état des restes")
+                    .createdBy("test")
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .build());
+        }
+        long expectedCount = debtRepository.count();
+        assertTrue(expectedCount > 500, "Le jeu de données doit dépasser une page de 500 lignes");
+        BigDecimal expectedSum = debtRepository.findAll().stream()
+                .map(d -> d.getBalance() == null ? BigDecimal.ZERO : d.getBalance())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        String expectedAmount = expectedSum.setScale(0, java.math.RoundingMode.HALF_UP).toString()
+                .replaceAll("\\B(?=(\\d{3})+(?!\\d))", " ");
+
+        byte[] pdf = documentService.etatDesRestes(false, null, null, null);
+        String text = extractPdfText(pdf);
+
+        assertTrue(text.contains("TOTAL GÉNÉRAL : " + expectedAmount + " MGA"),
+                "La somme doit couvrir toutes les pages (attendu : " + expectedAmount + ")");
+        assertTrue(text.contains(expectedCount + " créance(s)"),
+                "Le total doit correspondre au nombre réel de créances (" + expectedCount + ")");
+    }
+
+    @Test
+    @DisplayName("Réactivation : restaure le statut antérieur (recouvrement / contentieux) au lieu d'un recalcul brutal")
+    void resumeRestoresPreviousStatus() {
+        // 1. Créance sous mise en demeure (IN_COLLECTION) suspendue puis réactivée.
+        TaxDebt inCollection = manualDebt(new BigDecimal("400000"), LocalDate.now().minusDays(10), DebtStatus.OVERDUE);
+        collectionService.createNotice(new CreateNoticeRequest(inCollection.getId(),
+                "MISE_EN_DEMEURE", "Acte de recouvrement"), null);
+        debtService.suspend(inCollection.getId(), "Sursis de paiement", null);
+        TaxDebt suspended = debtRepository.findByIdForUpdate(inCollection.getId()).orElseThrow();
+        assertEquals(DebtStatus.SUSPENDED, suspended.getStatus());
+        assertEquals(DebtStatus.IN_COLLECTION, suspended.getPreviousStatus(),
+                "Le statut antérieur est mémorisé à la suspension");
+
+        debtService.resume(inCollection.getId(), null);
+        TaxDebt restored = debtRepository.findByIdForUpdate(inCollection.getId()).orElseThrow();
+        assertEquals(DebtStatus.IN_COLLECTION, restored.getStatus(),
+                "La réactivation doit restaurer la phase recouvrement");
+        assertNull(restored.getPreviousStatus(), "Le statut antérieur est effacé après restauration");
+
+        // 2. Créance en litige (DISPUTED) suspendue puis réactivée.
+        TaxDebt disputed = manualDebt(new BigDecimal("310000"), LocalDate.now().minusDays(6), DebtStatus.OVERDUE);
+        collectionService.createDispute(new com.mnktax.collection.dto.CollectionDtos.CreateDisputeRequest(
+                disputed.getId(), "Contestation", null, null), null);
+        debtService.suspend(disputed.getId(), "Sursis contentieux", null);
+        debtService.resume(disputed.getId(), null);
+        TaxDebt backToDispute = debtRepository.findByIdForUpdate(disputed.getId()).orElseThrow();
+        assertEquals(DebtStatus.DISPUTED, backToDispute.getStatus(),
+                "La réactivation doit restaurer le contentieux");
+
+        // 3. Données antérieures à la migration (previous_status NULL) : recalcul classique.
+        TaxDebt legacy = manualDebt(new BigDecimal("120000"), LocalDate.now().minusDays(3), DebtStatus.ISSUED);
+        legacy.setStatus(DebtStatus.SUSPENDED);
+        legacy.setSuspendedAt(Instant.now());
+        legacy.setPreviousStatus(null);
+        debtRepository.save(legacy);
+        debtService.resume(legacy.getId(), null);
+        TaxDebt legacyResumed = debtRepository.findByIdForUpdate(legacy.getId()).orElseThrow();
+        assertEquals(DebtStatus.OVERDUE, legacyResumed.getStatus(),
+                "Sans statut mémorisé : recalcul fidèle (échue → en retard)");
+    }
+
+    @Test
+    @DisplayName("Litige ouvert : bloque relances, actes formels et passage en recouvrement (conflit 409)")
+    void openDisputeBlocksFormalActions() {
+        TaxDebt debt = manualDebt(new BigDecimal("450000"), LocalDate.now().minusDays(9), DebtStatus.OVERDUE);
+        collectionService.createDispute(new com.mnktax.collection.dto.CollectionDtos.CreateDisputeRequest(
+                debt.getId(), "Contestation du montant", null, null), null);
+
+        com.mnktax.common.exception.BusinessException exAction = org.junit.jupiter.api.Assertions.assertThrows(
+                com.mnktax.common.exception.BusinessException.class,
+                () -> collectionService.createAction(new CreateActionRequest(debt.getId(),
+                        CollectionActionType.REMINDER, "Relance pendant litige",
+                        LocalDate.now(), null, null, null), null));
+        assertEquals("DISPUTE_OPEN", exAction.getCode());
+
+        com.mnktax.common.exception.BusinessException exNotice = org.junit.jupiter.api.Assertions.assertThrows(
+                com.mnktax.common.exception.BusinessException.class,
+                () -> collectionService.createNotice(new CreateNoticeRequest(debt.getId(),
+                        "MISE_EN_DEMEURE", "Acte pendant litige"), null));
+        assertEquals("DISPUTE_OPEN", exNotice.getCode());
+
+        com.mnktax.common.exception.BusinessException exInCollection = org.junit.jupiter.api.Assertions.assertThrows(
+                com.mnktax.common.exception.BusinessException.class,
+                () -> debtService.setInCollection(debt.getId(), null));
+        assertEquals("DISPUTE_OPEN", exInCollection.getCode());
+
+        // La créance reste en contentieux (pas de bascule contradictoire en recouvrement).
+        assertEquals(DebtStatus.DISPUTED,
+                debtRepository.findByIdForUpdate(debt.getId()).orElseThrow().getStatus());
+
+        // Le doublon de litige garde son message dédié.
+        com.mnktax.common.exception.BusinessException exDup = org.junit.jupiter.api.Assertions.assertThrows(
+                com.mnktax.common.exception.BusinessException.class,
+                () -> collectionService.createDispute(new com.mnktax.collection.dto.CollectionDtos.CreateDisputeRequest(
+                        debt.getId(), "Doublon", null, null), null));
+        assertEquals("DISPUTE_ALREADY_OPEN", exDup.getCode());
+    }
+
+    @Test
+    @DisplayName("Les 7 mutations de créance produisent une entrée d'audit (actor + old/new)")
+    void debtTransitionsWriteAuditEntries() {
+        TaxDebt debt = manualDebt(new BigDecimal("260000"), LocalDate.now().minusDays(11), DebtStatus.OVERDUE);
+        String id = String.valueOf(debt.getId());
+
+        debtService.suspend(debt.getId(), "Motif test", null);
+        assertTrue(awaitAudit("SUSPENDED", id), "Entrée d'audit SUSPENDED attendue");
+        debtService.resume(debt.getId(), null);
+        assertTrue(awaitAudit("RESUMED", id), "Entrée d'audit RESUMED attendue");
+        debtService.updatePriority(debt.getId(), DebtCollectionPriority.LOW, null);
+        assertTrue(awaitAudit("PRIORITY_CHANGED", id), "Entrée d'audit PRIORITY_CHANGED attendue");
+        debtService.addAdjustment(debt.getId(), "Réduction négociée", new BigDecimal("1000"), null);
+        assertTrue(awaitAudit("ADJUSTMENT", id), "Entrée d'audit ADJUSTMENT attendue");
+        debtService.setInCollection(debt.getId(), null);
+        assertTrue(awaitAudit("IN_COLLECTION", id), "Entrée d'audit IN_COLLECTION attendue");
+        debtService.close(debt.getId(), "Irrécouvrable", null);
+        assertTrue(awaitAudit("CLOSED", id), "Entrée d'audit CLOSED attendue");
+
+        TaxDebt other = manualDebt(new BigDecimal("90000"), LocalDate.now().minusDays(4), DebtStatus.OVERDUE);
+        debtService.cancel(other.getId(), null);
+        assertTrue(awaitAudit("CANCELLED", String.valueOf(other.getId())),
+                "Entrée d'audit CANCELLED attendue");
+    }
+
+    @Test
+    @DisplayName("Détail, historique et journaux : relations chargées sans rupture de lazy-loading")
+    void detailAndSearchesLoadRelationsEagerly() {
+        TaxDebt debt = manualDebt(new BigDecimal("350000"), LocalDate.now().minusDays(7), DebtStatus.OVERDUE);
+        collectionService.createAction(new CreateActionRequest(debt.getId(),
+                CollectionActionType.FOLLOW_UP, "Suivi téléphonique", LocalDate.now(),
+                null, null, null), null);
+        collectionService.createNotice(new CreateNoticeRequest(debt.getId(),
+                "MISE_EN_DEMEURE", "Contenu de l'acte"), null);
+
+        CollectionDetailDto detail = collectionService.detail(debt.getId());
+        assertNotNull(detail.taxpayer());
+        assertNotNull(detail.taxpayer().nif());
+        assertNotNull(detail.taxpayer().taxCenterCode());
+        assertFalse(detail.actions().isEmpty(), "Le détail doit lister les actions");
+        assertEquals(1, detail.notices().size());
+
+        com.mnktax.collection.dto.CollectionDtos.CollectionHistoryDto history =
+                collectionService.history(debt.getId());
+        assertFalse(history.actions().isEmpty());
+        assertFalse(history.notices().isEmpty());
+
+        assertTrue(collectionService.searchActions(debt.getId(), null, null, null, PageRequest.of(0, 20))
+                .getTotalElements() >= 2);
+        assertTrue(collectionService.searchNotices(debt.getId(), null, null, PageRequest.of(0, 20))
+                .getTotalElements() >= 1);
+        assertTrue(collectionService.searchEvents(debt.getId(), null, null, PageRequest.of(0, 20))
+                .getTotalElements() >= 1);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────
+
+    /** Attend (asynchrone) qu'une entrée d'audit soit écrite pour l'action et l'entité. */
+    private boolean awaitAudit(String action, String entityId) {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            boolean found = auditLogRepository.findAll().stream()
+                    .anyMatch(a -> action.equals(a.getAction()) && entityId.equals(a.getEntityId()));
+            if (found) {
+                return true;
+            }
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /** Extrait le texte de toutes les pages d'un PDF (vérifications de contenu). */
+    private static String extractPdfText(byte[] pdf) throws java.io.IOException {
+        com.lowagie.text.pdf.PdfReader reader = new com.lowagie.text.pdf.PdfReader(pdf);
+        try {
+            com.lowagie.text.pdf.parser.PdfTextExtractor extractor =
+                    new com.lowagie.text.pdf.parser.PdfTextExtractor(reader);
+            StringBuilder all = new StringBuilder();
+            for (int p = 1; p <= reader.getNumberOfPages(); p++) {
+                all.append(extractor.getTextFromPage(p)).append('\n');
+            }
+            return all.toString();
+        } finally {
+            reader.close();
+        }
     }
 }

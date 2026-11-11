@@ -1,3 +1,5 @@
+import type { QueryClient } from '@tanstack/react-query'
+
 export const collectionKeys = {
   all: ['collection'] as const,
   debts: (stage: string, params: string) => ['collection', 'debts', stage, params] as const,
@@ -12,3 +14,16 @@ export const collectionKeys = {
 } as const
 
 export type CollectionStage = 'all' | 'overdue' | 'reminders' | 'notices'
+
+/**
+ * Invalide TOUTES les clés du périmètre recouvrement (+ dettes/paiements/dashboard).
+ * `invalidateQueries` matche par préfixe : les formes plates
+ * (`['collection-debts', params]`, `['debt', id]`…) sont donc couvertes aussi.
+ */
+export function invalidateCollectionData(qc: QueryClient): void {
+  const keys = ['collection', 'collection-debts', 'collection-stats', 'collection-periods',
+    'collection-history', 'collection-action-debts', 'collection-overdue-summary',
+    'collection-detail', 'collection-plans', 'plan-stats',
+    'debts', 'debt', 'debt-stats', 'debt-payments', 'payments', 'dashboard']
+  for (const k of keys) qc.invalidateQueries({ queryKey: [k] })
+}

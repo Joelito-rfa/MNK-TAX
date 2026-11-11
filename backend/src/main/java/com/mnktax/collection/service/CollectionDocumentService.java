@@ -10,11 +10,17 @@ import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
+import com.mnktax.audit.service.AuditService;
 import com.mnktax.collection.entity.CollectionNotice;
 import com.mnktax.collection.repository.CollectionNoticeRepository;
+import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
+import com.mnktax.common.util.SecurityUtils;
+import com.mnktax.debt.entity.DebtHistory;
 import com.mnktax.debt.entity.TaxDebt;
+import com.mnktax.debt.repository.DebtHistoryRepository;
 import com.mnktax.debt.repository.TaxDebtRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -24,8 +30,10 @@ import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Set;
 
 /**
  * Génération de documents professionnels du module Recouvrement :
@@ -35,38 +43,60 @@ import java.time.format.DateTimeFormatter;
  *
  * Les libellés restent factuels (données enregistrées) : aucun délai ou
  * mention juridique n'est inventé. Les textes types sont configurables.
+ * Chaque document généré est tracé (journal de la créance + audit).
  */
 @Service
 public class CollectionDocumentService {
 
+    /** Types d'acte formels : la mise en demeure PDF exige un acte déjà émis. */
+    private static final Set<String> FORMAL_NOTICE_TYPES = Set.of(
+            "MISE_EN_DEMEURE", "NOTICE", "COMMANDEMENT", "COMMANDEMENT_DE_PAYER");
+
+    /** Taille de page de l'état des restes (toutes les pages sont parcourues). */
+    private static final int ETAT_PAGE_SIZE = 500;
+    /** Plafond de sécurité de l'état des restes : 50 pages x 500 = 25 000 lignes. */
+    private static final int ETAT_MAX_PAGES = 50;
+
     private final TaxDebtRepository debtRepository;
     private final CollectionNoticeRepository noticeRepository;
+    private final DebtHistoryRepository historyRepository;
+    private final AuditService auditService;
 
     public CollectionDocumentService(TaxDebtRepository debtRepository,
-                                     CollectionNoticeRepository noticeRepository) {
+                                     CollectionNoticeRepository noticeRepository,
+                                     DebtHistoryRepository historyRepository,
+                                     AuditService auditService) {
         this.debtRepository = debtRepository;
         this.noticeRepository = noticeRepository;
+        this.historyRepository = historyRepository;
+        this.auditService = auditService;
     }
 
     // ── Mise en demeure ──────────────────────────────────────
 
-    @Transactional(readOnly = true)
-    public byte[] miseEnDemeure(Long debtId) {
+    @Transactional
+    public byte[] miseEnDemeure(Long debtId, HttpServletRequest http) {
         TaxDebt debt = findDebt(debtId);
         CollectionNotice notice = noticeRepository.findByDebtIdOrderByNoticeDateDesc(debtId).stream()
+                .filter(n -> n.getNoticeType() != null
+                        && FORMAL_NOTICE_TYPES.contains(n.getNoticeType().trim().toUpperCase()))
                 .findFirst().orElse(null);
+        if (notice == null) {
+            // Un acte formel ne s'invente pas : pas de PDF sans acte émis.
+            throw new BusinessException("NOTICE_REQUIRED",
+                    "Aucun acte formel (mise en demeure) n'est enregistré sur cette créance : "
+                            + "émettez d'abord la mise en demeure avant de générer le document.");
+        }
         Document doc = new Document();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
             PdfWriter.getInstance(doc, out);
             doc.open();
             header(doc, "MISE EN DEMEURE DE PAYER");
-            if (notice != null) {
-                infoTable(doc, new String[][]{
-                        {"Référence de l'acte", notice.getNoticeNumber()},
-                        {"Date", formatDate(notice.getNoticeDate())},
-                });
-            }
+            infoTable(doc, new String[][]{
+                    {"Référence de l'acte", notice.getNoticeNumber()},
+                    {"Date", formatDate(notice.getNoticeDate())},
+            });
             identity(doc, debt);
             debtBlock(doc, debt);
             doc.add(blank());
@@ -75,7 +105,7 @@ public class CollectionDocumentService {
                     + formatAmount(debt.getBalance()) + " MGA.",
                     bodyFont());
             doc.add(body);
-            if (notice != null && notice.getContent() != null) {
+            if (notice.getContent() != null) {
                 doc.add(blank());
                 Paragraph content = new Paragraph(notice.getContent(), bodyFont());
                 doc.add(content);
@@ -86,13 +116,15 @@ public class CollectionDocumentService {
         } catch (Exception ex) {
             throw new IllegalStateException("Erreur de génération du PDF : " + ex.getMessage(), ex);
         }
+        traceGeneration(debt, "Document mise en demeure généré — acte " + notice.getNoticeNumber(),
+                notice.getNoticeNumber(), "DOCUMENT_MISE_EN_DEMEURE", http);
         return out.toByteArray();
     }
 
     // ── Lettre de relance amiable ────────────────────────────
 
-    @Transactional(readOnly = true)
-    public byte[] relance(Long debtId) {
+    @Transactional
+    public byte[] relance(Long debtId, HttpServletRequest http) {
         TaxDebt debt = findDebt(debtId);
         Document doc = new Document();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -117,7 +149,27 @@ public class CollectionDocumentService {
         } catch (Exception ex) {
             throw new IllegalStateException("Erreur de génération du PDF : " + ex.getMessage(), ex);
         }
+        // Pas d'acte formel exigé : c'est une relance amiable, pas un acte.
+        traceGeneration(debt, "Document relance généré — créance " + debt.getReference(),
+                debt.getReference(), "DOCUMENT_RELANCE", http);
         return out.toByteArray();
+    }
+
+    /** Trace la génération : journal de la créance + audit. */
+    private void traceGeneration(TaxDebt debt, String description, String reference,
+                                 String auditAction, HttpServletRequest http) {
+        historyRepository.save(DebtHistory.builder()
+                .debt(debt)
+                .eventType("DOCUMENT_GENERATED")
+                .description(description)
+                .oldValue(null)
+                .newValue(reference)
+                .performedBy(SecurityUtils.currentUsername())
+                .eventDate(Instant.now())
+                .createdAt(Instant.now())
+                .build());
+        auditService.record(auditAction, "DEBT", String.valueOf(debt.getId()),
+                null, reference, http);
     }
 
     // ── État des restes à recouvrer ──────────────────────────
@@ -136,30 +188,53 @@ public class CollectionDocumentService {
             doc.add(meta);
             doc.add(blank());
 
-            Page<TaxDebt> page = debtRepository.searchCollection(null,
-                    blankToNull(taxTypeCode), blankToNull(period), null, null,
-                    overdue, false, false, null, null, null, null,
-                    blankToNull(q), LocalDate.now(), PageRequest.of(0, 500));
-
+            // Toutes les pages sont parcourues : totaux et somme couvrent
+            // l'ensemble des créances (plafond de sécurité : ETAT_MAX_PAGES).
             PdfPTable table = new PdfPTable(6);
             table.setWidthPercentage(100);
             table.setWidths(new float[]{20, 12, 24, 12, 14, 18});
             addHeader(table, "Référence", "NIF", "Contribuable", "Impôt", "Échéance", "Reste à recouvrer");
             BigDecimal total = BigDecimal.ZERO;
-            for (TaxDebt debt : page.getContent()) {
-                total = total.add(debt.getBalance() == null ? BigDecimal.ZERO : debt.getBalance());
-                addCell(table, debt.getReference());
-                addCell(table, debt.getTaxpayer() != null ? debt.getTaxpayer().getNif() : "—");
-                addCell(table, debt.getTaxpayer() != null ? debt.getTaxpayer().getName() : "—");
-                addCell(table, debt.getTaxType() != null ? debt.getTaxType().getCode() : "—");
-                addCell(table, formatDate(debt.getDueDate()));
-                addCell(table, formatAmount(debt.getBalance()));
+            long listed = 0;
+            int pageNumber = 0;
+            boolean truncated = false;
+            Page<TaxDebt> current = searchEtat(overdue, taxTypeCode, period, q, pageNumber);
+            while (true) {
+                for (TaxDebt debt : current.getContent()) {
+                    total = total.add(debt.getBalance() == null ? BigDecimal.ZERO : debt.getBalance());
+                    addCell(table, debt.getReference());
+                    addCell(table, debt.getTaxpayer() != null ? debt.getTaxpayer().getNif() : "—");
+                    addCell(table, debt.getTaxpayer() != null ? debt.getTaxpayer().getName() : "—");
+                    addCell(table, debt.getTaxType() != null ? debt.getTaxType().getCode() : "—");
+                    addCell(table, formatDate(debt.getDueDate()));
+                    addCell(table, formatAmount(debt.getBalance()));
+                }
+                listed += current.getContent().size();
+                if (!current.hasNext() || pageNumber + 1 >= ETAT_MAX_PAGES) {
+                    truncated = current.hasNext();
+                    break;
+                }
+                pageNumber++;
+                current = searchEtat(overdue, taxTypeCode, period, q, pageNumber);
             }
+            long totalElements = current.getTotalElements();
             doc.add(table);
             doc.add(blank());
+            String countLabel = truncated
+                    ? listed + " créance(s) affichée(s) sur " + totalElements
+                    : totalElements + " créance(s)";
             Paragraph totalP = new Paragraph("TOTAL GÉNÉRAL : " + formatAmount(total) + " MGA ("
-                    + page.getTotalElements() + " créance(s))", sectionFont());
+                    + countLabel + ")", sectionFont());
             doc.add(totalP);
+            if (truncated) {
+                // Le plafond est affiché explicitement : la somme ne couvre
+                // que les créances effectivement listées.
+                doc.add(blank());
+                Paragraph cap = new Paragraph("Plafond d'impression atteint ("
+                        + (ETAT_PAGE_SIZE * ETAT_MAX_PAGES) + " lignes) : le total et la somme "
+                        + "ne couvrent que les créances affichées ci-dessus.", smallFont());
+                doc.add(cap);
+            }
             doc.add(blank());
             footer(doc, "Document établi à partir des données enregistrées — prototype MNK-TAX (données de démonstration fictives).");
             doc.close();
@@ -167,6 +242,14 @@ public class CollectionDocumentService {
             throw new IllegalStateException("Erreur de génération du PDF : " + ex.getMessage(), ex);
         }
         return out.toByteArray();
+    }
+
+    /** Une page de l'état des restes (même filtre que le tableau recouvrement). */
+    private Page<TaxDebt> searchEtat(boolean overdue, String taxTypeCode, String period, String q, int page) {
+        return debtRepository.searchCollection(null,
+                blankToNull(taxTypeCode), blankToNull(period), null, null,
+                overdue, false, false, null, null, null, null,
+                blankToNull(q), LocalDate.now(), PageRequest.of(page, ETAT_PAGE_SIZE));
     }
 
     // ── Helpers d'impression ─────────────────────────────────

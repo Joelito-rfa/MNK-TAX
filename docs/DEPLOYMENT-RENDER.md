@@ -138,8 +138,10 @@ $b = New-Object byte[] 48
   par Render). Pour un domaine personnel : onglet **Settings → Custom Domain** (2 domaines inclus).
 - **Migrations** : exécutées **automatiquement par Flyway au démarrage** de l'application.
   Rien à faire : `V1__…` à `V28__…` dans `backend/src/main/resources/db/migration`.
-- **Seed** : désactivé en prod par défaut (`SEED_DEMO` vaut `false` via `application-prod.yml`).
-  Pour charger les comptes de démonstration à la **première** exécution, mettre `SEED_DEMO=true` :
+- **Seed** : désactivé par défaut (`SEED_DEMO=false` dans `application.yml`, `application-prod.yml`
+  et `application-render.yml`). Les permissions et rôles système sont toujours créés au démarrage ;
+  seules les données fictives sont concernées. Pour charger les comptes de démonstration à la
+  **première** exécution, mettre explicitement `SEED_DEMO=true` :
   - `admin` / `Admin@123` (super admin) — **changez ce mot de passe après le 1er accès.**
   - `agent.tax`, `agent.collection`, `accountant`, `taxpayer.demo` (voir README).
   - Détail des données fictives : `docs/FAKE_DATA_DOCUMENTATION.md` + `docs/fake-data-seed.json`.
@@ -166,7 +168,7 @@ cd deploy\render
 
 ### b) Test manuel fonctionnel (chemin complet)
 
-1. Vérifier le seed : `Seed de démonstration appliqué` dans les logs (Onglet **Logs**) — uniquement si `SEED_DEMO=true` a été activé ; sinon `Seed de démonstration désactivé`.
+1. Vérifier le seed dans les logs (Onglet **Logs**) : `Seed de démonstration désactivé` par défaut, ou `Seed de démonstration terminé (données fictives)` si `SEED_DEMO=true` a été activé.
 2. Se connecter : https://mnk-tax.onrender.com avec `admin` / `Admin@123`.
 3. Tester dans cet ordre :
    - **Tableau de bord** (indicateurs) ;
@@ -188,8 +190,8 @@ cd deploy\render
 ## 10. Checklist sécurité avant de communiquer l'URL
 
 - [ ] `SPRING_PROFILES_ACTIVE=prod` actif (sinon H2/console active) ;
-- [ ] `JWT_SECRET` robuste défini, aucun fallback utilisé ;
-- [ ] `SEED_DEMO` : compte `admin`/`Admin@123` **changé** après la 1re connexion ;
+- [ ] `JWT_SECRET` robuste défini : aucune valeur de repli, le démarrage échoue sans lui ;
+- [ ] `SEED_DEMO=false` (sauf démonstration volontaire) et comptes de démonstration désactivés ;
 - [ ] `DATABASE_*` pointent sur **Neon** (et non localhost) ;
 - [ ] `RECEIPT_BASE_URL` = URL HTTPS publique (QR codes valides) ;
 - [ ] Aucun `.env` / mot de passe dans les logs ni dans GitHub ;

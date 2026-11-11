@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download } from 'lucide-react'
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react'
 import { fmtDate } from '../lib/format'
 import { useI18n } from '../lib/i18n'
 import { useDropdown } from '../lib/useDropdown'
@@ -110,7 +110,7 @@ export interface WelcomeHeroProps {
   onPeriodChange: (id: string) => void
   fromDate: string
   toDate: string
-  onDownload: () => void
+  onDownload: (format: 'Excel' | 'CSV') => void
   size?: 'normal' | 'large'
   slides?: HeroSlide[]
 }
@@ -285,13 +285,23 @@ export default function WelcomeHero({
             >
               <div className="p-1.5">
                 <button
-                  onClick={() => { onDownload(); closeDl() }}
+                  onClick={() => { onDownload('Excel'); closeDl() }}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
-                  <Download className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <div>
+                    <p className="font-medium">{t('common.export.excel')}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{t('welcome.csvHint')}</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { onDownload('CSV'); closeDl() }}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  <Download className="h-4 w-4 text-sky-600 dark:text-sky-400" />
                   <div>
                     <p className="font-medium">{t('welcome.csvData')}</p>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">{t('welcome.csvHint')}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{t('common.export.csv')}</p>
                   </div>
                 </button>
               </div>

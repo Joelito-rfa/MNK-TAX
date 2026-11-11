@@ -34,7 +34,8 @@ public final class CommunicationDtos {
             String messageType,       // TAX_DEADLINE | OVERDUE | PAYMENT | ...
             String scheduledAt,       // ISO instant → programmé
             Boolean requireConfirmation,
-            String emailOverride,
+            String emailOverride,      // email saisi manuellement (fiche ou destinataire externe)
+            String phoneOverride,      // numéro saisi manuellement (fiche ou destinataire externe)
             String senderEmail,
             Boolean updateContact,
             String externalName,
@@ -53,8 +54,21 @@ public final class CommunicationDtos {
                               Boolean updateContact, String externalName) {
             this(taxpayerId, userId, username, audience, taxTypeCode, taxpayerIds, channels,
                     subject, content, templateCode, language, priority, messageType, scheduledAt,
-                    requireConfirmation, emailOverride, senderEmail, updateContact, externalName,
-                    null, null);
+                    requireConfirmation, emailOverride, null, senderEmail, updateContact,
+                    externalName, null, null);
+        }
+
+        /** Variante avec numéro saisi manuellement (canal SMS). */
+        public ComposeRequest(Long taxpayerId, Long userId, String username, String audience,
+                              String taxTypeCode, List<Long> taxpayerIds, List<String> channels,
+                              String subject, String content, String templateCode, String language,
+                              String priority, String messageType, String scheduledAt,
+                              Boolean requireConfirmation, String emailOverride, String phoneOverride,
+                              String senderEmail, Boolean updateContact, String externalName) {
+            this(taxpayerId, userId, username, audience, taxTypeCode, taxpayerIds, channels,
+                    subject, content, templateCode, language, priority, messageType, scheduledAt,
+                    requireConfirmation, emailOverride, phoneOverride, senderEmail, updateContact,
+                    externalName, null, null);
         }
     }
 
@@ -91,8 +105,11 @@ public final class CommunicationDtos {
             String status,
             int attemptCount,
             int maxAttempts,
+            int autoRetryCount,
+            boolean lastErrorRetryable,
             String lastError,
             Instant nextRetryAt,
+            Instant lastAttemptAt,
             String providerMessageId,
             Instant sentAt,
             Instant deliveredAt,
@@ -102,7 +119,8 @@ public final class CommunicationDtos {
         public static DeliveryDto from(com.mnktax.communication.entity.MessageDelivery d) {
             return new DeliveryDto(d.getId(), d.getMessageId(), d.getChannel().name(),
                     d.getRecipientAddress(), d.getStatus().name(), d.getAttemptCount(),
-                    d.getMaxAttempts(), d.getLastError(), d.getNextRetryAt(),
+                    d.getMaxAttempts(), d.getAutoRetryCount(), d.isLastErrorRetryable(),
+                    d.getLastError(), d.getNextRetryAt(), d.getLastAttemptAt(),
                     d.getProviderMessageId(), d.getSentAt(), d.getDeliveredAt(),
                     d.getReadAt(), d.getCreatedAt());
         }
@@ -166,7 +184,11 @@ public final class CommunicationDtos {
             int queuePending,
             int queueFailed,
             int maxAttempts,
-            long retryBackoffMinutes
+            long retryBackoffMinutes,
+            boolean autoRetryEnabled,
+            int autoRetryMaxCycles,
+            long autoRetryBackoffMinutes,
+            long autoRetryMaxAgeHours
     ) {
     }
 

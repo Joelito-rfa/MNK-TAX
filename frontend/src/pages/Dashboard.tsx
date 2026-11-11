@@ -36,6 +36,7 @@ import {
   YAxis,
 } from 'recharts'
 import { apiGet } from '../lib/api'
+import { exportTable, type ReportFormat } from '../lib/exporters'
 import { useI18n } from '../lib/i18n'
 import { useLocaleFormatters } from '../lib/format'
 import type { DashboardActivity, DashboardSummary, Deadline } from '../types'
@@ -193,48 +194,67 @@ function toISODate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** Génère un CSV à partir des données du dashboard */
-function downloadCSV(data: DashboardSummary, fromDate: string, toDate: string, t: (key: string) => string, has: (key: string) => boolean) {
-  const lines: string[] = []
-  lines.push(t('dashboard.csv.reportTitle'))
-  lines.push(`${t('dashboard.csv.period')};${fromDate} ${t('dashboard.csv.to')} ${toDate}`)
-  lines.push('')
-  lines.push(`${t('dashboard.csv.indicator')};${t('dashboard.csv.value')}`)
-  lines.push(`${t('dashboard.csv.taxpayers')};${data.taxpayerCount}`)
-  lines.push(`${t('dashboard.csv.declarations')};${data.declarationCount}`)
-  lines.push(`${t('dashboard.csv.totalDebts')};${data.debtCount}`)
-  lines.push(`${t('dashboard.csv.overdue')};${data.overdueCount}`)
-  lines.push(`${t('dashboard.csv.payments')};${data.paymentCount}`)
-  lines.push(`${t('dashboard.csv.totalDue')};${data.totalDebts} MGA`)
-  lines.push(`${t('dashboard.csv.collected')};${data.totalCollected} MGA`)
-  lines.push(`${t('dashboard.csv.outstanding')};${data.totalOutstanding} MGA`)
-  lines.push(`${t('dashboard.csv.overdueBalance')};${data.overdueBalance} MGA`)
-  lines.push(`${t('dashboard.csv.rate')};${data.collectionRate.toFixed(2)} %`)
-  lines.push(`${t('dashboard.csv.receipts')};${data.receiptCount ?? 0}`)
-  lines.push(`${t('dashboard.csv.receiptAmount')};${data.receiptTotalAmount ?? 0} MGA`)
-  lines.push('')
-  lines.push(`${t('dashboard.csv.byTaxType')};${t('dashboard.csv.amountMGA')}`)
+/**
+ * Rapport du tableau de bord sous forme de tableau plat (Section / Indicateur / Valeur),
+ * afin que les colonnes soient alignées dans Excel comme dans le CSV.
+ */
+function buildDashboardReport(
+  data: DashboardSummary,
+  fromDate: string,
+  toDate: string,
+  t: (key: string) => string,
+  has: (key: string) => boolean,
+): { headers: string[]; rows: (string | number)[][] } {
+  const headers = ['Section', 'Indicateur', 'Valeur']
+  const rows: (string | number)[][] = []
+
+  const section = (label: string) => rows.push([label, '', ''])
+  const line = (label: string, value: string | number) => rows.push(['', label, value])
+
+  section(`${t('dashboard.csv.reportTitle')} — ${fromDate} ${t('dashboard.csv.to')} ${toDate}`)
+  line(t('dashboard.csv.taxpayers'), data.taxpayerCount)
+  line(t('dashboard.csv.declarations'), data.declarationCount)
+  line(t('dashboard.csv.totalDebts'), data.debtCount)
+  line(t('dashboard.csv.overdue'), data.overdueCount)
+  line(t('dashboard.csv.payments'), data.paymentCount)
+  line(t('dashboard.csv.totalDue'), `${data.totalDebts} MGA`)
+  line(t('dashboard.csv.collected'), `${data.totalCollected} MGA`)
+  line(t('dashboard.csv.outstanding'), `${data.totalOutstanding} MGA`)
+  line(t('dashboard.csv.overdueBalance'), `${data.overdueBalance} MGA`)
+  line(t('dashboard.csv.rate'), `${data.collectionRate.toFixed(2)} %`)
+  line(t('dashboard.csv.receipts'), data.receiptCount ?? 0)
+  line(t('dashboard.csv.receiptAmount'), `${data.receiptTotalAmount ?? 0} MGA`)
+
+  section(t('dashboard.csv.byTaxType'))
   for (const r of (data.paymentsByTaxType ?? [])) {
-    lines.push(`${taxTypeLabel(r.taxType, t, has)};${r.amount}`)
-  }
-  lines.push('')
-  lines.push(`${t('dashboard.csv.byMonth')};${t('dashboard.csv.amountMGA')}`)
-  for (const r of (data.paymentsByMonth ?? [])) {
-    lines.push(`${r.month};${r.amount}`)
-  }
-  lines.push('')
-  lines.push(`${t('dashboard.csv.topTaxpayers')};${t('dashboard.csv.nif')};${t('dashboard.csv.collectedMGA')};${t('dashboard.csv.dueMGA')}`)
-  for (const t of (data.topTaxpayersByCollected ?? [])) {
-    lines.push(`${t.taxpayerName};${t.nif};${t.collected};${t.due}`)
+    rows.push(['', taxTypeLabel(r.taxType, t, has), r.amount])
   }
 
-  const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `rapport-mnk-tax-${fromDate}_${toDate}.csv`
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 100)
+  section(t('dashboard.csv.byMonth'))
+  for (const r of (data.paymentsByMonth ?? [])) {
+    rows.push(['', r.month, r.amount])
+  }
+
+  section(t('dashboard.csv.topTaxpayers'))
+  for (const p of (data.topTaxpayersByCollected ?? [])) {
+    rows.push([t('dashboard.csv.collectedMGA'), `${p.taxpayerName} (${p.nif})`, p.collected])
+    rows.push([t('dashboard.csv.dueMGA'), `${p.taxpayerName} (${p.nif})`, p.due])
+  }
+
+  return { headers, rows }
+}
+
+/** Exporte le rapport du tableau de bord au format choisi (Excel par défaut, ou CSV). */
+function downloadCSV(
+  data: DashboardSummary,
+  fromDate: string,
+  toDate: string,
+  t: (key: string) => string,
+  has: (key: string) => boolean,
+  format: ReportFormat = 'Excel',
+) {
+  const { headers, rows } = buildDashboardReport(data, fromDate, toDate, t, has)
+  exportTable(format, `rapport-mnk-tax-${fromDate}_${toDate}`, t('dashboard.csv.reportTitle'), headers, rows)
 }
 
 
@@ -353,7 +373,7 @@ export default function Dashboard() {
         onPeriodChange={handlePeriodChange}
         fromDate={periodFromDate}
         toDate={periodToDate}
-        onDownload={() => downloadCSV(data, periodFromDate, periodToDate, t, has)}
+        onDownload={(format) => downloadCSV(data, periodFromDate, periodToDate, t, has, format)}
         size={welcomeSize}
       />
 

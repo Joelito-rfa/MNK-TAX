@@ -226,7 +226,7 @@ export default function Sidebar({
         <button
           onClick={onCloseMobile}
           className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white lg:hidden"
-          aria-label="Fermer le menu"
+          aria-label={t('a11y.closeMenu')}
         >
           <X className="h-5 w-5" />
         </button>
@@ -235,11 +235,12 @@ export default function Sidebar({
       <nav className="flex-1 overflow-y-auto px-3 pb-4">
         {sections.map((section, idx) => {
           const label = section.labelKey ? t(section.labelKey) : ''
-          const isOpen = openSections[label] ?? true
+          const sectionId = section.labelKey ?? `section-${idx}`
+          const isOpen = openSections[sectionId] ?? true
           const toggle = () =>
-            setOpenSections((s) => ({ ...s, [label]: !(s[label] ?? true) }))
+            setOpenSections((s) => ({ ...s, [sectionId]: !(s[sectionId] ?? true) }))
           return (
-            <div key={label || idx} className="mt-5">
+            <div key={sectionId} className="mt-5">
               {section.labelKey ? (
                 <button
                   onClick={toggle}

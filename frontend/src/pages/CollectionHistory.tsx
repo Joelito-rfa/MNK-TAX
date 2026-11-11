@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
   AlertTriangle,
@@ -47,6 +47,7 @@ import {
   statusTone,
 } from '../components/ui'
 import { UserAvatar } from '../components/UserAvatar'
+import { ExportButton } from '../components/ExportButton'
 
 type Tone = 'green' | 'red' | 'amber' | 'blue' | 'slate' | 'violet' | 'indigo' | 'rose'
 
@@ -243,6 +244,7 @@ function FilterChip({ label, onClear }: { label: string; onClear: () => void }) 
 export default function CollectionHistory() {
   const { t } = useI18n()
   const { fmtDate, fmtDateTime } = useLocaleFormatters()
+  const queryClient = useQueryClient()
 
   const EVENT_TYPE_LABELS: Record<string, string> = {
     ...EVENT_TYPE_LABELS_BASE,
@@ -264,8 +266,6 @@ export default function CollectionHistory() {
   const actionUrl = `/collection/actions?page=${actionPage}&size=${size}${q ? `&q=${encodeURIComponent(q)}` : ''}${actionType ? `&type=${actionType}` : ''}`
   const noticeUrl = `/collection/notices?page=${noticePage}&size=${size}${q ? `&q=${encodeURIComponent(q)}` : ''}`
 
-  // Note : /collection/actions ne filtre pas encore par q (recherche par type),
-  // on passe donc un libellé clair dans l'interface.
   const events = useSection<CollectionHistoryEvent>('history-events', eventUrl, true, [eventUrl])
   const actions = useSection<CollectionAction>('history-actions', actionUrl, true, [actionUrl])
   const notices = useSection<CollectionNotice>('history-notices', noticeUrl, true, [noticeUrl])
@@ -286,6 +286,70 @@ export default function CollectionHistory() {
     resetPageIndexes()
   }
 
+  /** Les mutations n'invalident pas les clés du journal : rafraîchit les trois sections. */
+  function refreshAll() {
+    queryClient.invalidateQueries({ queryKey: ['history-events'] })
+    queryClient.invalidateQueries({ queryKey: ['history-actions'] })
+    queryClient.invalidateQueries({ queryKey: ['history-notices'] })
+  }
+
+  /* ── Export : toutes les lignes de l'onglet actif, hors pagination ── */
+
+  const EVENT_EXPORT_HEADERS = ['Type', 'Référence', 'Contribuable', 'NIF', 'Description', 'Ancien', 'Nouveau', 'Date', 'Auteur']
+  const ACTION_EXPORT_HEADERS = ['Type', 'Référence', 'Contribuable', 'NIF', 'Description', 'Résultat', 'Prochaine action', 'Responsable', 'Date']
+  const NOTICE_EXPORT_HEADERS = ['N°', 'Type', 'Référence', 'Contenu', 'Date', 'Statut']
+
+  const exportHistoryRows = async () => {
+    if (tab === 'actions') {
+      const p = new URLSearchParams({ size: '9999' })
+      if (q) p.set('q', q)
+      if (actionType) p.set('type', actionType)
+      const rows = await apiGet<Page<CollectionAction>>(`/collection/actions?${p.toString()}`)
+      return rows.content.map((a) => [
+        ACTION_LABELS[a.type] ?? a.type,
+        a.debtReference,
+        a.taxpayerName,
+        a.nif,
+        a.description,
+        a.outcome || '',
+        a.nextAction ? `${a.nextAction}${a.nextActionDate ? ` — ${a.nextActionDate}` : ''}` : '',
+        a.responsibleName ?? '',
+        a.createdAt,
+      ])
+    }
+    if (tab === 'notices') {
+      const p = new URLSearchParams({ size: '9999' })
+      if (q) p.set('q', q)
+      const rows = await apiGet<Page<CollectionNotice>>(`/collection/notices?${p.toString()}`)
+      return rows.content.map((n) => [
+        n.noticeNumber,
+        n.noticeType || '',
+        n.debtReference,
+        n.content || '',
+        n.noticeDate,
+        n.status,
+      ])
+    }
+    const p = new URLSearchParams({ size: '9999' })
+    if (q) p.set('q', q)
+    if (eventType) p.set('eventType', eventType)
+    const rows = await apiGet<Page<CollectionHistoryEvent>>(`/collection/events?${p.toString()}`)
+    return rows.content.map((ev) => [
+      EVENT_TYPE_LABELS[ev.eventType] ?? ev.eventType,
+      ev.debtReference,
+      ev.taxpayerName,
+      ev.nif,
+      ev.description,
+      ev.oldValue ?? '',
+      ev.newValue ?? '',
+      ev.eventDate,
+      ev.performedBy ?? '',
+    ])
+  }
+
+  const exportHeaders =
+    tab === 'actions' ? ACTION_EXPORT_HEADERS : tab === 'notices' ? NOTICE_EXPORT_HEADERS : EVENT_EXPORT_HEADERS
+
   return (
     <div className="fx-page space-y-6">
       {/* ── Header ── */}
@@ -293,11 +357,22 @@ export default function CollectionHistory() {
         title="Historique de recouvrement"
         subtitle="Journal horodaté et non modifiable des événements, actions et courriers du module"
         actions={
-          hasFilters ? (
-            <Button variant="ghost" size="sm" onClick={resetFilters}>
-              <X className="h-4 w-4" /> Réinitialiser
+          <>
+            <Button variant="ghost" size="sm" onClick={refreshAll}>
+              <RefreshCw className="h-4 w-4" /> Actualiser
             </Button>
-          ) : undefined
+            <ExportButton
+              filenameBase={`historique_recouvrement_${new Date().toISOString().slice(0, 10)}`}
+              title="Historique de recouvrement"
+              headers={exportHeaders}
+              rows={exportHistoryRows}
+            />
+            {hasFilters && (
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                <X className="h-4 w-4" /> Réinitialiser
+              </Button>
+            )}
+          </>
         }
       />
 

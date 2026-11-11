@@ -1,19 +1,36 @@
 import { useEffect, useRef, useState } from 'react'
 import { TrendingUp, Users, FileText, Wallet, BarChart3, CreditCard } from 'lucide-react'
 import ScrollReveal from './ScrollReveal'
+import { useI18n } from '../../lib/i18n'
 
 const kpis = [
-  { icon: Users, label: 'Contribuables', value: '12 500+', trend: '+8%', color: 'text-brand-400 bg-brand-500/10' },
-  { icon: FileText, label: 'Déclarations', value: '3 200', trend: '+12%', color: 'text-violet-400 bg-violet-500/10' },
-  { icon: Wallet, label: 'Recettes', value: '45 M Ar', trend: '+15%', color: 'text-emerald-400 bg-emerald-500/10' },
-  { icon: TrendingUp, label: 'Recouvrement', value: '87%', trend: '+3%', color: 'text-sky-400 bg-sky-500/10' },
-  { icon: CreditCard, label: 'Paiements', value: '1 245', trend: '+22%', color: 'text-amber-400 bg-amber-500/10' },
-  { icon: BarChart3, label: 'Créances', value: '12 M Ar', trend: '-5%', color: 'text-rose-400 bg-rose-500/10' },
+  { icon: Users, labelKey: 'landing.dashboard.kpi.taxpayers', value: '12 500+', trend: '+8%', color: 'text-brand-400 bg-brand-500/10' },
+  { icon: FileText, labelKey: 'landing.dashboard.kpi.declarations', value: '3 200', trend: '+12%', color: 'text-violet-400 bg-violet-500/10' },
+  { icon: Wallet, labelKey: 'landing.dashboard.kpi.revenue', value: '45 M Ar', trend: '+15%', color: 'text-emerald-400 bg-emerald-500/10' },
+  { icon: TrendingUp, labelKey: 'landing.dashboard.kpi.collection', value: '87%', trend: '+3%', color: 'text-sky-400 bg-sky-500/10' },
+  { icon: CreditCard, labelKey: 'landing.dashboard.kpi.payments', value: '1 245', trend: '+22%', color: 'text-amber-400 bg-amber-500/10' },
+  { icon: BarChart3, labelKey: 'landing.dashboard.kpi.debts', value: '12 M Ar', trend: '-5%', color: 'text-rose-400 bg-rose-500/10' },
+]
+
+const monthKeys = [
+  'landing.dashboard.month.jan',
+  'landing.dashboard.month.feb',
+  'landing.dashboard.month.mar',
+  'landing.dashboard.month.apr',
+  'landing.dashboard.month.may',
+  'landing.dashboard.month.jun',
+  'landing.dashboard.month.jul',
+  'landing.dashboard.month.aug',
+  'landing.dashboard.month.sep',
+  'landing.dashboard.month.oct',
+  'landing.dashboard.month.nov',
+  'landing.dashboard.month.dec',
 ]
 
 const chartData = [30, 45, 38, 62, 48, 70, 55, 78, 65, 85, 72, 92]
 
 export default function DashboardPreview() {
+  const { t } = useI18n()
   const sectionRef = useRef<HTMLElement>(null)
   const [visible, setVisible] = useState(false)
 
@@ -39,10 +56,10 @@ export default function DashboardPreview() {
         <ScrollReveal animation="blur-up">
           <div className="text-center max-w-2xl mx-auto mb-14">
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Une vision claire
-              <span className="block text-brand-400">de votre activité fiscale.</span>
+              {t('landing.dashboard.titleLine1')}
+              <span className="block text-brand-400">{t('landing.dashboard.titleLine2')}</span>
             </h2>
-            <p className="mt-4 text-slate-400 text-sm">Données de démonstration — prototype académique.</p>
+            <p className="mt-4 text-slate-400 text-sm">{t('landing.dashboard.description')}</p>
           </div>
         </ScrollReveal>
 
@@ -54,8 +71,8 @@ export default function DashboardPreview() {
                 <div className="flex items-center gap-3">
                   <img src="/logo.webp" alt="MNK-TAX" className="h-8 w-8 rounded-lg" />
                   <div>
-                    <p className="text-sm font-semibold text-white">MNK-TAX Dashboard</p>
-                    <p className="text-[11px] text-slate-500">Vue globale — Janvier 2026</p>
+                    <p className="text-sm font-semibold text-white">{t('landing.dashboard.name')}</p>
+                    <p className="text-[11px] text-slate-500">{t('landing.dashboard.period')}</p>
                   </div>
                 </div>
                 <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-400">
@@ -63,23 +80,23 @@ export default function DashboardPreview() {
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
                   </span>
-                  En ligne
+                  {t('landing.dashboard.online')}
                 </span>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6 mb-6">
                 {kpis.map((kpi, i) => (
-                  <ScrollReveal key={kpi.label} animation="blur-up" delay={300 + i * 50}>
+                  <ScrollReveal key={kpi.labelKey} animation="blur-up" delay={300 + i * 50}>
                     <div className="dash-kpi rounded-xl border border-white/[0.06] bg-white/[0.04] p-4 transition-all duration-300 hover:border-white/[0.12]"
                       style={{ ['--d' as string]: `${i * 70}ms` }}>
                       <div className="flex items-center gap-2 mb-2">
                         <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${kpi.color}`}>
                           <kpi.icon className="h-3.5 w-3.5" />
                         </div>
-                        <span className="text-[10px] font-medium text-slate-500">{kpi.label}</span>
+                        <span className="text-[10px] font-medium text-slate-500">{t(kpi.labelKey)}</span>
                       </div>
                       <p className="text-xl font-bold text-white">{kpi.value}</p>
                       <span className={`text-[10px] font-medium ${kpi.trend.startsWith('+') ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {kpi.trend} ce mois
+                        {kpi.trend} {t('landing.dashboard.thisMonth')}
                       </span>
                     </div>
                   </ScrollReveal>
@@ -87,9 +104,9 @@ export default function DashboardPreview() {
               </div>
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-medium text-slate-300">Recettes mensuelles</p>
+                  <p className="text-sm font-medium text-slate-300">{t('landing.dashboard.monthlyRevenue')}</p>
                   <div className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
-                    <TrendingUp className="h-3.5 w-3.5" /> +12% vs année précédente
+                    <TrendingUp className="h-3.5 w-3.5" /> {t('landing.dashboard.vsPrevYear')}
                   </div>
                 </div>
                 <div className="relative">
@@ -113,8 +130,7 @@ export default function DashboardPreview() {
                   </div>
                 </div>
                 <div className="flex justify-between mt-2 text-[10px] text-slate-600">
-                  <span>Jan</span><span>Fév</span><span>Mar</span><span>Avr</span><span>Mai</span><span>Jun</span>
-                  <span>Jul</span><span>Aoû</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Déc</span>
+                  {monthKeys.map((key) => <span key={key}>{t(key)}</span>)}
                 </div>
               </div>
             </div>

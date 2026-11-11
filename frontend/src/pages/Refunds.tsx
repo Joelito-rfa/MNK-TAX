@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Banknote, CheckCircle2, HandCoins, XCircle, Pencil, Trash2, Eye, CalendarClock, Filter, RotateCcw } from 'lucide-react'
-import { apiDelete, apiErrorMessage, apiPatch, apiPost } from '../lib/api'
+import { apiDelete, apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
+import type { Page, Refund } from '../types'
 import { fmtDateTime, fmtDate, fmtMGA, fmtNumber } from '../lib/format'
 import { useAuth } from '../lib/auth'
 import { refundKeys } from '../features/refund/api/keys'
@@ -30,6 +31,7 @@ import {
 } from '../components/ui'
 import { useToast } from '../components/Toast'
 import RowActionPortal from '../components/RowActionPortal'
+import { ExportButton } from '../components/ExportButton'
 
 export const refundReasonLabels: Record<string, string> = {
   VAT_CREDIT: 'Crédit de TVA',
@@ -87,11 +89,32 @@ export default function Refunds() {
         title="Remboursements"
         subtitle="Demandes de remboursement et suivi des versements"
         actions={
-          can('REFUND_WRITE') && (
-            <Button onClick={() => setCreateOpen(true)}>
-              <Banknote className="h-4 w-4" /> Demande de remboursement
-            </Button>
-          )
+          <>
+            <ExportButton
+              filenameBase={`remboursements_${new Date().toISOString().slice(0, 10)}`}
+              title="Remboursements"
+              headers={['Référence', 'Contribuable', 'Motif', 'Montant', 'Statut', 'Demandé le']}
+              rows={async () => {
+                const p = new URLSearchParams(buildParams)
+                p.delete('page')
+                p.delete('size')
+                const res = await apiGet<Page<Refund>>(`/refunds?${p.toString()}&size=9999`)
+                return res.content.map((r) => [
+                  r.reference,
+                  `${r.taxpayerName} (${r.nif})`,
+                  refundReasonLabels[r.reason] ?? r.reason,
+                  r.amount,
+                  refundStatusLabels[r.status] ?? r.status,
+                  r.createdAt,
+                ])
+              }}
+            />
+            {can('REFUND_WRITE') && (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Banknote className="h-4 w-4" /> Demande de remboursement
+              </Button>
+            )}
+          </>
         }
       />
 

@@ -5,41 +5,80 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui'
 import ScrollReveal from './ScrollReveal'
+import { useI18n } from '../../lib/i18n'
 
-const authItems = ['JWT', 'Access token', 'Refresh token', 'BCrypt', 'Sessions']
+const authItemKeys = [
+  'landing.security.auth.jwt',
+  'landing.security.auth.accessToken',
+  'landing.security.auth.refreshToken',
+  'landing.security.auth.bcrypt',
+  'landing.security.auth.sessions',
+]
 
 const roles = ['SUPER_ADMIN', 'ADMIN', 'TAX_AGENT', 'COLLECTION_AGENT', 'ACCOUNTANT', 'TAXPAYER']
 
-const accessChain = ['Rôles', 'Permissions', 'Scope', 'Ownership']
-
-const audited = ['Création', 'Modification', 'Validation', 'Paiement', 'Annulation', 'Connexion']
-
-const dataProtection = ['Validation', 'Contrôle d’accès', 'Isolation', 'Journalisation']
-
-const criticalOps = [
-  'Validation déclaration',
-  'Création dette',
-  'Paiement',
-  'Annulation',
-  'Remboursement',
-  'Attribution de rôle',
+const accessChainKeys = [
+  'landing.security.rbac.roles',
+  'landing.security.rbac.permissions',
+  'landing.security.rbac.scope',
+  'landing.security.rbac.ownership',
 ]
 
-const criticalGuards = ['Permission', 'Validation métier', 'Transaction', 'Audit']
+const auditedKeys = [
+  'landing.security.audit.create',
+  'landing.security.audit.update',
+  'landing.security.audit.validation',
+  'landing.security.audit.payment',
+  'landing.security.audit.cancel',
+  'landing.security.audit.login',
+]
+
+const dataProtectionKeys = [
+  'landing.security.data.validation',
+  'landing.security.data.accessControl',
+  'landing.security.data.isolation',
+  'landing.security.data.logging',
+]
+
+const criticalOpKeys = [
+  'landing.security.critical.declarationValidation',
+  'landing.security.critical.debtCreation',
+  'landing.security.critical.payment',
+  'landing.security.critical.cancel',
+  'landing.security.critical.refund',
+  'landing.security.critical.roleAssignment',
+]
+
+const criticalGuardKeys = [
+  'landing.security.critical.permission',
+  'landing.security.critical.businessValidation',
+  'landing.security.critical.transaction',
+  'landing.security.critical.audit',
+]
 
 const stack = ['Spring Boot', 'PostgreSQL', 'Redis', 'Nginx', 'Docker']
 
-const badges = [
-  'JWT',
-  'RBAC',
-  'BCrypt',
-  'Audit trail',
-  'Rate limiting',
-  'CORS whitelist',
+const badgeKeys = [
+  'landing.security.badges.jwt',
+  'landing.security.badges.rbac',
+  'landing.security.badges.bcrypt',
+  'landing.security.badges.auditTrail',
+  'landing.security.badges.rateLimiting',
+  'landing.security.badges.cors',
+]
+
+const apiChainKeys = [
+  'landing.security.api.frontend',
+  'landing.security.api.https',
+  'landing.security.api.springSecurity',
+  'landing.security.api.api',
+  'landing.security.api.service',
+  'landing.security.api.database',
 ]
 
 export default function Security() {
   const navigate = useNavigate()
+  const { t } = useI18n()
 
   return (
     <section id="security" className="relative py-24">
@@ -47,15 +86,14 @@ export default function Security() {
         <ScrollReveal animation="blur-up">
           <div className="text-center max-w-2xl mx-auto mb-14">
             <span className="inline-block rounded-full border border-emerald-400/20 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-emerald-300">
-              Sécurité
+              {t('landing.security.badge')}
             </span>
             <h2 className="mt-5 text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Sécurité, contrôle
-              <span className="block text-brand-400">et traçabilité.</span>
+              {t('landing.security.titleLine1')}
+              <span className="block text-brand-400">{t('landing.security.titleLine2')}</span>
             </h2>
             <p className="mt-4 text-slate-400">
-              MNK-TAX intègre plusieurs mécanismes techniques pour protéger les accès et tracer les
-              opérations sensibles du prototype.
+              {t('landing.security.description')}
             </p>
           </div>
         </ScrollReveal>
@@ -67,14 +105,14 @@ export default function Security() {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400">
                 <KeyRound className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-semibold text-white">Authentification sécurisée</h3>
+              <h3 className="mt-4 text-base font-semibold text-white">{t('landing.security.auth.title')}</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                La connexion repose sur une authentification sécurisée et une gestion contrôlée des sessions.
+                {t('landing.security.auth.description')}
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
-                {authItems.map((a) => (
-                  <span key={a} className="rounded-md border border-emerald-500/15 bg-emerald-500/5 px-2 py-1 text-[10px] font-mono font-medium text-emerald-300">
-                    {a}
+                {authItemKeys.map((key) => (
+                  <span key={key} className="rounded-md border border-emerald-500/15 bg-emerald-500/5 px-2 py-1 text-[10px] font-mono font-medium text-emerald-300">
+                    {t(key)}
                   </span>
                 ))}
               </div>
@@ -87,9 +125,9 @@ export default function Security() {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400">
                 <ShieldHalf className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-semibold text-white">Accès par rôles et permissions</h3>
+              <h3 className="mt-4 text-base font-semibold text-white">{t('landing.security.rbac.title')}</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Chaque utilisateur dispose de droits adaptés à son rôle et à son périmètre d’accès.
+                {t('landing.security.rbac.description')}
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {roles.map((r) => (
@@ -99,10 +137,10 @@ export default function Security() {
                 ))}
               </div>
               <div className="mt-4 flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                {accessChain.map((s, i) => (
-                  <span key={s} className="flex items-center gap-2">
-                    <span>{s}</span>
-                    {i < accessChain.length - 1 && <span className="text-brand-500/40">→</span>}
+                {accessChainKeys.map((key, i) => (
+                  <span key={key} className="flex items-center gap-2">
+                    <span>{t(key)}</span>
+                    {i < accessChainKeys.length - 1 && <span className="text-brand-500/40">→</span>}
                   </span>
                 ))}
               </div>
@@ -115,14 +153,14 @@ export default function Security() {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400">
                 <ScrollText className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-semibold text-white">Audit des opérations</h3>
+              <h3 className="mt-4 text-base font-semibold text-white">{t('landing.security.audit.title')}</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Les opérations sensibles peuvent être historisées afin de renforcer la traçabilité du système.
+                {t('landing.security.audit.description')}
               </p>
               <div className="mt-4 flex flex-wrap gap-1.5">
-                {audited.map((a) => (
-                  <span key={a} className="rounded-md border border-amber-500/15 bg-amber-500/5 px-2 py-1 text-[10px] text-amber-200">
-                    {a}
+                {auditedKeys.map((key) => (
+                  <span key={key} className="rounded-md border border-amber-500/15 bg-amber-500/5 px-2 py-1 text-[10px] text-amber-200">
+                    {t(key)}
                   </span>
                 ))}
               </div>
@@ -137,15 +175,14 @@ export default function Security() {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400">
                 <Lock className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-semibold text-white">Protection des données</h3>
+              <h3 className="mt-4 text-base font-semibold text-white">{t('landing.security.data.title')}</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Les données fiscales sont accessibles selon les permissions, le périmètre et les relations
-                métier définis par le système.
+                {t('landing.security.data.description')}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-2">
-                {dataProtection.map((d) => (
-                  <span key={d} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-slate-300">
-                    {d}
+                {dataProtectionKeys.map((key) => (
+                  <span key={key} className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-slate-300">
+                    {t(key)}
                   </span>
                 ))}
               </div>
@@ -157,16 +194,15 @@ export default function Security() {
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
                 <Network className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-base font-semibold text-white">API protégées</h3>
+              <h3 className="mt-4 text-base font-semibold text-white">{t('landing.security.api.title')}</h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Les opérations métier passent par une couche backend sécurisée plutôt que par des contrôles
-                uniquement côté interface.
+                {t('landing.security.api.description')}
               </p>
               <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-mono text-slate-400">
-                {['Frontend', 'HTTPS', 'Spring Security', 'API', 'Service métier', 'Database'].map((s, i) => (
-                  <span key={s} className="flex items-center gap-2">
-                    <span className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1">{s}</span>
-                    {i < 5 && <span className="text-brand-500/40">↓</span>}
+                {apiChainKeys.map((key, i) => (
+                  <span key={key} className="flex items-center gap-2">
+                    <span className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1">{t(key)}</span>
+                    {i < apiChainKeys.length - 1 && <span className="text-brand-500/40">↓</span>}
                   </span>
                 ))}
               </div>
@@ -183,26 +219,26 @@ export default function Security() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
                     <Workflow className="h-5 w-5" />
                   </div>
-                  <h3 className="text-base font-semibold text-white">Protection des opérations sensibles</h3>
+                  <h3 className="text-base font-semibold text-white">{t('landing.security.critical.title')}</h3>
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                  Les actions les plus sensibles sont encadrées côté serveur par une combinaison de contrôles.
+                  {t('landing.security.critical.description')}
                 </p>
               </div>
               <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-6">
                 <div className="flex flex-wrap gap-1.5">
-                  {criticalOps.map((o) => (
-                    <span key={o} className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-[10px] text-slate-400">
-                      {o}
+                  {criticalOpKeys.map((key) => (
+                    <span key={key} className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1 text-[10px] text-slate-400">
+                      {t(key)}
                     </span>
                   ))}
                 </div>
                 <div className="h-px w-8 bg-brand-500/25 sm:h-12 sm:w-px sm:rotate-0" />
                 <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-brand-300">
-                  {criticalGuards.map((g, i) => (
-                    <span key={g} className="flex items-center gap-2">
-                      <span className="rounded-md border border-brand-500/15 bg-brand-500/5 px-2 py-1">{g}</span>
-                      {i < criticalGuards.length - 1 && <span className="text-brand-500/40">+</span>}
+                  {criticalGuardKeys.map((key, i) => (
+                    <span key={key} className="flex items-center gap-2">
+                      <span className="rounded-md border border-brand-500/15 bg-brand-500/5 px-2 py-1">{t(key)}</span>
+                      {i < criticalGuardKeys.length - 1 && <span className="text-brand-500/40">+</span>}
                     </span>
                   ))}
                 </div>
@@ -219,10 +255,9 @@ export default function Security() {
                 <Server className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-white">Infrastructure du prototype</h3>
+                <h3 className="text-base font-semibold text-white">{t('landing.security.infra.title')}</h3>
                 <p className="mt-0.5 max-w-md text-xs leading-relaxed text-slate-500">
-                  Une architecture séparant l’interface, les services métier, les données et les composants
-                  d’infrastructure.
+                  {t('landing.security.infra.description')}
                 </p>
               </div>
             </div>
@@ -240,14 +275,14 @@ export default function Security() {
         {/* Badges */}
         <ScrollReveal animation="blur-up" delay={120}>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
-            {badges.map((b) => (
-              <span key={b} className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/5 px-3 py-1.5 text-xs text-emerald-200">
+            {badgeKeys.map((key) => (
+              <span key={key} className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-500/5 px-3 py-1.5 text-xs text-emerald-200">
                 <CircleCheck className="h-3 w-3 text-emerald-400" />
-                {b}
+                {t(key)}
               </span>
             ))}
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs text-slate-400">
-              89 permissions distinctes
+              {t('landing.security.permissions', { count: 89 })}
             </span>
           </div>
         </ScrollReveal>
@@ -259,9 +294,9 @@ export default function Security() {
               size="lg"
               className="rounded-2xl bg-brand-600 px-8 text-white shadow-xl shadow-brand-600/25"
             >
-              Accéder à la plateforme
+              {t('landing.security.cta')}
             </Button>
-            <p className="text-xs text-slate-500">L’authentification est requise pour consulter les données.</p>
+            <p className="text-xs text-slate-500">{t('landing.security.note')}</p>
           </div>
         </ScrollReveal>
       </div>

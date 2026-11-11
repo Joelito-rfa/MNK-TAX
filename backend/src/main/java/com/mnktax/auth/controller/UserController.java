@@ -107,14 +107,19 @@ public class UserController {
     @PostMapping("/{id}/reset-password")
     @PreAuthorize("hasAuthority('" + Permissions.USER_RESET_PASSWORD + "')")
     @Operation(summary = "Réinitialiser le mot de passe d'un utilisateur",
-            description = "Génère un mot de passe temporaire et impose son changement à la prochaine connexion.")
+            description = "Génère un mot de passe temporaire, l'envoie par email à l'utilisateur "
+                    + "et impose son changement à la prochaine connexion. "
+                    + "Sans SMTP configuré, le mot de passe temporaire est renvoyé pour remise manuelle.")
     public ResponseEntity<ResetPasswordResponse> resetPassword(@PathVariable Long id,
                                                                HttpServletRequest httpRequest) {
         String temporaryPassword = userService.resetPassword(id, httpRequest);
-        return ResponseEntity.ok(new ResetPasswordResponse(temporaryPassword));
+        return ResponseEntity.ok(temporaryPassword == null
+                ? new ResetPasswordResponse("EMAIL", null)
+                : new ResetPasswordResponse("MANUAL", temporaryPassword));
     }
 
-    public record ResetPasswordResponse(String temporaryPassword) {
+    /** `delivery` : EMAIL si le secret a été envoyé, MANUAL s'il doit être remis par l'administrateur. */
+    public record ResetPasswordResponse(String delivery, String temporaryPassword) {
     }
 
     @PostMapping("/change-password")

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -14,7 +14,6 @@ import {
   ClipboardList,
   Clock,
   Copy,
-  Download,
   Eye,
   FileText,
   Grid3X3,
@@ -66,20 +65,21 @@ import {
   Td,
   Th,
 } from '../components/ui'
-import { useToast } from '../components/Toast'
 import RowActionPortal from '../components/RowActionPortal'
+import { useI18n, localeToIntl } from '../lib/i18n'
+import { ExportButton } from '../components/ExportButton'
 
 /* ── Constants ── */
 const statusLabels: Record<string, string> = {
-  DRAFT: 'Brouillon',
-  SUBMITTED: 'Soumise',
-  UNDER_REVIEW: 'En contrôle',
-  VALIDATED: 'Validée',
-  REJECTED: 'Rejetée',
-  CANCELLED: 'Annulée',
-  LIQUIDEE: 'Liquidée',
-  PAYEE: 'Payée',
-  A_CORRIGER: 'À corriger',
+  DRAFT: 'declarations.page.status.DRAFT',
+  SUBMITTED: 'declarations.page.status.SUBMITTED',
+  UNDER_REVIEW: 'declarations.page.status.UNDER_REVIEW',
+  VALIDATED: 'declarations.page.status.VALIDATED',
+  REJECTED: 'declarations.page.status.REJECTED',
+  CANCELLED: 'declarations.page.status.CANCELLED',
+  LIQUIDEE: 'declarations.page.status.LIQUIDEE',
+  PAYEE: 'declarations.page.status.PAYEE',
+  A_CORRIGER: 'declarations.page.status.A_CORRIGER',
 }
 
 const statusToneMap: Record<string, string> = {
@@ -107,21 +107,21 @@ const statusIcons: Record<string, React.ReactNode> = {
 }
 
 const statusNavItems = [
-  { key: '', label: 'Toutes', icon: <ClipboardList className="h-4 w-4" /> },
-  { key: 'DRAFT', label: 'Brouillons', icon: <FileText className="h-4 w-4" /> },
-  { key: 'SUBMITTED', label: 'Soumises', icon: <Send className="h-4 w-4" /> },
-  { key: 'UNDER_REVIEW', label: 'En contrôle', icon: <ShieldCheck className="h-4 w-4" /> },
-  { key: 'VALIDATED', label: 'Validées', icon: <CheckCircle2 className="h-4 w-4" /> },
-  { key: 'PAYEE', label: 'Payées', icon: <Check className="h-4 w-4" /> },
-  { key: 'REJECTED', label: 'Rejetées', icon: <XCircle className="h-4 w-4" /> },
-  { key: 'A_CORRIGER', label: 'À corriger', icon: <AlertTriangle className="h-4 w-4" /> },
+  { key: '', label: 'declarations.page.nav.all', icon: <ClipboardList className="h-4 w-4" /> },
+  { key: 'DRAFT', label: 'declarations.page.nav.draft', icon: <FileText className="h-4 w-4" /> },
+  { key: 'SUBMITTED', label: 'declarations.page.nav.submitted', icon: <Send className="h-4 w-4" /> },
+  { key: 'UNDER_REVIEW', label: 'declarations.page.nav.review', icon: <ShieldCheck className="h-4 w-4" /> },
+  { key: 'VALIDATED', label: 'declarations.page.nav.validated', icon: <CheckCircle2 className="h-4 w-4" /> },
+  { key: 'PAYEE', label: 'declarations.page.nav.paid', icon: <Check className="h-4 w-4" /> },
+  { key: 'REJECTED', label: 'declarations.page.nav.rejected', icon: <XCircle className="h-4 w-4" /> },
+  { key: 'A_CORRIGER', label: 'declarations.page.nav.toFix', icon: <AlertTriangle className="h-4 w-4" /> },
 ]
 
 /* ── Main Component ── */
 export default function Declarations() {
+  const { t } = useI18n()
   const { id: routeId } = useParams()
   const navigate = useNavigate()
-  const toast = useToast()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(20)
@@ -172,29 +172,18 @@ export default function Declarations() {
   /* ── Mutations ── */
   const doAction = useDeclarationAction()
 
-  const exportMutation = useMutation({
-    mutationFn: async () => {
-      const p = new URLSearchParams(params)
-      p.delete('page')
-      p.delete('size')
-      const rows = await fetchDeclarations(`${p.toString()}&size=9999`)
-      const csv = [
-        'Référence,NIF,Contribuable,Impôt,Période,Assiette,Déclaré,Calculé,Statut',
-        ...rows.content.map(
-          (d) =>
-            `${d.reference},${d.nif},"${d.taxpayerName}",${d.taxTypeCode},${d.period},${d.taxBase},${d.declaredAmount},${d.calculatedTax ?? ''},${statusLabels[d.status] ?? d.status}`
-        ),
-      ].join('\n')
-      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `declarations_${new Date().toISOString().slice(0, 10)}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-    },
-    onSuccess: () => toast.success('Export terminé'),
-  })
+  /** Toutes les déclarations correspondant aux filtres actifs (hors pagination). */
+  const exportDeclarationRows = async () => {
+    const p = new URLSearchParams(params)
+    p.delete('page')
+    p.delete('size')
+    const rows = await fetchDeclarations(`${p.toString()}&size=9999`)
+    return rows.content.map((d) => [
+      d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period,
+      d.taxBase, d.declaredAmount, d.calculatedTax ?? '',
+      statusLabels[d.status] ? t(statusLabels[d.status]) : d.status,
+    ])
+  }
 
   /* ── Derived ── */
   const hasFilters = !!(q || statusFilter || taxTypeFilter || periodFilter || exerciceFilter)
@@ -247,26 +236,26 @@ export default function Declarations() {
 
   function getActions(d: Declaration) {
     const actions: { label: string; icon: React.ReactNode; action: () => void; danger?: boolean }[] = []
-    actions.push({ label: 'Voir les détails', icon: <Eye className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
+    actions.push({ label: t('common.seeDetails'), icon: <Eye className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
     if (d.status === 'DRAFT') {
-      actions.push({ label: 'Modifier', icon: <Pencil className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
-      actions.push({ label: 'Soumettre', icon: <Send className="h-4 w-4" />, action: () => doAction.mutate({ id: d.id, op: 'submit' }) })
-      actions.push({ label: 'Supprimer', icon: <Trash2 className="h-4 w-4" />, action: () => setConfirmModal({ type: 'cancel', id: d.id }), danger: true })
+      actions.push({ label: t('common.edit'), icon: <Pencil className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
+      actions.push({ label: t('declarations.page.submit'), icon: <Send className="h-4 w-4" />, action: () => doAction.mutate({ id: d.id, op: 'submit' }) })
+      actions.push({ label: t('common.delete'), icon: <Trash2 className="h-4 w-4" />, action: () => setConfirmModal({ type: 'cancel', id: d.id }), danger: true })
     }
     if (d.status === 'SUBMITTED') {
-      actions.push({ label: 'Contrôler', icon: <ShieldCheck className="h-4 w-4" />, action: () => doAction.mutate({ id: d.id, op: 'review' }) })
-      actions.push({ label: 'Rejeter', icon: <XCircle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'reject', id: d.id }), danger: true })
+      actions.push({ label: t('declarations.page.review'), icon: <ShieldCheck className="h-4 w-4" />, action: () => doAction.mutate({ id: d.id, op: 'review' }) })
+      actions.push({ label: t('declarations.page.reject'), icon: <XCircle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'reject', id: d.id }), danger: true })
     }
     if (d.status === 'UNDER_REVIEW') {
-      actions.push({ label: 'Valider', icon: <CheckCircle2 className="h-4 w-4" />, action: () => setConfirmModal({ type: 'validate', id: d.id }) })
-      actions.push({ label: 'Rejeter', icon: <XCircle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'reject', id: d.id }), danger: true })
-      actions.push({ label: 'Demander correction', icon: <AlertTriangle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'correction', id: d.id }) })
+      actions.push({ label: t('declarations.page.validate'), icon: <CheckCircle2 className="h-4 w-4" />, action: () => setConfirmModal({ type: 'validate', id: d.id }) })
+      actions.push({ label: t('declarations.page.reject'), icon: <XCircle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'reject', id: d.id }), danger: true })
+      actions.push({ label: t('declarations.page.requestCorrection'), icon: <AlertTriangle className="h-4 w-4" />, action: () => setConfirmModal({ type: 'correction', id: d.id }) })
     }
     if (['VALIDATED', 'LIQUIDEE', 'PAYEE'].includes(d.status)) {
-      actions.push({ label: 'Rectificative', icon: <Copy className="h-4 w-4" />, action: () => setConfirmModal({ type: 'rectificative', id: d.id }) })
+      actions.push({ label: t('declarations.page.rectify'), icon: <Copy className="h-4 w-4" />, action: () => setConfirmModal({ type: 'rectificative', id: d.id }) })
     }
     if (d.status === 'A_CORRIGER') {
-      actions.push({ label: 'Modifier', icon: <Pencil className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
+      actions.push({ label: t('common.edit'), icon: <Pencil className="h-4 w-4" />, action: () => navigate(`/declarations/${d.id}`) })
     }
     return actions
   }
@@ -302,22 +291,23 @@ export default function Declarations() {
     <div className="fx-page space-y-6">
       {/* ── Header ── */}
       <PageHeader
-        title="Déclarations"
-        subtitle="Suivi, contrôle et validation des déclarations fiscales."
+        title={t('sidebar.declarations')}
+        subtitle={t('declarations.page.subtitle')}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: declarationKeys.all })}>
-              <RefreshCw className="h-4 w-4" /> Actualiser
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
-              <Download className="h-4 w-4" /> Exporter
-            </Button>
+              <RefreshCw className="h-4 w-4" /> {t('common.refresh')}{' '}</Button>
+            <ExportButton
+              filenameBase={`declarations_${new Date().toISOString().slice(0, 10)}`}
+              title={t('sidebar.declarations')}
+              headers={['Référence', 'NIF', 'Contribuable', 'Impôt', 'Période', 'Assiette', 'Déclaré', 'Calculé', 'Statut']}
+              rows={exportDeclarationRows}
+            />
             <Button
               onClick={() => setCreateOpen(true)}
               className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30 transition-all duration-200"
             >
-              <Plus className="h-4 w-4" /> Nouvelle déclaration
-            </Button>
+              <Plus className="h-4 w-4" /> {t('declarations.new')}{' '}</Button>
           </div>
         }
       />
@@ -339,7 +329,7 @@ export default function Declarations() {
               <span className={`transition ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-violet-500 dark:group-hover:text-violet-400'}`}>
                 {item.icon}
               </span>
-              {item.label}
+              {t(item.label)}
               {(item.key ? (statusCounts[item.key] ?? 0) : (stats?.total ?? 0)) > 0 && (
                 <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${
                   isActive
@@ -360,7 +350,7 @@ export default function Declarations() {
           <SearchInput
             value={q}
             onChange={(v) => { setQ(v); setPage(0) }}
-            placeholder="Rechercher par référence, NIF, nom du contribuable..."
+            placeholder={t('declarations.page.searchPlaceholder')}
             className="min-w-56 flex-1"
           />
           <Button
@@ -369,8 +359,7 @@ export default function Declarations() {
             onClick={() => setShowFilters(!showFilters)}
             className={showFilters ? 'text-violet-600 dark:text-violet-400' : ''}
           >
-            <Calendar className="h-4 w-4" /> Filtres
-            {activeFilterCount > 0 && (
+            <Calendar className="h-4 w-4" /> {t('payments.filters.title')}{' '}{activeFilterCount > 0 && (
               <span className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-700 dark:bg-violet-900/40 dark:text-violet-400">
                 {activeFilterCount}
               </span>
@@ -381,26 +370,25 @@ export default function Declarations() {
         {showFilters && (
           <div className="animate-fade-in border-b border-slate-100 dark:border-slate-700/50 px-5 py-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <Field label="Type d'impôt">
+              <Field label={t('assessments.page.office.taxType')}>
                 <Select value={taxTypeFilter} onChange={(e) => { setTaxTypeFilter(e.target.value); setPage(0) }}>
-                  <option value="">Tous les types</option>
+                  <option value="">{t('tp.allTypes')}</option>
                   {taxTypes?.map((t) => (
                     <option key={t.code} value={t.code}>{t.code} — {t.name}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Période">
+              <Field label={t('common.period')}>
                 <Input placeholder="2026-01" value={periodFilter} onChange={(e) => { setPeriodFilter(e.target.value); setPage(0) }} />
               </Field>
-              <Field label="Exercice">
+              <Field label={t('declarations.page.year')}>
                 <Input placeholder="2026" value={exerciceFilter} onChange={(e) => { setExerciceFilter(e.target.value); setPage(0) }} />
               </Field>
             </div>
             {hasFilters && (
               <div className="mt-3 flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={resetFilters}>
-                  <X className="h-3.5 w-3.5" /> Réinitialiser les filtres
-                </Button>
+                  <X className="h-3.5 w-3.5" /> {t('tp.resetFilters')}{' '}</Button>
               </div>
             )}
           </div>
@@ -409,35 +397,34 @@ export default function Declarations() {
         {/* ── Active filter chips ── */}
         {hasFilters && (
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 dark:border-slate-700/50 px-5 py-2.5">
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Filtres actifs :</span>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('tp.activeFilters')}</span>
             {q && (
               <button onClick={() => removeFilter('q')} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400">
-                Recherche : {q} <X className="h-3 w-3" />
+                {t('declarations.page.filter.search')}{' '}{q} <X className="h-3 w-3" />
               </button>
             )}
             {statusFilter && (
               <button onClick={() => removeFilter('status')} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400">
-                Statut : {statusLabels[statusFilter] ?? statusFilter} <X className="h-3 w-3" />
+                {t('declarations.page.filter.status')}{' '}{statusLabels[statusFilter] ? t(statusLabels[statusFilter]) : statusFilter} <X className="h-3 w-3" />
               </button>
             )}
             {taxTypeFilter && (
               <button onClick={() => removeFilter('taxType')} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400">
-                Impôt : {taxTypeFilter} <X className="h-3 w-3" />
+                {t('declarations.page.filter.tax')}{' '}{taxTypeFilter} <X className="h-3 w-3" />
               </button>
             )}
             {periodFilter && (
               <button onClick={() => removeFilter('period')} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400">
-                Période : {periodFilter} <X className="h-3 w-3" />
+                {t('declarations.page.filter.period')}{' '}{periodFilter} <X className="h-3 w-3" />
               </button>
             )}
             {exerciceFilter && (
               <button onClick={() => removeFilter('exercice')} className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 transition hover:bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400">
-                Exercice : {exerciceFilter} <X className="h-3 w-3" />
+                {t('declarations.page.filter.year')}{' '}{exerciceFilter} <X className="h-3 w-3" />
               </button>
             )}
             <button onClick={resetFilters} className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-              Tout effacer
-            </button>
+              {t('tp.clearAll')}{' '}</button>
           </div>
         )}
 
@@ -450,7 +437,7 @@ export default function Declarations() {
                 déclaration{data.totalElements > 1 ? 's' : ''} trouvée{data.totalElements > 1 ? 's' : ''}
               </>
             ) : (
-              'Chargement...'
+              t('tp.loading')
             )}
           </p>
           <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-700/50">
@@ -461,7 +448,7 @@ export default function Declarations() {
                   ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
-              aria-label="Vue liste"
+              aria-label={t('tp.viewList')}
             >
               <LayoutList className="h-4 w-4" />
             </button>
@@ -472,7 +459,7 @@ export default function Declarations() {
                   ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
-              aria-label="Vue cartes"
+              aria-label={t('tp.viewCards')}
             >
               <Grid3X3 className="h-4 w-4" />
             </button>
@@ -483,7 +470,7 @@ export default function Declarations() {
                   ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
-              aria-label="Vue calendrier"
+              aria-label={t('declarations.page.viewCalendar')}
             >
               <CalendarDays className="h-4 w-4" />
             </button>
@@ -495,18 +482,16 @@ export default function Declarations() {
           <div className="py-14">
             <EmptyState
               icon={<Inbox className="h-10 w-10" />}
-              title="Aucune déclaration trouvée"
-              subtitle="Aucune déclaration ne correspond aux critères de recherche sélectionnés."
+              title={t('declarations.noResult')}
+              subtitle={t('declarations.page.emptyHint')}
             />
             <div className="mt-4 flex justify-center gap-3">
               {hasFilters && (
                 <Button variant="secondary" size="sm" onClick={resetFilters}>
-                  <X className="h-4 w-4" /> Réinitialiser les filtres
-                </Button>
+                  <X className="h-4 w-4" /> {t('tp.resetFilters')}{' '}</Button>
               )}
               <Button size="sm" onClick={() => setCreateOpen(true)}>
-                <Plus className="h-4 w-4" /> Nouvelle déclaration
-              </Button>
+                <Plus className="h-4 w-4" /> {t('declarations.new')}{' '}</Button>
             </div>
           </div>
         ) : viewMode === 'calendar' ? (
@@ -517,15 +502,15 @@ export default function Declarations() {
               <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
                 <tr>
                   {[
-                    { key: 'reference', label: 'Référence' },
-                    { key: 'nif', label: 'NIF' },
-                    { key: 'taxpayerName', label: 'Contribuable' },
-                    { key: 'taxTypeCode', label: 'Impôt' },
-                    { key: 'period', label: 'Période' },
-                    { key: 'taxBase', label: 'Assiette' },
-                    { key: 'declaredAmount', label: 'Déclaré' },
-                    { key: 'totalAPayer', label: 'Total' },
-                    { key: 'status', label: 'Statut' },
+                    { key: 'reference', label: t('common.reference') },
+                    { key: 'nif', label: t('taxpayers.nif') },
+                    { key: 'taxpayerName', label: t('common.taxpayer') },
+                    { key: 'taxTypeCode', label: t('assessments.page.table.tax') },
+                    { key: 'period', label: t('common.period') },
+                    { key: 'taxBase', label: t('declarations.page.base') },
+                    { key: 'declaredAmount', label: t('declarations.page.declared') },
+                    { key: 'totalAPayer', label: t('common.total') },
+                    { key: 'status', label: t('common.status') },
                   ].map((col) => (
                     <Th
                       key={col.key}
@@ -606,7 +591,7 @@ export default function Declarations() {
                     <Td>
                       <Badge tone={statusToneMap[d.status] as any}>
                         {statusIcons[d.status]}
-                        {statusLabels[d.status] ?? d.status}
+                        {statusLabels[d.status] ? t(statusLabels[d.status]) : d.status}
                       </Badge>
                     </Td>
 
@@ -656,7 +641,7 @@ export default function Declarations() {
                     </div>
                     <Badge tone={statusToneMap[d.status] as any}>
                       {statusIcons[d.status]}
-                      {statusLabels[d.status] ?? d.status}
+                      {statusLabels[d.status] ? t(statusLabels[d.status]) : d.status}
                     </Badge>
                   </div>
                   <div className="space-y-2 text-sm">
@@ -669,15 +654,15 @@ export default function Declarations() {
                       <span>{d.period}</span>
                     </div>
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Assiette:</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{t('declarations.page.baseColon')}</span>
                       <span className="font-mono">{fmtNumber(d.taxBase)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Déclaré:</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{t('declarations.page.declaredColon')}</span>
                       <span className="font-mono">{fmtNumber(d.declaredAmount)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Total:</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{t('declarations.page.totalColon')}</span>
                       <span className="font-semibold text-slate-900 dark:text-slate-100">{d.totalAPayer ? fmtNumber(d.totalAPayer) : '—'}</span>
                     </div>
                   </div>
@@ -749,6 +734,7 @@ export default function Declarations() {
 /* ════════════════════════════════════════════════════════════ */
 
 function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
+  const { t } = useI18n()
   const { data: detail, isLoading } = useDeclarationDetail(id)
   const { data: history } = useDeclarationHistory(id)
   const [tab, setTab] = useState<'info' | 'calcul' | 'annexes' | 'historique'>('info')
@@ -763,7 +749,7 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
       </div>
     )
   }
-  if (!detail) return <Card className="p-8"><EmptyState title="Déclaration introuvable" /></Card>
+  if (!detail) return <Card className="p-8"><EmptyState title={t('declarations.page.notFound')} /></Card>
 
   const remaining = Boolean(detail.resteAPayer) && Number(detail.resteAPayer) > 0
   const paid = detail.status === 'PAYEE'
@@ -780,7 +766,7 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
             <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">{detail.reference}</h1>
             <Badge tone={statusToneMap[detail.status] as any}>
               {statusIcons[detail.status]}
-              {statusLabels[detail.status]}
+              {statusLabels[detail.status] ? t(statusLabels[detail.status]) : detail.status}
             </Badge>
           </div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -790,8 +776,7 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
         <div className="flex items-center gap-2">
           {(detail.status === 'DRAFT' || detail.status === 'A_CORRIGER') && (
             <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
-              <Pencil className="h-3.5 w-3.5" /> Modifier
-            </Button>
+              <Pencil className="h-3.5 w-3.5" /> {t('common.edit')}{' '}</Button>
           )}
         </div>
       </div>
@@ -799,22 +784,22 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
       {/* ── Quick stats ── */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-700/50 dark:bg-slate-800">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Assiette</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('declarations.page.base')}</p>
           <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{fmtNumber(detail.taxBase)}</p>
           <p className="text-xs text-slate-400">MGA</p>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-700/50 dark:bg-slate-800">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Impôt calculé</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('declarations.page.calculatedTax')}</p>
           <p className="mt-1 text-lg font-bold text-violet-600 dark:text-violet-400">{detail.calculatedTax ? fmtNumber(detail.calculatedTax) : '—'}</p>
           <p className="text-xs text-slate-400">MGA</p>
         </div>
         <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-700/50 dark:bg-slate-800">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total à payer</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('declarations.page.totalDue')}</p>
           <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{detail.totalAPayer ? fmtNumber(detail.totalAPayer) : '—'}</p>
           <p className="text-xs text-slate-400">MGA</p>
         </div>
         <div className={`rounded-2xl border p-4 ${remaining ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20' : paid ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-slate-100 bg-white dark:border-slate-700/50 dark:bg-slate-800'}`}>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Reste à payer</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('collection.drawer.f.remaining')}</p>
           <p className={`mt-1 text-lg font-bold ${remaining ? 'text-amber-600 dark:text-amber-400' : paid ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-slate-100'}`}>
             {detail.resteAPayer ? fmtNumber(detail.resteAPayer) : '0'}
           </p>
@@ -824,17 +809,17 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
 
       {/* ── Tabs ── */}
       <div className="flex gap-1 border-b border-slate-200 dark:border-slate-700">
-        {(['info', 'calcul', 'annexes', 'historique'] as const).map((t) => (
+        {(['info', 'calcul', 'annexes', 'historique'] as const).map((tabKey) => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tabKey}
+            onClick={() => setTab(tabKey)}
             className={`px-4 py-2.5 text-sm font-medium transition ${
-              tab === t
+              tab === tabKey
                 ? 'border-b-2 border-violet-600 text-slate-900 dark:text-slate-100'
                 : 'text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
-            {t === 'info' ? 'Informations' : t === 'calcul' ? 'Calcul fiscal' : t === 'annexes' ? `Annexes (${detail.annexes.length})` : `Historique (${detail.historyCount})`}
+            {tabKey === 'info' ? t('declarations.page.tab.info') : tabKey === 'calcul' ? t('landing.features.referentiels.taxCalculation.title') : tabKey === 'annexes' ? t('declarations.page.tab.attachments', { count: detail.annexes.length }) : t('declarations.page.tab.history', { count: detail.historyCount })}
           </button>
         ))}
       </div>
@@ -842,39 +827,39 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
       {tab === 'info' && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card className="p-5">
-            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Informations générales</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('td.overview.title')}</h3>
             <dl className="space-y-3 text-sm">
-              <Row label="Référence" value={detail.reference} />
-              <Row label="NIF" value={detail.nif} />
-              <Row label="Contribuable" value={detail.taxpayerName} />
-              <Row label="Impôt" value={`${detail.taxTypeCode} — ${detail.taxTypeName}`} />
-              <Row label="Période" value={detail.period} />
-              <Row label="Exercice" value={detail.exercice ?? '—'} />
-              <Row label="Régime" value={detail.regime ?? '—'} />
-              <Row label="Centre fiscal" value={detail.taxCenterName ?? '—'} />
-              {detail.rectificative && <Row label="Rectificative" value={`Oui (origine: ${detail.declarationOrigineId})`} />}
+              <Row label={t('common.reference')} value={detail.reference} />
+              <Row label={t('taxpayers.nif')} value={detail.nif} />
+              <Row label={t('common.taxpayer')} value={detail.taxpayerName} />
+              <Row label={t('assessments.page.table.tax')} value={`${detail.taxTypeCode} — ${detail.taxTypeName}`} />
+              <Row label={t('common.period')} value={detail.period} />
+              <Row label={t('declarations.page.year')} value={detail.exercice ?? '—'} />
+              <Row label={t('taxpayers.regime')} value={detail.regime ?? '—'} />
+              <Row label={t('profile.center')} value={detail.taxCenterName ?? '—'} />
+              {detail.rectificative && <Row label={t('declarations.page.rectify')} value={t('declarations.page.rectificativeOrigin', { id: detail.declarationOrigineId ?? '—' })} />}
             </dl>
           </Card>
           <Card className="p-5">
-            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Situation financière</h3>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('declarations.page.financialSituation')}</h3>
             <dl className="space-y-3 text-sm">
-              <Row label="Assiette" value={`${fmtNumber(detail.taxBase)} MGA`} />
-              <Row label="Montant déclaré" value={`${fmtNumber(detail.declaredAmount)} MGA`} />
-              <Row label="Taux" value={detail.taux ? `${detail.taux}%` : '—'} />
-              <Row label="Impôt calculé" value={detail.calculatedTax ? `${fmtNumber(detail.calculatedTax)} MGA` : '—'} />
-              <Row label="Pénalités" value={detail.penalites ? `${fmtNumber(detail.penalites)} MGA` : '0 MGA'} />
-              <Row label="Total à payer" value={detail.totalAPayer ? `${fmtNumber(detail.totalAPayer)} MGA` : '—'} />
-              <Row label="Montant payé" value={detail.montantPaye ? `${fmtNumber(detail.montantPaye)} MGA` : '0 MGA'} />
-              <Row label="Reste à payer" value={detail.resteAPayer ? `${fmtNumber(detail.resteAPayer)} MGA` : '—'} />
+              <Row label={t('declarations.page.base')} value={`${fmtNumber(detail.taxBase)} MGA`} />
+              <Row label={t('declarations.page.declaredAmount')} value={`${fmtNumber(detail.declaredAmount)} MGA`} />
+              <Row label={t('assessments.page.rate')} value={detail.taux ? `${detail.taux}%` : '—'} />
+              <Row label={t('declarations.page.calculatedTax')} value={detail.calculatedTax ? `${fmtNumber(detail.calculatedTax)} MGA` : '—'} />
+              <Row label={t('collection.drawer.f.penalties')} value={detail.penalites ? `${fmtNumber(detail.penalites)} MGA` : '0 MGA'} />
+              <Row label={t('declarations.page.totalDue')} value={detail.totalAPayer ? `${fmtNumber(detail.totalAPayer)} MGA` : '—'} />
+              <Row label={t('collection.drawer.f.paid')} value={detail.montantPaye ? `${fmtNumber(detail.montantPaye)} MGA` : '0 MGA'} />
+              <Row label={t('collection.drawer.f.remaining')} value={detail.resteAPayer ? `${fmtNumber(detail.resteAPayer)} MGA` : '—'} />
             </dl>
           </Card>
           <Card className="p-5">
             <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Dates</h3>
             <dl className="space-y-3 text-sm">
-              <Row label="Créée le" value={fmtDateTime(detail.createdAt)} />
-              <Row label="Soumise le" value={detail.submissionDate ? fmtDate(detail.submissionDate) : '—'} />
-              <Row label="Validée le" value={detail.validatedAt ? fmtDateTime(detail.validatedAt) : '—'} />
-              <Row label="Échéance" value={detail.dateEcheance ? fmtDate(detail.dateEcheance) : '—'} />
+              <Row label={t('declarations.page.createdAt')} value={fmtDateTime(detail.createdAt)} />
+              <Row label={t('declarations.page.submittedAt')} value={detail.submissionDate ? fmtDate(detail.submissionDate) : '—'} />
+              <Row label={t('declarations.page.validatedAt')} value={detail.validatedAt ? fmtDateTime(detail.validatedAt) : '—'} />
+              <Row label={t('debts.dueDate')} value={detail.dateEcheance ? fmtDate(detail.dateEcheance) : '—'} />
               {detail.motifCorrection && <Row label="Motif correction" value={detail.motifCorrection} />}
             </dl>
           </Card>
@@ -882,7 +867,7 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
             <Card className="p-5">
               <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Lignes</h3>
               <Table>
-                <thead><tr><Th>#</Th><Th>Libellé</Th><Th className="text-right">Montant</Th></tr></thead>
+                <thead><tr><Th>#</Th><Th>{t('assessments.page.label')}</Th><Th className="text-right">{t('common.amount')}</Th></tr></thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                   {detail.lines.map((l) => (
                     <tr key={l.id}><Td>{l.lineNumber}</Td><Td>{l.label}</Td><Td className="text-right">{fmtNumber(l.amount)}</Td></tr>
@@ -896,27 +881,27 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
 
       {tab === 'calcul' && (
         <Card className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Calcul fiscal</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('landing.features.referentiels.taxCalculation.title')}</h3>
           <div className="space-y-3">
-            <CalcRow label="Base imposable" value={`${fmtNumber(detail.taxBase)} MGA`} />
-            <CalcRow label="Taux appliqué" value={detail.taux ? `${detail.taux}%` : '—'} />
-            <CalcRow label="Impôt calculé" value={detail.calculatedTax ? `${fmtNumber(detail.calculatedTax)} MGA` : '—'} highlight />
-            <CalcRow label="Pénalités" value={detail.penalites ? `${fmtNumber(detail.penalites)} MGA` : '0 MGA'} />
-            <CalcRow label="Total à payer" value={detail.totalAPayer ? `${fmtNumber(detail.totalAPayer)} MGA` : '—'} highlight />
-            <CalcRow label="Montant payé" value={detail.montantPaye ? `${fmtNumber(detail.montantPaye)} MGA` : '0 MGA'} />
-            <CalcRow label="Reste à payer" value={detail.resteAPayer ? `${fmtNumber(detail.resteAPayer)} MGA` : '—'} warn={remaining} />
+            <CalcRow label={t('assessments.page.table.taxBase')} value={`${fmtNumber(detail.taxBase)} MGA`} />
+            <CalcRow label={t('declarations.page.appliedRate')} value={detail.taux ? `${detail.taux}%` : '—'} />
+            <CalcRow label={t('declarations.page.calculatedTax')} value={detail.calculatedTax ? `${fmtNumber(detail.calculatedTax)} MGA` : '—'} highlight />
+            <CalcRow label={t('collection.drawer.f.penalties')} value={detail.penalites ? `${fmtNumber(detail.penalites)} MGA` : '0 MGA'} />
+            <CalcRow label={t('declarations.page.totalDue')} value={detail.totalAPayer ? `${fmtNumber(detail.totalAPayer)} MGA` : '—'} highlight />
+            <CalcRow label={t('collection.drawer.f.paid')} value={detail.montantPaye ? `${fmtNumber(detail.montantPaye)} MGA` : '0 MGA'} />
+            <CalcRow label={t('collection.drawer.f.remaining')} value={detail.resteAPayer ? `${fmtNumber(detail.resteAPayer)} MGA` : '—'} warn={remaining} />
           </div>
         </Card>
       )}
 
       {tab === 'annexes' && (
         <Card className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Pièces et annexes</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('declarations.page.attachments')}</h3>
           {detail.annexes.length === 0 ? (
-            <EmptyState icon={<FileText className="h-8 w-8" />} title="Aucune annexe" subtitle="Aucune pièce n'a été jointe à cette déclaration." />
+            <EmptyState icon={<FileText className="h-8 w-8" />} title={t('declarations.page.noAttachments')} subtitle={t('declarations.page.noAttachmentsHint')} />
           ) : (
             <Table>
-              <thead><tr><Th>Nom</Th><Th>Type</Th><Th>Taille</Th><Th>Ajouté par</Th><Th>Date</Th></tr></thead>
+              <thead><tr><Th>{t('common.name')}</Th><Th>{t('common.type')}</Th><Th>Taille</Th><Th>{t('declarations.page.addedBy')}</Th><Th>{t('common.date')}</Th></tr></thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
                 {detail.annexes.map((a) => (
                   <tr key={a.id}>
@@ -931,9 +916,9 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
 
       {tab === 'historique' && (
         <Card className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Historique</h3>
+          <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('td.tab.history')}</h3>
           {!history || history.length === 0 ? (
-            <EmptyState icon={<Clock className="h-8 w-8" />} title="Aucun historique" subtitle="Aucune action n'a été enregistrée pour cette déclaration." />
+            <EmptyState icon={<Clock className="h-8 w-8" />} title={t('declarations.page.noHistory')} subtitle={t('declarations.page.noHistoryHint')} />
           ) : (
             <div className="space-y-3">
               {history.map((h) => (
@@ -944,7 +929,7 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
                       <span className="font-medium">{h.action}</span>
                       {h.ancienStatut && h.nouveauStatut && (
                         <span className="text-slate-400 dark:text-slate-500">
-                          {' — '}{statusLabels[h.ancienStatut] ?? h.ancienStatut} → {statusLabels[h.nouveauStatut] ?? h.nouveauStatut}
+                          {' — '}{statusLabels[h.ancienStatut] ? t(statusLabels[h.ancienStatut]) : h.ancienStatut} → {statusLabels[h.nouveauStatut] ? t(statusLabels[h.nouveauStatut]) : h.nouveauStatut}
                         </span>
                       )}
                     </p>
@@ -970,6 +955,7 @@ function DetailPage({ id, onBack }: { id: number; onBack: () => void }) {
 /* ════════════════════════════════════════════════════════════ */
 
 function EditDeclarationModal({ declaration, onClose }: { declaration: Declaration; onClose: () => void }) {
+  const { t } = useI18n()
   const isCorrection = declaration.status === 'A_CORRIGER'
   const [exercice, setExercice] = useState(declaration.exercice ?? '')
   const [regime, setRegime] = useState(declaration.regime ?? '')
@@ -986,7 +972,7 @@ function EditDeclarationModal({ declaration, onClose }: { declaration: Declarati
   const editMutation = useUpdateDeclaration()
 
   return (
-    <Modal open onClose={onClose} title={isCorrection ? 'Corriger la déclaration' : 'Modifier la déclaration'} subtitle={`${declaration.reference} — ${declaration.taxTypeCode} · ${declaration.period}`} wide>
+    <Modal open onClose={onClose} title={isCorrection ? t('declarations.page.correctTitle') : t('declarations.edit')} subtitle={`${declaration.reference} — ${declaration.taxTypeCode} · ${declaration.period}`} wide>
       <div className="space-y-4">
         {editMutation.isError && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-400">
@@ -994,28 +980,28 @@ function EditDeclarationModal({ declaration, onClose }: { declaration: Declarati
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Exercice"><Input value={exercice} onChange={(e) => setExercice(e.target.value)} placeholder="2026" /></Field>
-          <Field label="Régime"><Input value={regime} onChange={(e) => setRegime(e.target.value)} placeholder="ex : RNE" /></Field>
+          <Field label={t('declarations.page.year')}><Input value={exercice} onChange={(e) => setExercice(e.target.value)} placeholder="2026" /></Field>
+          <Field label={t('taxpayers.regime')}><Input value={regime} onChange={(e) => setRegime(e.target.value)} placeholder="ex : RNE" /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Base imposable (MGA) *"><Input type="number" min="0" value={taxBase} onChange={(e) => setTaxBase(e.target.value)} /></Field>
-          <Field label="Taux (%)"><Input type="number" min="0" step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} /></Field>
+          <Field label={t('declarations.page.baseRequired')}><Input type="number" min="0" value={taxBase} onChange={(e) => setTaxBase(e.target.value)} /></Field>
+          <Field label={t('declarations.page.ratePercent')}><Input type="number" min="0" step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} /></Field>
         </div>
-        <Field label="Montant déclaré (MGA)"><Input type="number" min="0" value={declaredAmount} onChange={(e) => setDeclaredAmount(e.target.value)} /></Field>
-        <Field label="Date d'échéance"><Input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} /></Field>
+        <Field label={t('declarations.page.declaredAmountMga')}><Input type="number" min="0" value={declaredAmount} onChange={(e) => setDeclaredAmount(e.target.value)} /></Field>
+        <Field label={t('declarations.page.dueDate')}><Input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} /></Field>
         <div>
-          <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Lignes de détail</p>
+          <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">{t('declarations.page.detailLines')}</p>
           {lines.map((l, i) => (
             <div key={i} className="mb-2 flex gap-2">
-              <Input placeholder="Libellé" value={l.label} onChange={(e) => { const n = [...lines]; n[i].label = e.target.value; setLines(n) }} className="flex-1" />
-              <Input type="number" min="0" placeholder="Montant" value={l.amount} onChange={(e) => { const n = [...lines]; n[i].amount = e.target.value; setLines(n) }} className="w-32" />
+              <Input placeholder={t('assessments.page.label')} value={l.label} onChange={(e) => { const n = [...lines]; n[i].label = e.target.value; setLines(n) }} className="flex-1" />
+              <Input type="number" min="0" placeholder={t('common.amount')} value={l.amount} onChange={(e) => { const n = [...lines]; n[i].amount = e.target.value; setLines(n) }} className="w-32" />
               {lines.length > 1 && <button type="button" onClick={() => setLines(lines.filter((_, j) => j !== i))} className="text-rose-600"><X className="h-4 w-4" /></button>}
             </div>
           ))}
-          <Button variant="ghost" size="sm" type="button" onClick={() => setLines([...lines, { label: '', amount: '' }])}>+ Ajouter une ligne</Button>
+          <Button variant="ghost" size="sm" type="button" onClick={() => setLines([...lines, { label: '', amount: '' }])}>{t('declarations.page.addLine')}</Button>
         </div>
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+          <Button variant="secondary" type="button" onClick={onClose}>{t('common.cancel')}</Button>
           <Button
             type="button"
             onClick={() =>
@@ -1040,7 +1026,7 @@ function EditDeclarationModal({ declaration, onClose }: { declaration: Declarati
             }
             disabled={editMutation.isPending || !taxBase}
           >
-            {editMutation.isPending ? 'Enregistrement…' : isCorrection ? 'Appliquer la correction' : 'Enregistrer'}
+            {editMutation.isPending ? 'Enregistrement…' : isCorrection ? t('declarations.page.applyCorrection') : t('common.save')}
           </Button>
         </div>
       </div>
@@ -1058,6 +1044,7 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
   presetTaxTypeCode?: string
   presetPeriod?: string
 }) {
+  const { t } = useI18n()
   const [step, setStep] = useState(1)
   const [taxpayerId, setTaxpayerId] = useState('')
   const [taxTypeCode, setTaxTypeCode] = useState(presetTaxTypeCode)
@@ -1077,7 +1064,7 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
   const createMutation = useCreateDeclaration()
 
   return (
-    <Modal open onClose={onClose} title={`Étape ${step}/4 — Nouvelle déclaration`} size="full">
+    <Modal open onClose={onClose} title={t('declarations.page.createTitle', { step })} size="full">
       {/* Step indicators */}
       <div className="flex items-center gap-2 mb-4">
         {[1, 2, 3, 4].map((s) => (
@@ -1087,9 +1074,9 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
 
       {step === 1 && (
         <div className="space-y-4 animate-fade-in">
-          <Field label="Contribuable">
+          <Field label={t('common.taxpayer')}>
             <Select value={taxpayerId} onChange={(e) => { setTaxpayerId(e.target.value); setStep(2) }}>
-              <option value="">— Sélectionner un contribuable —</option>
+              <option value="">{t('declarations.page.selectTaxpayer')}</option>
               {loadingTaxpayers
                 ? null
                 : taxpayers?.content.map((t) => (
@@ -1103,21 +1090,21 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
         <div className="space-y-4 animate-fade-in">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
             <p className="font-medium text-slate-900 dark:text-slate-100">{selectedTaxpayer.name}</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">NIF: {selectedTaxpayer.nif} — Type: {selectedTaxpayer.type === 'COMPANY' ? 'Entreprise' : 'Particulier'}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">NIF: {selectedTaxpayer.nif} {t('declarations.page.typeLabel')}{' '}{selectedTaxpayer.type === 'COMPANY' ? t('tp.company') : t('tp.individual')}</p>
           </div>
-          <Field label="Type d'impôt">
+          <Field label={t('assessments.page.office.taxType')}>
             <Select value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)}>
-              <option value="">Sélectionner</option>
+              <option value="">{t('common.select')}</option>
               {taxTypes.filter((t) => t.active).map((t) => (
                 <option key={t.code} value={t.code}>{t.code} — {t.name}</option>
               ))}
             </Select>
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Période (ex: 2026-01)"><Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="2026-01" /></Field>
-            <Field label="Exercice"><Input value={exercice} onChange={(e) => setExercice(e.target.value)} placeholder="2026" /></Field>
+            <Field label={t('declarations.periodPlaceholder')}><Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="2026-01" /></Field>
+            <Field label={t('declarations.page.year')}><Input value={exercice} onChange={(e) => setExercice(e.target.value)} placeholder="2026" /></Field>
           </div>
-          <Field label="Régime (optionnel)"><Input value={regime} onChange={(e) => setRegime(e.target.value)} placeholder="ex: RNE" /></Field>
+          <Field label={t('declarations.regimePlaceholder')}><Input value={regime} onChange={(e) => setRegime(e.target.value)} placeholder="ex: RNE" /></Field>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setStep(1)}>Retour</Button>
             <Button onClick={() => { if (taxTypeCode && period) setStep(3) }} disabled={!taxTypeCode || !period}>Suivant</Button>
@@ -1127,21 +1114,21 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
       {step === 3 && (
         <div className="space-y-4 animate-fade-in">
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Base imposable (MGA)"><Input type="number" min="0" value={taxBase} onChange={(e) => setTaxBase(e.target.value)} /></Field>
-            <Field label="Taux (%)"><Input type="number" min="0" step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} /></Field>
+            <Field label={t('declarations.page.baseMga')}><Input type="number" min="0" value={taxBase} onChange={(e) => setTaxBase(e.target.value)} /></Field>
+            <Field label={t('declarations.page.ratePercent')}><Input type="number" min="0" step="0.01" value={taux} onChange={(e) => setTaux(e.target.value)} /></Field>
           </div>
-          <Field label="Montant déclaré (MGA)"><Input type="number" min="0" value={declaredAmount} onChange={(e) => setDeclaredAmount(e.target.value)} /></Field>
-          <Field label="Date d'échéance"><Input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} /></Field>
+          <Field label={t('declarations.page.declaredAmountMga')}><Input type="number" min="0" value={declaredAmount} onChange={(e) => setDeclaredAmount(e.target.value)} /></Field>
+          <Field label={t('declarations.page.dueDate')}><Input type="date" value={dateEcheance} onChange={(e) => setDateEcheance(e.target.value)} /></Field>
           <div>
-            <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">Lignes de détail</p>
+            <p className="mb-2 text-sm font-medium text-slate-600 dark:text-slate-400">{t('declarations.page.detailLines')}</p>
             {lines.map((l, i) => (
               <div key={i} className="mb-2 flex gap-2">
-                <Input placeholder="Libellé" value={l.label} onChange={(e) => { const n = [...lines]; n[i].label = e.target.value; setLines(n) }} className="flex-1" />
-                <Input type="number" min="0" placeholder="Montant" value={l.amount} onChange={(e) => { const n = [...lines]; n[i].amount = e.target.value; setLines(n) }} className="w-32" />
+                <Input placeholder={t('assessments.page.label')} value={l.label} onChange={(e) => { const n = [...lines]; n[i].label = e.target.value; setLines(n) }} className="flex-1" />
+                <Input type="number" min="0" placeholder={t('common.amount')} value={l.amount} onChange={(e) => { const n = [...lines]; n[i].amount = e.target.value; setLines(n) }} className="w-32" />
                 {lines.length > 1 && <button onClick={() => setLines(lines.filter((_, j) => j !== i))} className="text-rose-600"><X className="h-4 w-4" /></button>}
               </div>
             ))}
-            <Button variant="ghost" size="sm" onClick={() => setLines([...lines, { label: '', amount: '' }])}>+ Ajouter une ligne</Button>
+            <Button variant="ghost" size="sm" onClick={() => setLines([...lines, { label: '', amount: '' }])}>{t('declarations.page.addLine')}</Button>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setStep(2)}>Retour</Button>
@@ -1151,15 +1138,15 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
       )}
       {step === 4 && (
         <div className="space-y-4 animate-fade-in">
-          <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+          <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('login.register.step.summary')}</h4>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm space-y-2 dark:border-slate-700 dark:bg-slate-800/50">
-            <RecapRow label="Contribuable" value={`${selectedTaxpayer?.name} (${selectedTaxpayer?.nif})`} />
-            <RecapRow label="Impôt" value={taxTypeCode} />
-            <RecapRow label="Période" value={period} />
-            <RecapRow label="Exercice" value={exercice} />
-            <RecapRow label="Base imposable" value={`${fmtNumber(Number(taxBase))} MGA`} />
-            {taux && <RecapRow label="Taux" value={`${taux}%`} />}
-            {declaredAmount && <RecapRow label="Déclaré" value={`${fmtNumber(Number(declaredAmount))} MGA`} />}
+            <RecapRow label={t('common.taxpayer')} value={`${selectedTaxpayer?.name} (${selectedTaxpayer?.nif})`} />
+            <RecapRow label={t('assessments.page.table.tax')} value={taxTypeCode} />
+            <RecapRow label={t('common.period')} value={period} />
+            <RecapRow label={t('declarations.page.year')} value={exercice} />
+            <RecapRow label={t('assessments.page.table.taxBase')} value={`${fmtNumber(Number(taxBase))} MGA`} />
+            {taux && <RecapRow label={t('assessments.page.rate')} value={`${taux}%`} />}
+            {declaredAmount && <RecapRow label={t('declarations.page.declared')} value={`${fmtNumber(Number(declaredAmount))} MGA`} />}
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setStep(3)}>Retour</Button>
@@ -1185,7 +1172,7 @@ function CreateDeclarationModal({ onClose, taxTypes, presetTaxTypeCode = '', pre
               }
               disabled={createMutation.isPending}
             >
-              {createMutation.isPending ? 'Création…' : 'Créer la déclaration'}
+              {createMutation.isPending ? t('declarations.page.creating') : t('declarations.page.create')}
             </Button>
           </div>
         </div>
@@ -1203,31 +1190,31 @@ function ConfirmActionModal({ type, onConfirm, onClose, motif, setMotif, comment
   motif: string; setMotif: (v: string) => void;
   comment: string; setComment: (v: string) => void;
 }) {
+  const { t } = useI18n()
   const titles: Record<string, string> = {
-    validate: 'Valider la déclaration', reject: 'Rejeter la déclaration',
-    correction: 'Demander une correction', cancel: 'Annuler la déclaration',
-    rectificative: 'Créer une déclaration rectificative',
+    validate: t('declarations.page.confirmValidate'), reject: t('declarations.page.confirmReject'),
+    correction: t('declarations.page.confirmCorrection'), cancel: t('declarations.page.confirmCancel'),
+    rectificative: t('declarations.page.confirmRectify'),
   }
   return (
     <Modal open onClose={onClose} title={titles[type] ?? type}>
       <div className="space-y-4">
         {type === 'validate' && (
-          <Field label="Commentaire (optionnel)"><Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Commentaire de validation" /></Field>
+          <Field label={t('declarations.page.commentOptional')}><Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder={t('declarations.validationComment')} /></Field>
         )}
         {(type === 'reject' || type === 'correction') && (
-          <Field label="Motif *"><Input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif obligatoire" /></Field>
+          <Field label={t('declarations.page.reasonRequired')}><Input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif obligatoire" /></Field>
         )}
-        {type === 'cancel' && <p className="text-sm text-slate-500 dark:text-slate-400">Êtes-vous sûr de vouloir annuler cette déclaration ? Cette action est irréversible.</p>}
-        {type === 'rectificative' && <p className="text-sm text-slate-500 dark:text-slate-400">Une nouvelle déclaration rectificative sera créée basée sur cette déclaration.</p>}
+        {type === 'cancel' && <p className="text-sm text-slate-500 dark:text-slate-400">{t('declarations.page.cancelWarning')}</p>}
+        {type === 'rectificative' && <p className="text-sm text-slate-500 dark:text-slate-400">{t('declarations.page.rectifyHint')}</p>}
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Annuler</Button>
+          <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
           <Button
             onClick={onConfirm}
             disabled={(type === 'reject' || type === 'correction') && !motif}
             variant={type === 'reject' || type === 'cancel' ? 'danger' : 'primary'}
           >
-            Confirmer
-          </Button>
+            {t('common.confirm')}{' '}</Button>
         </div>
       </div>
     </Modal>
@@ -1279,15 +1266,11 @@ function RecapRow({ label, value }: { label: string; value: string }) {
 
 /* ──────────────────────── Calendrier des déclarations ──────────────────────── */
 
-const MONTH_NAMES = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
-]
-
 const CLOSED_DECLARATION_STATUSES = ['VALIDATED', 'LIQUIDEE', 'PAYEE', 'CANCELLED']
 
 /** Vue calendrier annuelle alimentée par `GET /declarations/calendar?year=`. */
 function DeclarationsCalendar() {
+  const { t, locale } = useI18n()
   const navigate = useNavigate()
   const [year, setYear] = useState(new Date().getFullYear())
 
@@ -1316,22 +1299,21 @@ function DeclarationsCalendar() {
     <div className="space-y-4 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5">
-          <Button variant="ghost" size="sm" onClick={() => setYear((y) => y - 1)} aria-label="Année précédente">
+          <Button variant="ghost" size="sm" onClick={() => setYear((y) => y - 1)} aria-label={t('declarations.page.previousYear')}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="min-w-16 text-center text-sm font-semibold text-slate-900 dark:text-slate-100">{year}</span>
-          <Button variant="ghost" size="sm" onClick={() => setYear((y) => y + 1)} aria-label="Année suivante">
+          <Button variant="ghost" size="sm" onClick={() => setYear((y) => y + 1)} aria-label={t('declarations.page.nextYear')}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
         <div className="flex items-center gap-2">
           <Badge tone="slate">
-            {entries.length} échéance{entries.length > 1 ? 's' : ''}
+            {entries.length} {t('declarations.page.deadlineLower')}{entries.length > 1 ? 's' : ''}
           </Badge>
           {overdueCount > 0 && (
             <Badge tone="red">
-              {overdueCount} en retard
-            </Badge>
+              {overdueCount} {t('declarations.page.overdueLower')}{' '}</Badge>
           )}
         </div>
       </div>
@@ -1342,7 +1324,7 @@ function DeclarationsCalendar() {
         <EmptyState
           icon={<CalendarDays className="h-10 w-10" />}
           title={`Aucune échéance en ${year}`}
-          subtitle="Aucune déclaration avec échéance sur cette année."
+          subtitle={t('declarations.page.noDeadlines')}
         />
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -1350,7 +1332,7 @@ function DeclarationsCalendar() {
             list.length === 0 ? null : (
               <div key={month} className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-700/50">
                 <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-3 py-2 dark:border-slate-700/50 dark:bg-slate-800/30">
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{MONTH_NAMES[month]}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{new Intl.DateTimeFormat(localeToIntl[locale], { month: 'long' }).format(new Date(year, month, 1))}</p>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{list.length}</span>
                 </div>
                 <ul className="divide-y divide-slate-50 dark:divide-slate-700/40">
@@ -1374,7 +1356,7 @@ function DeclarationsCalendar() {
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                           <Badge tone={statusToneMap[e.status] as any}>
                             {statusIcons[e.status]}
-                            {statusLabels[e.status] ?? e.status}
+                            {statusLabels[e.status] ? t(statusLabels[e.status]) : e.status}
                           </Badge>
                           <Badge tone="slate">{e.taxTypeCode}</Badge>
                           <span className="text-[11px] text-slate-400 dark:text-slate-500">{e.period}</span>

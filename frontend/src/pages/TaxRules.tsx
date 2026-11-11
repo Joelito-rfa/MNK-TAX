@@ -30,47 +30,54 @@ import {
   Upload,
 } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiPatch, apiPost, apiPut } from '../lib/api'
-import type { TaxRule, TaxRuleVersion } from '../types'
+import type { TaxRule, TaxRuleVersion, TaxType } from '../types'
 import { Button, Card, EmptyState } from '../components/ui'
 import RowActionPortal from '../components/RowActionPortal'
+import { ExportButton } from '../components/ExportButton'
 import { useToast } from '../components/Toast'
+import { useI18n } from '../lib/i18n'
 
 /* ═══════════════════════════ Constantes ═══════════════════════════ */
 
-const METHOD_LABELS: Record<string, string> = {
-  FLAT_RATE: 'Taux fixe',
-  PERCENTAGE_OF_BASE: 'Pourcentage de base',
-  PROGRESSIVE: 'Progressif',
-  PER_UNIT: 'Par unite',
-  PERCENTAGE_OF_TURNOVER: 'Pourcentage du CA',
+const METHOD_LABEL_KEYS: Record<string, string> = {
+  FLAT_RATE: 'taxRules.method.FLAT_RATE',
+  PERCENTAGE_OF_BASE: 'taxRules.method.PERCENTAGE_OF_BASE',
+  PROGRESSIVE: 'taxRules.method.PROGRESSIVE',
+  PER_UNIT: 'taxRules.method.PER_UNIT',
+  PERCENTAGE_OF_TURNOVER: 'taxRules.method.PERCENTAGE_OF_TURNOVER',
+}
+
+function methodLabel(code: string, t: (key: string) => string): string {
+  const key = METHOD_LABEL_KEYS[code]
+  return key ? t(key) : code
 }
 
 
 
-const TAX_TYPE_OPTIONS = [
-  { id: 'all', label: 'Tous les types' },
+const TAX_TYPE_OPTIONS: { id: string; label: string; labelKey?: string }[] = [
+  { id: 'all', label: 'Tous les types', labelKey: 'taxRules.type.all' },
   { id: 'TVA', label: 'TVA' },
   { id: 'IRSA', label: 'IRSA' },
   { id: 'IR', label: 'IR' },
   { id: 'IS', label: 'IS' },
   { id: 'IFT', label: 'IFT' },
-  { id: ' autres', label: 'Autres' },
+  { id: ' autres', label: 'Autres', labelKey: 'taxRules.type.other' },
 ]
 
-const STATUS_OPTIONS = [
-  { id: 'all', label: 'Tous les statuts' },
-  { id: 'active', label: 'Actif' },
-  { id: 'inactive', label: 'Inactif' },
-  { id: 'demo', label: 'Demonstration' },
+const STATUS_OPTIONS: { id: string; label: string; labelKey?: string }[] = [
+  { id: 'all', label: 'Tous les statuts', labelKey: 'taxRules.status.all' },
+  { id: 'active', label: 'Actif', labelKey: 'taxRules.status.active' },
+  { id: 'inactive', label: 'Inactif', labelKey: 'taxRules.status.inactive' },
+  { id: 'demo', label: 'Demonstration', labelKey: 'taxRules.status.demo' },
 ]
 
-const METHOD_OPTIONS = [
-  { id: 'all', label: 'Toutes les methodes' },
-  { id: 'FLAT_RATE', label: 'Taux fixe' },
-  { id: 'PERCENTAGE_OF_BASE', label: 'Pourcentage de base' },
-  { id: 'PROGRESSIVE', label: 'Progressif' },
-  { id: 'PER_UNIT', label: 'Par unite' },
-  { id: 'PERCENTAGE_OF_TURNOVER', label: 'Pourcentage du CA' },
+const METHOD_OPTIONS: { id: string; label: string; labelKey?: string }[] = [
+  { id: 'all', label: 'Toutes les methodes', labelKey: 'taxRules.method.all' },
+  { id: 'FLAT_RATE', label: 'Taux fixe', labelKey: 'taxRules.method.FLAT_RATE' },
+  { id: 'PERCENTAGE_OF_BASE', label: 'Pourcentage de base', labelKey: 'taxRules.method.PERCENTAGE_OF_BASE' },
+  { id: 'PROGRESSIVE', label: 'Progressif', labelKey: 'taxRules.method.PROGRESSIVE' },
+  { id: 'PER_UNIT', label: 'Par unite', labelKey: 'taxRules.method.PER_UNIT' },
+  { id: 'PERCENTAGE_OF_TURNOVER', label: 'Pourcentage du CA', labelKey: 'taxRules.method.PERCENTAGE_OF_TURNOVER' },
 ]
 
 const emptyForm = {
@@ -131,13 +138,13 @@ function fmtMGA(v: number | null | undefined): string {
 
 
 
-function getStatusInfo(rule: TaxRule): { label: string; color: string; bg: string } {
-  if (!rule.active) return { label: 'Desactive', color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' }
+function getStatusInfo(rule: TaxRule, t: (key: string) => string): { label: string; color: string; bg: string } {
+  if (!rule.active) return { label: t('taxRules.state.disabled'), color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20' }
   if (rule.effectiveTo && new Date(rule.effectiveTo) < new Date()) {
-    return { label: 'Expire', color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' }
+    return { label: t('taxRules.state.expired'), color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' }
   }
-  if (rule.currentVersion > 1) return { label: 'Actif', color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' }
-  return { label: 'Nouveau', color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' }
+  if (rule.currentVersion > 1) return { label: t('taxRules.state.active'), color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' }
+  return { label: t('taxRules.state.new'), color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20' }
 }
 
 function parseBrackets(json: string | null): { upTo: number | null; rate: number }[] {
@@ -184,6 +191,7 @@ function calculateTax(rule: TaxRule, taxableAmount: number, deduction: number): 
 /* ═══════════════════════════ Main Component ═══════════════════════════ */
 
 export default function TaxRules() {
+  const { t } = useI18n()
   const toast = useToast()
   const queryClient = useQueryClient()
 
@@ -208,6 +216,13 @@ export default function TaxRules() {
   const { data: rules, isLoading } = useQuery({
     queryKey: ['tax-rules'],
     queryFn: () => apiGet<TaxRule[]>('/tax-rules'),
+  })
+
+  // Référentiel réel des impôts : le formulaire doit permettre de créer une règle
+  // pour TOUS les impôts configurés (et pas seulement une liste figée).
+  const { data: taxTypes } = useQuery({
+    queryKey: ['tax-types-ref'],
+    queryFn: () => apiGet<TaxType[]>('/tax-types'),
   })
 
   const { data: versions } = useQuery({
@@ -319,7 +334,7 @@ export default function TaxRules() {
         effectiveTo: form.effectiveTo || undefined,
       }
       if (editing) {
-        return apiPut(`/tax-rules/${editing.id}`, body, { params: { reason: 'Mise a jour depuis l\'interface' } })
+        return apiPut(`/tax-rules/${editing.id}`, body, { params: { reason: t('taxRules.reason.updated') } })
       }
       return apiPost('/tax-rules', body)
     },
@@ -328,7 +343,7 @@ export default function TaxRules() {
       setCreateOpen(false)
       setEditing(null)
       setForm(emptyForm)
-      toast.success(editing ? 'Regle mise a jour' : 'Regle creee')
+      toast.success(editing ? t('taxRules.toast.updated') : t('taxRules.toast.created'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
@@ -336,20 +351,20 @@ export default function TaxRules() {
   const toggleActive = useMutation({
     mutationFn: (r: TaxRule) =>
       apiPatch(`/tax-rules/${r.id}/active`, undefined, {
-        params: { active: !r.active, reason: 'Changement de statut depuis l\'interface' },
+        params: { active: !r.active, reason: t('taxRules.reason.status') },
       }),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['tax-rules'] })
-      toast.success(vars.active ? 'Regle desactivee' : 'Regle activee')
+      toast.success(vars.active ? t('taxRules.toast.disabled') : t('taxRules.toast.enabled'))
     },
   })
 
   const deleteRule = useMutation({
-    mutationFn: (r: TaxRule) => apiPatch(`/tax-rules/${r.id}/active`, undefined, { params: { active: false, reason: 'Suppression depuis l\'interface' } }),
+    mutationFn: (r: TaxRule) => apiPatch(`/tax-rules/${r.id}/active`, undefined, { params: { active: false, reason: t('taxRules.reason.deleted') } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tax-rules'] })
       setDeleteConfirm(null)
-      toast.success('Regle supprimee')
+      toast.success(t('taxRules.toast.deleted'))
     },
   })
 
@@ -387,7 +402,7 @@ export default function TaxRules() {
     setEditing(null)
     setForm({
       code: r.code + '-COPY',
-      name: r.name + ' (copie)',
+      name: r.name + ' ' + t('taxRules.copySuffix'),
       taxTypeCode: r.taxTypeCode,
       taxpayerType: r.taxpayerType ?? '',
       regimeCode: r.regimeCode ?? '',
@@ -425,20 +440,56 @@ export default function TaxRules() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">
-            Regles fiscales
+            {t('taxRules.title')}
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Configurez les baremes, taux et methodes de calcul applicables aux obligations fiscales.
+            {t('taxRules.subtitle')}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <ExportButton
+            filenameBase={`regles-fiscales_${new Date().toISOString().slice(0, 10)}`}
+            title={t('taxRules.title')}
+            headers={[
+              t('common.code'),
+              t('common.name'),
+              t('taxRules.detail.tax'),
+              t('taxRules.detail.method'),
+              t('taxRules.detail.rate'),
+              t('taxRules.wizard.min'),
+              t('taxRules.wizard.max'),
+              t('taxRules.detail.deduction'),
+              t('taxRules.detail.legalRef'),
+              t('taxRules.detail.version'),
+              t('common.status'),
+              t('taxRules.detail.from'),
+              t('taxRules.detail.to'),
+            ]}
+            rows={() =>
+              filteredRules.map((r) => [
+                r.code,
+                r.name,
+                r.taxTypeCode,
+                methodLabel(r.calculationMethod, t),
+                r.rate,
+                r.minimum,
+                r.maximum,
+                r.deduction,
+                r.legalReference,
+                r.currentVersion,
+                getStatusInfo(r, t).label,
+                r.effectiveFrom,
+                r.effectiveTo,
+              ])
+            }
+          />
           <Button variant="secondary" size="md" onClick={() => setHistoryOpen(true)}>
             <History className="h-4 w-4" />
-            Historique
+            {t('taxRules.history')}
           </Button>
           <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
             <Upload className="h-4 w-4" />
-            Importer
+            {t('taxRules.import')}
           </Button>
           <button
             onClick={openCreate}
@@ -446,7 +497,7 @@ export default function TaxRules() {
           >
             <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
             <Plus className="relative h-4 w-4" />
-            <span className="relative">Nouvelle regle</span>
+            <span className="relative">{t('taxRules.new')}</span>
           </button>
         </div>
       </div>
@@ -457,38 +508,38 @@ export default function TaxRules() {
           icon={<CheckCircle2 className="h-5 w-5" />}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-          label="REGLES ACTIVES"
+          label={t('taxRules.kpi.active')}
           value={stats.active}
-          sub={`sur ${rules?.length ?? 0} regles`}
-          delta={`${stats.active > 0 ? Math.round((stats.active / (rules?.length ?? 1)) * 100) : 0}% du total`}
+          sub={t('taxRules.kpi.activeSub', { count: rules?.length ?? 0 })}
+          delta={t('taxRules.kpi.activeDelta', { pct: stats.active > 0 ? Math.round((stats.active / (rules?.length ?? 1)) * 100) : 0 })}
           deltaTone="up"
         />
         <StatCard
           icon={<FileText className="h-5 w-5" />}
           iconBg="bg-blue-50"
           iconColor="text-blue-600"
-          label="IMPOTS CONFIGURES"
+          label={t('taxRules.kpi.types')}
           value={stats.total}
-          sub="Types d'impots"
+          sub={t('taxRules.kpi.typesSub')}
         />
         <StatCard
           icon={<Clock className="h-5 w-5" />}
           iconBg="bg-violet-50"
           iconColor="text-violet-600"
-          label="MODIFIEES RECENTEMENT"
+          label={t('taxRules.kpi.recent')}
           value={stats.recentlyModified}
-          sub="Avec versions"
-          delta="+ ce mois"
+          sub={t('taxRules.kpi.recentSub')}
+          delta={t('taxRules.kpi.recentDelta')}
           deltaTone="up"
         />
         <StatCard
           icon={<AlertTriangle className="h-5 w-5" />}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
-          label="A REVISER"
+          label={t('taxRules.kpi.review')}
           value={stats.toReview}
-          sub="Proches expiration"
-          delta={stats.toReview > 0 ? 'Attention' : 'Aucune'}
+          sub={t('taxRules.kpi.reviewSub')}
+          delta={stats.toReview > 0 ? t('taxRules.kpi.warning') : t('taxRules.kpi.none')}
           deltaTone={stats.toReview > 0 ? 'down' : 'neutral'}
         />
       </div>
@@ -496,7 +547,7 @@ export default function TaxRules() {
       {/* === 3. CATEGORIES === */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Categories d'impots
+          {t('taxRules.categoriesTitle')}
         </h2>
         <div className="flex flex-wrap gap-2">
           {categories.map((cat) => (
@@ -509,7 +560,7 @@ export default function TaxRules() {
                   : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:shadow-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400 dark:hover:border-slate-600'
               }`}
             >
-              {cat.label}
+              {cat.labelKey ? t(cat.labelKey) : cat.label}
               <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                 activeCategory === cat.id
                   ? 'bg-violet-200 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300'
@@ -531,7 +582,7 @@ export default function TaxRules() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher une regle, un code ou un impot..."
+              placeholder={t('taxRules.searchPlaceholder')}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-400"
             />
             {search && (
@@ -545,21 +596,21 @@ export default function TaxRules() {
           <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">
             <Filter className="h-4 w-4 text-slate-400" />
             <select value={filterMethod} onChange={(e) => setFilterMethod(e.target.value)} className="bg-transparent text-sm text-slate-700 outline-none dark:text-slate-300">
-              {METHOD_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              {METHOD_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.labelKey ? t(o.labelKey) : o.label}</option>)}
             </select>
           </div>
 
           <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 dark:border-slate-600 dark:bg-slate-800">
             <Shield className="h-4 w-4 text-slate-400" />
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="bg-transparent text-sm text-slate-700 outline-none dark:text-slate-300">
-              {STATUS_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              {STATUS_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.labelKey ? t(o.labelKey) : o.label}</option>)}
             </select>
           </div>
 
           {hasActiveFilters && (
             <button onClick={resetFilters} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700">
               <RotateCcw className="h-3.5 w-3.5" />
-              Reinitialiser
+              {t('taxRules.reset')}
             </button>
           )}
 
@@ -567,11 +618,11 @@ export default function TaxRules() {
 
           {/* Page size */}
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-            <span className="text-xs">Afficher</span>
+            <span className="text-xs">{t('taxRules.show')}</span>
             <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-            <span className="text-xs">regles</span>
+            <span className="text-xs">{t('taxRules.rules')}</span>
           </div>
         </div>
 
@@ -580,20 +631,20 @@ export default function TaxRules() {
           <div className="py-16">
             <EmptyState
               icon={<Calculator className="h-10 w-10" />}
-              title="Aucune regle fiscale trouvee"
-              subtitle={search ? `Aucun resultat pour "${search}"` : "Commencez par creer une regle de calcul pour configurer les obligations fiscales."}
+              title={t('taxRules.emptyTitle')}
+              subtitle={search ? t('taxRules.emptySearch', { q: search }) : t('taxRules.emptySubtitle')}
             />
             <div className="mt-4 flex justify-center">
               <Button variant="primary" onClick={openCreate}>
                 <Plus className="h-4 w-4" />
-                Creer une regle
+                {t('taxRules.create')}
               </Button>
             </div>
           </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {pagedRules.map((rule) => {
-              const status = getStatusInfo(rule)
+              const status = getStatusInfo(rule, t)
               return (
                 <div key={rule.id} className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
                   {/* Code + Nom */}
@@ -614,7 +665,7 @@ export default function TaxRules() {
                         {rule.taxTypeCode}
                       </span>
                       <span>·</span>
-                      <span>{METHOD_LABELS[rule.calculationMethod] ?? rule.calculationMethod}</span>
+                      <span>{methodLabel(rule.calculationMethod, t)}</span>
                       <span>·</span>
                       <span>{rule.rate}%</span>
                       {rule.legalReference && (
@@ -630,11 +681,11 @@ export default function TaxRules() {
                   <div className="hidden lg:block text-right">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{rule.rate}%</p>
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                      Min: {fmtMGA(rule.minimum)} · Max: {fmtMGA(rule.maximum)}
+                      {t('taxRules.minMax', { min: fmtMGA(rule.minimum), max: fmtMGA(rule.maximum) })}
                     </p>
                     {(rule.deduction ?? 0) > 0 && (
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                        Deduction: {fmtMGA(rule.deduction)}
+                        {t('taxRules.deductionValue', { value: fmtMGA(rule.deduction) })}
                       </p>
                     )}
                   </div>
@@ -651,24 +702,24 @@ export default function TaxRules() {
                     <button
                       onClick={() => setSelected(rule)}
                       className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-violet-400"
-                      title="Voir les details"
+                      title={t('taxRules.viewDetails')}
                     >
                       <Eye className="h-4 w-4" />
                     </button>
                     <RowActionPortal>
-                      <MenuItem icon={<Eye className="h-4 w-4" />} label="Voir les details" onClick={() => { setSelected(rule) }} />
-                      <MenuItem icon={<Edit3 className="h-4 w-4" />} label="Modifier" onClick={() => { openEdit(rule) }} />
-                      <MenuItem icon={<Copy className="h-4 w-4" />} label="Dupliquer" onClick={() => { handleDuplicate(rule) }} />
-                      <MenuItem icon={<History className="h-4 w-4" />} label="Historique des versions" onClick={() => { setVersionsRule(rule) }} />
-                      <MenuItem icon={<Calculator className="h-4 w-4" />} label="Tester le calcul" onClick={() => { setTestRule(rule) }} />
+                      <MenuItem icon={<Eye className="h-4 w-4" />} label={t('taxRules.viewDetails')} onClick={() => { setSelected(rule) }} />
+                      <MenuItem icon={<Edit3 className="h-4 w-4" />} label={t('taxRules.edit')} onClick={() => { openEdit(rule) }} />
+                      <MenuItem icon={<Copy className="h-4 w-4" />} label={t('taxRules.duplicate')} onClick={() => { handleDuplicate(rule) }} />
+                      <MenuItem icon={<History className="h-4 w-4" />} label={t('taxRules.versions')} onClick={() => { setVersionsRule(rule) }} />
+                      <MenuItem icon={<Calculator className="h-4 w-4" />} label={t('taxRules.test')} onClick={() => { setTestRule(rule) }} />
                       <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                       <MenuItem
                         icon={rule.active ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                        label={rule.active ? 'Desactiver' : 'Activer'}
+                        label={rule.active ? t('taxRules.disable') : t('taxRules.enable')}
                         onClick={() => { toggleActive.mutate(rule) }}
                         danger={rule.active}
                       />
-                      <MenuItem icon={<Trash2 className="h-4 w-4" />} label="Supprimer" onClick={() => { setDeleteConfirm(rule) }} danger />
+                      <MenuItem icon={<Trash2 className="h-4 w-4" />} label={t('taxRules.delete')} onClick={() => { setDeleteConfirm(rule) }} danger />
                     </RowActionPortal>
                   </div>
                 </div>
@@ -681,8 +732,9 @@ export default function TaxRules() {
         {pagedRules.length > 0 && (
           <div className="border-t border-slate-200/70 px-5 py-3 dark:border-slate-700/50">
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              {filteredRules.length} regle{filteredRules.length > 1 ? 's' : ''} affichee{filteredRules.length > 1 ? 's' : ''}
-              {search && ` pour "${search}"`}
+              {search
+                ? t('taxRules.countSearch', { count: filteredRules.length, q: search })
+                : t('taxRules.count', { count: filteredRules.length })}
             </p>
           </div>
         )}
@@ -700,6 +752,7 @@ export default function TaxRules() {
         editing={editing}
         form={form}
         setForm={setForm}
+        taxTypes={taxTypes ?? []}
         saving={save.isPending}
         error={save.isError ? apiErrorMessage(save.error) : null}
         onClose={() => { setCreateOpen(false); setEditing(null) }}
@@ -730,14 +783,14 @@ export default function TaxRules() {
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
                 <Trash2 className="h-6 w-6" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Supprimer la regle</h3>
+              <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{t('taxRules.delete.title')}</h3>
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Etes-vous sur de vouloir supprimer la regle <strong>{deleteConfirm.code}</strong> ? Cette action est irreversibe.
+                {t('taxRules.delete.message', { code: deleteConfirm.code })}
               </p>
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-700">
-              <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Annuler</Button>
-              <Button variant="danger" onClick={() => deleteRule.mutate(deleteConfirm)} loading={deleteRule.isPending}>Supprimer</Button>
+              <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>{t('common.cancel')}</Button>
+              <Button variant="danger" onClick={() => deleteRule.mutate(deleteConfirm)} loading={deleteRule.isPending}>{t('common.delete')}</Button>
             </div>
           </div>
         </div>
@@ -801,8 +854,9 @@ function MenuItem({ icon, label, onClick, danger = false }: { icon: React.ReactN
 function DetailModal({ rule, onClose, onEdit, onTest }: {
   rule: TaxRule | null; onClose: () => void; onEdit: (r: TaxRule) => void; onTest: (r: TaxRule) => void
 }) {
+  const { t } = useI18n()
   if (!rule) return null
-  const status = getStatusInfo(rule)
+  const status = getStatusInfo(rule, t)
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
@@ -824,36 +878,36 @@ function DetailModal({ rule, onClose, onEdit, onTest }: {
         <div className="px-6 py-5 space-y-5">
           {/* Info grid */}
           <div className="grid grid-cols-2 gap-4">
-            <InfoRow icon={<Tag className="h-4 w-4" />} label="Impot" value={rule.taxTypeCode} />
-            <InfoRow icon={<Settings className="h-4 w-4" />} label="Methode" value={METHOD_LABELS[rule.calculationMethod] ?? rule.calculationMethod} />
-            <InfoRow icon={<DollarSign className="h-4 w-4" />} label="Taux" value={`${rule.rate}%`} />
-            <InfoRow icon={<Layers className="h-4 w-4" />} label="Deduction" value={fmtMGA(rule.deduction)} />
-            <InfoRow icon={<Hash className="h-4 w-4" />} label="Seuil min / max" value={`${fmtMGA(rule.minimum)} / ${fmtMGA(rule.maximum)}`} />
-            <InfoRow icon={<BookOpen className="h-4 w-4" />} label="Ref. legale" value={rule.legalReference || '--'} />
-            <InfoRow icon={<CalendarDays className="h-4 w-4" />} label="Applicable du" value={fmtDate(rule.effectiveFrom)} />
-            <InfoRow icon={<CalendarDays className="h-4 w-4" />} label="Jusqu'au" value={fmtDate(rule.effectiveTo)} />
-            <InfoRow icon={<History className="h-4 w-4" />} label="Version" value={`v${rule.currentVersion}`} />
-            <InfoRow icon={<Info className="h-4 w-4" />} label="Type contribuable" value={rule.taxpayerType || 'Tous'} />
+            <InfoRow icon={<Tag className="h-4 w-4" />} label={t('taxRules.detail.tax')} value={rule.taxTypeCode} />
+            <InfoRow icon={<Settings className="h-4 w-4" />} label={t('taxRules.detail.method')} value={methodLabel(rule.calculationMethod, t)} />
+            <InfoRow icon={<DollarSign className="h-4 w-4" />} label={t('taxRules.detail.rate')} value={`${rule.rate}%`} />
+            <InfoRow icon={<Layers className="h-4 w-4" />} label={t('taxRules.detail.deduction')} value={fmtMGA(rule.deduction)} />
+            <InfoRow icon={<Hash className="h-4 w-4" />} label={t('taxRules.detail.bracketRange')} value={`${fmtMGA(rule.minimum)} / ${fmtMGA(rule.maximum)}`} />
+            <InfoRow icon={<BookOpen className="h-4 w-4" />} label={t('taxRules.detail.legalRef')} value={rule.legalReference || '--'} />
+            <InfoRow icon={<CalendarDays className="h-4 w-4" />} label={t('taxRules.detail.from')} value={fmtDate(rule.effectiveFrom)} />
+            <InfoRow icon={<CalendarDays className="h-4 w-4" />} label={t('taxRules.detail.to')} value={fmtDate(rule.effectiveTo)} />
+            <InfoRow icon={<History className="h-4 w-4" />} label={t('taxRules.detail.version')} value={`v${rule.currentVersion}`} />
+            <InfoRow icon={<Info className="h-4 w-4" />} label={t('taxRules.detail.taxpayerType')} value={rule.taxpayerType || t('taxRules.detail.allTaxpayers')} />
           </div>
 
           {/* Brackets preview */}
           {rule.calculationMethod === 'PROGRESSIVE' && rule.brackets && (
             <div>
-              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Barème progressif</h4>
+              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">{t('taxRules.detail.progressive')}</h4>
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">De</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">A</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">Taux</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">{t('taxRules.detail.fromCol')}</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">{t('taxRules.detail.toCol')}</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">{t('taxRules.detail.rateCol')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                     {parseBrackets(rule.brackets).map((b, i) => (
                       <tr key={i}>
                         <td className="px-4 py-2 text-slate-600 dark:text-slate-400">{i === 0 ? '0' : fmtMGA(parseBrackets(rule.brackets)[i - 1]?.upTo ?? 0)}</td>
-                        <td className="px-4 py-2 text-slate-600 dark:text-slate-400">{b.upTo ? fmtMGA(b.upTo) : 'Illimite'}</td>
+                        <td className="px-4 py-2 text-slate-600 dark:text-slate-400">{b.upTo ? fmtMGA(b.upTo) : t('taxRules.detail.unlimited')}</td>
                         <td className="px-4 py-2 font-medium text-violet-600 dark:text-violet-400">{b.rate}%</td>
                       </tr>
                     ))}
@@ -866,10 +920,10 @@ function DetailModal({ rule, onClose, onEdit, onTest }: {
           {/* Actions */}
           <div className="flex items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
             <Button variant="primary" size="sm" onClick={() => { onEdit(rule) }}>
-              <Edit3 className="h-3.5 w-3.5" /> Modifier
+              <Edit3 className="h-3.5 w-3.5" /> {t('taxRules.edit')}
             </Button>
             <Button variant="secondary" size="sm" onClick={() => { onTest(rule) }}>
-              <Calculator className="h-3.5 w-3.5" /> Tester le calcul
+              <Calculator className="h-3.5 w-3.5" /> {t('taxRules.test')}
             </Button>
           </div>
         </div>
@@ -894,13 +948,14 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 function VersionHistoryModal({ rule, versions, onClose }: {
   rule: TaxRule | null; versions: TaxRuleVersion[] | undefined; onClose: () => void
 }) {
+  const { t } = useI18n()
   if (!rule) return null
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="relative w-full max-w-xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Historique des versions</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('taxRules.versions.title')}</h3>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{rule.code} -- {rule.name}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700">
@@ -911,7 +966,7 @@ function VersionHistoryModal({ rule, versions, onClose }: {
           {!versions ? (
             <div className="py-8 text-center"><div className="h-8 w-8 mx-auto animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
           ) : versions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">Aucune version enregistree.</p>
+            <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">{t('taxRules.versions.empty')}</p>
           ) : (
             <div className="relative space-y-4">
               <div className="absolute left-[19px] top-0 bottom-0 w-px bg-slate-200 dark:bg-slate-700" />
@@ -922,14 +977,14 @@ function VersionHistoryModal({ rule, versions, onClose }: {
                   </div>
                   <div className="min-w-0 flex-1 rounded-xl border border-slate-100 px-4 py-3 dark:border-slate-700">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">Version {v.versionNumber}</span>
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{t('taxRules.versions.version', { number: v.versionNumber })}</span>
                       <span className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(v.effectiveFrom)}</span>
                     </div>
                     {v.reason && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{v.reason}</p>}
-                    <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Par {v.changedBy || '--'}</p>
+                    <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{t('taxRules.versions.by', { user: v.changedBy || '--' })}</p>
                     {i === 0 && (
                       <button className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-700">
-                        <RotateCcw className="h-3 w-3" /> Restaurer cette version
+                        <RotateCcw className="h-3 w-3" /> {t('taxRules.versions.restore')}
                       </button>
                     )}
                   </div>
@@ -947,15 +1002,16 @@ function VersionHistoryModal({ rule, versions, onClose }: {
 function RecentVersionsModal({ versions, loading, rules, onClose }: {
   versions: TaxRuleVersion[] | undefined; loading: boolean; rules: TaxRule[]; onClose: () => void
 }) {
+  const { t } = useI18n()
   const codeOf = (ruleId: number) => rules.find((r) => r.id === ruleId)?.code ?? `#${ruleId}`
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Historique recent des regles</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('taxRules.recent.title')}</h3>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              Dernierees modifications enregistrees, toutes regles confondues.
+              {t('taxRules.recent.subtitle')}
             </p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700">
@@ -966,7 +1022,7 @@ function RecentVersionsModal({ versions, loading, rules, onClose }: {
           {loading || !versions ? (
             <div className="py-8 text-center"><div className="h-8 w-8 mx-auto animate-spin rounded-full border-2 border-violet-500 border-t-transparent" /></div>
           ) : versions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">Aucune modification enregistree.</p>
+            <p className="py-8 text-center text-sm text-slate-400 dark:text-slate-500">{t('taxRules.recent.empty')}</p>
           ) : (
             <ol className="space-y-3">
               {versions.map((v) => (
@@ -981,7 +1037,7 @@ function RecentVersionsModal({ versions, loading, rules, onClose }: {
                     <span className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(v.effectiveFrom)}</span>
                   </div>
                   {v.reason && <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{v.reason}</p>}
-                  <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">Par {v.changedBy || '--'}</p>
+                  <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{t('taxRules.versions.by', { user: v.changedBy || '--' })}</p>
                 </li>
               ))}
             </ol>
@@ -1005,6 +1061,7 @@ const IMPORT_PLACEHOLDER = `[
 ]`
 
 function ImportRulesModal({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n()
   const toast = useToast()
   const queryClient = useQueryClient()
   const [text, setText] = useState('')
@@ -1016,11 +1073,11 @@ function ImportRulesModal({ onClose }: { onClose: () => void }) {
     try {
       parsed = JSON.parse(text)
     } catch {
-      toast.error('JSON invalide')
+      toast.error(t('taxRules.import.jsonInvalid'))
       return
     }
     if (!Array.isArray(parsed)) {
-      toast.error('Le JSON doit etre un tableau de regles')
+      toast.error(t('taxRules.import.notArray'))
       return
     }
     setRunning(true)
@@ -1057,7 +1114,7 @@ function ImportRulesModal({ onClose }: { onClose: () => void }) {
     setResult({ created, errors })
     if (created > 0) {
       queryClient.invalidateQueries({ queryKey: ['tax-rules'] })
-      toast.success(`${created} regle(s) importee(s)`)
+      toast.success(t('taxRules.import.success', { count: created }))
     }
   }
 
@@ -1066,9 +1123,9 @@ function ImportRulesModal({ onClose }: { onClose: () => void }) {
       <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Importer des regles</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('taxRules.import.title')}</h3>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              Collez un tableau JSON de regles ou chargez un fichier .json. Chaque regle passe par les validations habituelles.
+              {t('taxRules.import.subtitle')}
             </p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700">
@@ -1100,7 +1157,7 @@ function ImportRulesModal({ onClose }: { onClose: () => void }) {
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400'
                 : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
             }`}>
-              <p className="font-semibold">{result.created} regle(s) importee(s).</p>
+              <p className="font-semibold">{t('taxRules.import.result', { count: result.created })}</p>
               {result.errors.length > 0 && (
                 <ul className="mt-1 list-disc space-y-0.5 pl-5">
                   {result.errors.map((err, i) => <li key={i}>{err}</li>)}
@@ -1110,9 +1167,9 @@ function ImportRulesModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-700">
-          <Button variant="secondary" onClick={onClose}>Fermer</Button>
+          <Button variant="secondary" onClick={onClose}>{t('taxRules.import.close')}</Button>
           <Button variant="primary" onClick={runImport} disabled={running || !text.trim()} loading={running}>
-            <Upload className="h-4 w-4" /> Importer
+            <Upload className="h-4 w-4" /> {t('taxRules.import.submit')}
           </Button>
         </div>
       </div>
@@ -1121,18 +1178,19 @@ function ImportRulesModal({ onClose }: { onClose: () => void }) {
 }
 
 /* -- Create/Edit Modal : wizard 3 étapes -- */
-function CreateEditModal({ open, editing, form, setForm, saving, error, onClose, onSubmit }: {
+function CreateEditModal({ open, editing, form, setForm, taxTypes, saving, error, onClose, onSubmit }: {
   open: boolean; editing: TaxRule | null; form: typeof emptyForm
-  setForm: (f: typeof emptyForm) => void; saving: boolean; error: string | null
+  setForm: (f: typeof emptyForm) => void; taxTypes: TaxType[]; saving: boolean; error: string | null
   onClose: () => void; onSubmit: () => void
 }) {
+  const { t } = useI18n()
   const [step, setStep] = useState(0)
   useEffect(() => { if (open) setStep(0) }, [open, editing])
   if (!open) return null
 
   const stepTitles = editing
-    ? [`Étape ${step + 1}/3 — Modifier : ${editing.code}`, step === 0 ? 'Identification de la règle' : step === 1 ? 'Paramètres de calcul' : 'Validité et récapitulatif']
-    : [`Étape ${step + 1}/3 — Nouvelle règle de calcul`, step === 0 ? 'Identification de la règle' : step === 1 ? 'Paramètres de calcul' : 'Validité et récapitulatif']
+    ? [t('taxRules.wizard.editTitle', { step: step + 1, code: editing.code }), step === 0 ? t('taxRules.wizard.identify') : step === 1 ? t('taxRules.wizard.calculate') : t('taxRules.wizard.validity')]
+    : [t('taxRules.wizard.newTitle', { step: step + 1 }), step === 0 ? t('taxRules.wizard.identify') : step === 1 ? t('taxRules.wizard.calculate') : t('taxRules.wizard.validity')]
 
   const rateNum = Number(form.rate)
   const bracketsValid = (() => {
@@ -1194,8 +1252,8 @@ function CreateEditModal({ open, editing, form, setForm, saving, error, onClose,
               ))}
             </div>
             <div className="mt-1.5 flex justify-between text-[11px] font-medium uppercase tracking-wide">
-              {['Identification', 'Calcul', 'Récapitulatif'].map((label, i) => (
-                <span key={label} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
+              {['taxRules.wizard.step.identification', 'taxRules.wizard.step.calculation', 'taxRules.wizard.step.summary'].map((key, i) => (
+                <span key={key} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{t(key)}</span>
               ))}
             </div>
           </div>
@@ -1203,33 +1261,29 @@ function CreateEditModal({ open, editing, form, setForm, saving, error, onClose,
           {step === 0 && (
             <div className="space-y-4 animate-fade-in">
               <div className="grid grid-cols-2 gap-4">
-                <FieldInput label="Code de la regle *" value={form.code} onChange={(v) => setForm({ ...form, code: v })} placeholder="ex: R-TVA-20" />
-                <FieldInput label="Nom *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="ex: TVA taux normal" />
+                <FieldInput label={t('taxRules.wizard.code')} value={form.code} onChange={(v) => setForm({ ...form, code: v })} placeholder={t('taxRules.wizard.codePlaceholder')} />
+                <FieldInput label={t('taxRules.wizard.name')} value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder={t('taxRules.wizard.namePlaceholder')} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FieldSelect label="Impot concerne *" value={form.taxTypeCode} onChange={(v) => setForm({ ...form, taxTypeCode: v })} options={[
-                  { value: '', label: 'Selectionner...' },
-                  { value: 'TVA', label: 'TVA' },
-                  { value: 'IRSA', label: 'IRSA' },
-                  { value: 'IR', label: 'IR' },
-                  { value: 'IS', label: 'IS' },
-                  { value: 'IFT', label: 'IFT' },
+                <FieldSelect label={t('taxRules.wizard.tax')} value={form.taxTypeCode} onChange={(v) => setForm({ ...form, taxTypeCode: v })} options={[
+                  { value: '', label: t('taxRules.wizard.select') },
+                  ...taxTypes.filter((t) => t.active).map((t) => ({ value: t.code, label: `${t.code} — ${t.name}` })),
                 ]} />
-                <FieldSelect label="Type de contribuable" value={form.taxpayerType} onChange={(v) => setForm({ ...form, taxpayerType: v })} options={[
-                  { value: '', label: 'Tous' },
-                  { value: 'COMPANY', label: 'Entreprise' },
-                  { value: 'PERSON', label: 'Particulier' },
+                <FieldSelect label={t('taxRules.wizard.taxpayerType')} value={form.taxpayerType} onChange={(v) => setForm({ ...form, taxpayerType: v })} options={[
+                  { value: '', label: t('taxRules.wizard.all') },
+                  { value: 'COMPANY', label: t('taxRules.wizard.company') },
+                  { value: 'PERSON', label: t('taxRules.wizard.person') },
                 ]} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FieldInput label="Reference legale" value={form.legalReference} onChange={(v) => setForm({ ...form, legalReference: v })} placeholder="ex: CGI Art. 01" />
+                <FieldInput label={t('taxRules.wizard.legalRef')} value={form.legalReference} onChange={(v) => setForm({ ...form, legalReference: v })} placeholder={t('taxRules.wizard.legalRefPlaceholder')} />
                 <div className="flex items-end gap-2 pb-2.5">
                   <input type="checkbox" id="demo-toggle" checked={form.demo} onChange={(e) => setForm({ ...form, demo: e.target.checked })} className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500" />
-                  <label htmlFor="demo-toggle" className="text-sm text-slate-600 dark:text-slate-400">Regle de demonstration</label>
+                  <label htmlFor="demo-toggle" className="text-sm text-slate-600 dark:text-slate-400">{t('taxRules.wizard.demo')}</label>
                 </div>
               </div>
               {!step0Valid && (
-                <p className="text-xs text-slate-400">Renseignez le code, le nom et l'impôt concerné pour continuer.</p>
+                <p className="text-xs text-slate-400">{t('taxRules.wizard.required')}</p>
               )}
             </div>
           )}
@@ -1237,23 +1291,23 @@ function CreateEditModal({ open, editing, form, setForm, saving, error, onClose,
           {step === 1 && (
             <div className="space-y-4 animate-fade-in">
               <div className="grid grid-cols-2 gap-4">
-                <FieldSelect label="Methode de calcul" value={form.calculationMethod} onChange={(v) => setForm({ ...form, calculationMethod: v })} options={
-                  Object.entries(METHOD_LABELS).map(([k, v]) => ({ value: k, label: v }))
+                <FieldSelect label={t('taxRules.wizard.method')} value={form.calculationMethod} onChange={(v) => setForm({ ...form, calculationMethod: v })} options={
+                  Object.keys(METHOD_LABEL_KEYS).map((k) => ({ value: k, label: methodLabel(k, t) }))
                 } />
-                <FieldInput label="Taux (%) *" type="number" value={form.rate} onChange={(v) => setForm({ ...form, rate: v })} step="0.0001" min="0" />
+                <FieldInput label={t('taxRules.wizard.rate')} type="number" value={form.rate} onChange={(v) => setForm({ ...form, rate: v })} step="0.0001" min="0" />
               </div>
               <div className="grid grid-cols-3 gap-4">
-                <FieldInput label="Seuil minimum (MGA)" type="number" value={form.minimum} onChange={(v) => setForm({ ...form, minimum: v })} min="0" />
-                <FieldInput label="Seuil maximum (MGA)" type="number" value={form.maximum} onChange={(v) => setForm({ ...form, maximum: v })} min="0" />
+                <FieldInput label={t('taxRules.wizard.min')} type="number" value={form.minimum} onChange={(v) => setForm({ ...form, minimum: v })} min="0" />
+                <FieldInput label={t('taxRules.wizard.max')} type="number" value={form.maximum} onChange={(v) => setForm({ ...form, maximum: v })} min="0" />
                 <div />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FieldInput label="Deduction (MGA)" type="number" value={form.deduction} onChange={(v) => setForm({ ...form, deduction: v })} min="0" />
-                <FieldInput label="Exoneration (MGA)" type="number" value={form.exemption} onChange={(v) => setForm({ ...form, exemption: v })} min="0" />
+                <FieldInput label={t('taxRules.wizard.deduction')} type="number" value={form.deduction} onChange={(v) => setForm({ ...form, deduction: v })} min="0" />
+                <FieldInput label={t('taxRules.wizard.exemption')} type="number" value={form.exemption} onChange={(v) => setForm({ ...form, exemption: v })} min="0" />
               </div>
               {form.calculationMethod === 'PROGRESSIVE' && (
                 <div>
-                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Tranches progressives (JSON) *</label>
+                  <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('taxRules.wizard.brackets')}</label>
                   <textarea
                     value={form.brackets}
                     onChange={(e) => setForm({ ...form, brackets: e.target.value })}
@@ -1261,14 +1315,14 @@ function CreateEditModal({ open, editing, form, setForm, saving, error, onClose,
                     rows={4}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-mono focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-violet-400"
                   />
-                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">JSON : chaque tranche a "upTo" (null = pas de plafond) et "rate" (taux en %)</p>
+                  <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{t('taxRules.wizard.bracketsHint')}</p>
                   {!bracketsValid && (
-                    <p className="mt-1 text-xs text-rose-600">Tranches JSON invalides : fournissez au moins une tranche avec un taux valide.</p>
+                    <p className="mt-1 text-xs text-rose-600">{t('taxRules.wizard.bracketsInvalid')}</p>
                   )}
                 </div>
               )}
               {!step1Valid && (
-                <p className="text-xs text-slate-400">Un taux positif est requis pour continuer.</p>
+                <p className="text-xs text-slate-400">{t('taxRules.wizard.rateRequired')}</p>
               )}
             </div>
           )}
@@ -1276,25 +1330,25 @@ function CreateEditModal({ open, editing, form, setForm, saving, error, onClose,
           {step === 2 && (
             <div className="space-y-4 animate-fade-in">
               <div className="grid grid-cols-2 gap-4">
-                <FieldInput label="Applicable a partir du *" type="date" value={form.effectiveFrom} onChange={(v) => setForm({ ...form, effectiveFrom: v })} />
-                <FieldInput label="Date de fin" type="date" value={form.effectiveTo} onChange={(v) => setForm({ ...form, effectiveTo: v })} />
+                <FieldInput label={t('taxRules.wizard.effectiveFrom')} type="date" value={form.effectiveFrom} onChange={(v) => setForm({ ...form, effectiveFrom: v })} />
+                <FieldInput label={t('taxRules.wizard.effectiveTo')} type="date" value={form.effectiveTo} onChange={(v) => setForm({ ...form, effectiveTo: v })} />
               </div>
               {form.effectiveTo && form.effectiveTo < form.effectiveFrom && (
-                <p className="text-xs text-rose-600">La date de fin doit être postérieure à la date de début.</p>
+                <p className="text-xs text-rose-600">{t('taxRules.wizard.dateError')}</p>
               )}
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('taxRules.wizard.summary')}</h4>
               <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
-                <RecapRow label="Code" value={form.code || '—'} mono />
-                <RecapRow label="Nom" value={form.name || '—'} />
-                <RecapRow label="Impôt" value={form.taxTypeCode || '—'} />
-                <RecapRow label="Méthode" value={METHOD_LABELS[form.calculationMethod] ?? form.calculationMethod} />
-                <RecapRow label="Taux" value={form.rate ? `${form.rate} %` : '—'} strong />
-                <RecapRow label="Seuils" value={`${form.minimum || '0'} – ${form.maximum || '0'} MGA`} />
-                <RecapRow label="Déduction / Exonération" value={`${form.deduction || '0'} / ${form.exemption || '0'} MGA`} />
-                <RecapRow label="Contribuables" value={form.taxpayerType === 'COMPANY' ? 'Entreprise' : form.taxpayerType === 'PERSON' ? 'Particulier' : 'Tous'} />
-                <RecapRow label="Validité" value={`${form.effectiveFrom || '—'} → ${form.effectiveTo || 'sans fin'}`} />
-                {form.legalReference && <RecapRow label="Réf. légale" value={form.legalReference} />}
-                {form.demo && <RecapRow label="Démo" value="Oui" />}
+                <RecapRow label={t('taxRules.wizard.recap.code')} value={form.code || '—'} mono />
+                <RecapRow label={t('taxRules.wizard.recap.name')} value={form.name || '—'} />
+                <RecapRow label={t('taxRules.wizard.recap.tax')} value={form.taxTypeCode || '—'} />
+                <RecapRow label={t('taxRules.wizard.recap.method')} value={methodLabel(form.calculationMethod, t)} />
+                <RecapRow label={t('taxRules.wizard.recap.rate')} value={form.rate ? `${form.rate} %` : '—'} strong />
+                <RecapRow label={t('taxRules.wizard.recap.thresholds')} value={`${form.minimum || '0'} – ${form.maximum || '0'} MGA`} />
+                <RecapRow label={t('taxRules.wizard.recap.deduction')} value={`${form.deduction || '0'} / ${form.exemption || '0'} MGA`} />
+                <RecapRow label={t('taxRules.wizard.recap.taxpayers')} value={form.taxpayerType === 'COMPANY' ? t('taxRules.wizard.company') : form.taxpayerType === 'PERSON' ? t('taxRules.wizard.person') : t('taxRules.wizard.all')} />
+                <RecapRow label={t('taxRules.wizard.recap.validity')} value={`${form.effectiveFrom || '—'} → ${form.effectiveTo || t('taxRules.wizard.endless')}`} />
+                {form.legalReference && <RecapRow label={t('taxRules.wizard.recap.legalRef')} value={form.legalReference} />}
+                {form.demo && <RecapRow label={t('taxRules.wizard.recap.demo')} value={t('taxRules.wizard.yes')} />}
               </div>
             </div>
           )}
@@ -1302,18 +1356,18 @@ function CreateEditModal({ open, editing, form, setForm, saving, error, onClose,
           <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
             <div>
               {step > 0 && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>{t('taxRules.wizard.back')}</Button>
               )}
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="secondary" onClick={close}>Annuler</Button>
+              <Button type="button" variant="secondary" onClick={close}>{t('common.cancel')}</Button>
               {step < 2 ? (
                 <Button type="submit" disabled={(step === 0 && !step0Valid) || (step === 1 && !step1Valid)}>
-                  Suivant →
+                  {t('taxRules.wizard.next')}
                 </Button>
               ) : (
                 <Button type="submit" disabled={saving || !canSubmit} loading={saving}>
-                  {editing ? 'Enregistrer' : 'Creer'}
+                  {editing ? t('taxRules.wizard.save') : t('taxRules.wizard.create')}
                 </Button>
               )}
             </div>
@@ -1362,6 +1416,7 @@ function FieldSelect({ label, value, onChange, options }: {
 
 /* -- Test Calculator Modal -- */
 function TestCalculatorModal({ rule, onClose }: { rule: TaxRule | null; onClose: () => void }) {
+  const { t } = useI18n()
   const [taxableAmount, setTaxableAmount] = useState('')
   const [deduction, setDeduction] = useState('')
   const [result, setResult] = useState<ReturnType<typeof calculateTax> | null>(null)
@@ -1383,7 +1438,7 @@ function TestCalculatorModal({ rule, onClose }: { rule: TaxRule | null; onClose:
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
                 <Calculator className="h-4 w-4" />
               </span>
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Tester le calcul</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('taxRules.test.title')}</h3>
             </div>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{rule.code} -- {rule.name}</p>
           </div>
@@ -1395,46 +1450,46 @@ function TestCalculatorModal({ rule, onClose }: { rule: TaxRule | null; onClose:
           {/* Rule info */}
           <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800/50">
             <div className="flex items-center gap-4 text-sm">
-              <span className="text-slate-500 dark:text-slate-400">Taux: <strong className="text-slate-800 dark:text-slate-200">{rule.rate}%</strong></span>
-              <span className="text-slate-500 dark:text-slate-400">Methode: <strong className="text-slate-800 dark:text-slate-200">{METHOD_LABELS[rule.calculationMethod]}</strong></span>
+              <span className="text-slate-500 dark:text-slate-400">{t('taxRules.test.rate')}: <strong className="text-slate-800 dark:text-slate-200">{rule.rate}%</strong></span>
+              <span className="text-slate-500 dark:text-slate-400">{t('taxRules.test.method')}: <strong className="text-slate-800 dark:text-slate-200">{methodLabel(rule.calculationMethod, t)}</strong></span>
             </div>
           </div>
 
           {/* Inputs */}
           <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Montant imposable (MGA)" type="number" value={taxableAmount} onChange={setTaxableAmount} placeholder="ex: 1000000" min="0" />
-            <FieldInput label="Deduction (MGA)" type="number" value={deduction} onChange={setDeduction} placeholder="ex: 50000" min="0" />
+            <FieldInput label={t('taxRules.test.amount')} type="number" value={taxableAmount} onChange={setTaxableAmount} placeholder={t('taxRules.test.amountPlaceholder')} min="0" />
+            <FieldInput label={t('taxRules.test.deduction')} type="number" value={deduction} onChange={setDeduction} placeholder={t('taxRules.test.deductionPlaceholder')} min="0" />
           </div>
 
           <button
             onClick={handleCalculate}
             className="w-full rounded-xl bg-brand-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-xl"
           >
-            Calculer
+            {t('taxRules.test.calculate')}
           </button>
 
           {/* Result */}
           {result && (
             <div className="rounded-xl border border-violet-200 bg-violet-50 p-5 dark:border-violet-800 dark:bg-violet-900/20">
-              <h4 className="text-sm font-semibold text-violet-800 dark:text-violet-300 mb-3">Resultat estime</h4>
+              <h4 className="text-sm font-semibold text-violet-800 dark:text-violet-300 mb-3">{t('taxRules.test.result')}</h4>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">Base imposable</span>
+                  <span className="text-slate-600 dark:text-slate-400">{t('taxRules.test.base')}</span>
                   <span className="font-medium text-slate-800 dark:text-slate-200">{fmtMGA(result.baseImposable)}</span>
                 </div>
                 {result.tauxApplique > 0 && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-600 dark:text-slate-400">Taux applique</span>
+                    <span className="text-slate-600 dark:text-slate-400">{t('taxRules.test.appliedRate')}</span>
                     <span className="font-medium text-slate-800 dark:text-slate-200">{result.tauxApplique}%</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600 dark:text-slate-400">Deductions</span>
+                  <span className="text-slate-600 dark:text-slate-400">{t('taxRules.test.deductions')}</span>
                   <span className="font-medium text-slate-800 dark:text-slate-200">{fmtMGA(result.deductions)}</span>
                 </div>
                 <div className="border-t border-violet-200 dark:border-violet-800 pt-2 mt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-violet-800 dark:text-violet-300">Montant de l'impot</span>
+                    <span className="text-sm font-semibold text-violet-800 dark:text-violet-300">{t('taxRules.test.taxAmount')}</span>
                     <span className="text-xl font-bold text-violet-700 dark:text-violet-400">{fmtMGA(result.montantImpot)}</span>
                   </div>
                 </div>

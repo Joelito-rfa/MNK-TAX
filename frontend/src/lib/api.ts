@@ -92,8 +92,14 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError)
-        tokenStore.clear()
-        window.location.href = '/login'
+        // Ne pas détruire la session si le rafraîchissement échoue à cause
+        // d'une panne réseau ou d'un backend momentanément indisponible :
+        // seul un rejet explicite du jeton (401/403) déconnecte.
+        const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined
+        if (status === 401 || status === 403) {
+          tokenStore.clear()
+          window.location.href = '/login'
+        }
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false

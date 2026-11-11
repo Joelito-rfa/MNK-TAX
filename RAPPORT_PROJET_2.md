@@ -468,7 +468,7 @@ sequenceDiagram
 | **CSRF** | `csrf(...disable())` | Désactivé — cohérent avec un API stateless à jeton (le jeton n'étant pas un cookie, pas d'attaque CSRF classique) |
 | **CORS** | `common/config/CorsConfig.java` : origines listées dans `cors.allowed-origins`, méthodes `GET,POST,PUT,PATCH,DELETE,OPTIONS`, en-têtes `*`, `allowCredentials(true)`, en-tête exposé `X-Correlation-Id` | Limitation à l'origine front configurée (Render) |
 | **Rate limiting** | `rate-limit.enabled`, `requests-per-minute: 120` (`RATE_LIMIT_ENABLED`, `RATE_LIMIT_PER_MINUTE`) via `RateLimitInterceptor` | Limitation mémoire par fenêtre glissante (non persistée : à réinitialiser à chaque redémarrage, non partagée entre instances) |
-| **Secret JWT** | `jwt.secret: ${JWT_SECRET:<base64 de repli>}` (`application.yml:57`) | **Une valeur par défaut base64 est codée en dur** (chaîne placeholder du type `change-me…`, non reproduite ici) : sans `JWT_SECRET`, tous les jetons seraient signés avec cette valeur connue (annexe A.9, P1.2) |
+| **Secret JWT** | `jwt.secret: ${JWT_SECRET}` (`application.yml:60`) ; valeurs explicites uniquement dans `application-dev.yml` et `application-test.yml` | **Aucune valeur de repli** : le démarrage échoue si `JWT_SECRET` est absent, vide, inférieur à 32 octets ou égal à l'ancienne valeur publiée (`JwtService`) — corrigé (annexe A.9, P1.2) |
 | **Téléversements** | `spring.servlet.multipart.max-file-size/max-request-size: 10MB` | Limite générique (avatars, annexes, pièces) |
 | **Fichiers** | `document.storage-path`, `avatar.storage-path`, `receipt.storage-path` (profil `render` : `data/…`) | Stockage **hors base**, servi par contrôleur (pas de stockage public) |
 | **HTTPS** | Aucune configuration `server.ssl` / HSTS trouvée | Le TLS est porté par Render/Neon (à documenter dans le mémoire) |
@@ -484,7 +484,7 @@ sequenceDiagram
 
 Le détail des constats (gravité, emplacement, correction proposée) figure à l'**annexe A.9** (partie 3) :
 
-- **P1 (à corriger avant toute mise en ligne)** : `SEED_DEMO=true` force le jeu de démonstration (`render.yaml`), mots de passe temporaires renvoyés dans la réponse HTTP d'approbation, valeur par défaut du secret JWT dans `application.yml`.
+- **P1 — trois correctifs appliqués le 28/10/2026** : `SEED_DEMO` vaut `false` par défaut et les blueprints Render le fixent explicitement à `false` ; le secret JWT n'a plus de valeur de repli (`JWT_SECRET` obligatoire, validé au démarrage) ; les mots de passe temporaires ne sont plus renvoyés dans les réponses HTTP — ils sont envoyés par email et les sessions sont révoquées à la réinitialisation. **Restent ouverts en P1** : persistance des fichiers (P1.4), source des taux (P1.6), comptes de démonstration (P1.7). La suite de tests est au vert (202 exécutions, 0 échec, 28/10/2026).
 - **P2 (documentation/exploitation)** : Swagger et console H2 déclarés `permitAll` (ouverts tant que `EXPOSE_API_DOCS` n'est pas désactivé), `/api/ai/chat` sans `@PreAuthorize` (accessible à tout compte authentifié), rate-limit en mémoire (non partagé), CSRF désactivé.
 - **P3 (qualité/robustesse)** : colonnes orphelines (`mfa_enabled`), `audit_logs` sans clé étrangère, HTTPS/HSTS non configurés côté applicatif, console H2 active en `dev`.
 

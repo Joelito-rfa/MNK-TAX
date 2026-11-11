@@ -56,6 +56,14 @@ public interface TaxpayerRepository extends JpaRepository<Taxpayer, Long> {
     @Query("SELECT t FROM Taxpayer t WHERE t.nif = :nif")
     Optional<Taxpayer> findByNifStrict(@Param("nif") String nif);
 
+    /**
+     * Registre complet pour la sélection du contributeur dans le composeur :
+     * requête simple (sans jointure ni filtre optionnel), triée par nom.
+     * Le plafond est appliqué via le Pageable.
+     */
+    @Query("SELECT t FROM Taxpayer t ORDER BY t.name ASC")
+    List<Taxpayer> findAllOrderedByName(Pageable pageable);
+
     long countByStatus(TaxpayerStatus status);
 
     @Query("SELECT COUNT(t) FROM Taxpayer t")

@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   AlertCircle,
-  Download,
   FileSpreadsheet,
   FileText,
   Inbox,
@@ -19,6 +18,7 @@ import {
 import { useI18n } from '../../lib/i18n'
 import { useLocaleFormatters } from '../../lib/format'
 import { apiErrorMessage, apiGet, apiGetBlob, apiPost } from '../../lib/api'
+import { ExportButton } from '../../components/ExportButton'
 import type { CollectionDebtRow, CollectionHistory, CollectionStats, DebtStatus, Page, TaxType } from '../../types'
 import { Button, Card, EmptyState, Pagination, Select, Spinner, Table, Td, Th } from '../../components/ui'
 import { useToast } from '../../components/Toast'
@@ -31,11 +31,22 @@ import { RowActions } from '../../components/collection/RowActions'
 import { DetailDrawer } from '../../components/collection/DetailDrawer'
 import { CollectionFilters, EMPTY_ADV, type AdvancedFilters } from '../../components/collection/CollectionFilters'
 import { TERMINAL_STATUSES, ACTION_KEYS, ACTION_ICONS, daysUntil } from '../../components/collection/constants'
+import { useAuth } from '../../lib/auth'
+import { invalidateCollectionData } from '../../features/collection/api/keys'
 import { useCreateReminder } from '../../features/collection/api/mutations'
 import { ReminderModal, emptyReminderForm, type ReminderForm } from '../../features/collection/components/modals/ReminderModal'
 import { ActionWizard } from '../../features/collection/components/modals/ActionWizard'
 import { NoticeWizard } from '../../features/collection/components/modals/NoticeWizard'
 import { CollectionCreateWizard } from '../../features/collection/components/modals/CollectionCreateWizard'
+
+/** Slug des boutons d'action → constante d'action réelle (ACTION_KEYS). */
+const ACTION_PRESET: Record<string, string> = {
+  call: 'PHONE_CONTACT',
+  commandment: 'COMMANDMENT',
+  atd: 'ATD',
+  payment_plan: 'PAYMENT_PLAN',
+  suspension: 'SUSPENSION_REQUEST',
+}
 
 // Vue d'ensemble — Étape fiscale 1 : synthèse de toutes créances exigibles (DUE/PARTIALLY_PAID) avec KPIs globaux
 export default function CollectionOverview() {
@@ -59,6 +70,7 @@ export default function CollectionOverview() {
   const [reminderForm, setReminderForm] = useState<ReminderForm>(emptyReminderForm())
   const [actionWizardOpen, setActionWizardOpen] = useState(false)
   const [actionWizardDebtId, setActionWizardDebtId] = useState<string | null>(null)
+  const [actionWizardPresetType, setActionWizardPresetType] = useState<string | undefined>(undefined)
   const [noticeWizardOpen, setNoticeWizardOpen] = useState(false)
   const [noticeWizardDebtId, setNoticeWizardDebtId] = useState<string | null>(null)
   const [createWizardOpen, setCreateWizardOpen] = useState(false)
@@ -67,6 +79,8 @@ export default function CollectionOverview() {
   const toast = useToast()
   const { t } = useI18n()
   const { fmtMGA, fmtDate } = useLocaleFormatters()
+  const { can } = useAuth()
+  const canWrite = can('COLLECTION_WRITE')
 
   const buildParams = () => {
     const p = new URLSearchParams({ page: String(page), size: String(size) })
@@ -117,11 +131,9 @@ export default function CollectionOverview() {
   })
 
   function invalidateQueries() {
-    queryClient.invalidateQueries({ queryKey: ['collection-debts'] })
-    queryClient.invalidateQueries({ queryKey: ['collection-stats'] })
-    queryClient.invalidateQueries({ queryKey: ['collection-history'] })
-    queryClient.invalidateQueries({ queryKey: ['collection-action-debts'] })
-    queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
+    // Toutes les pages du module utilisent des clés plates : le helper couvre
+    // l'ensemble du périmètre (listes, stats, périodes, historique, dettes…).
+    invalidateCollectionData(queryClient)
   }
 
   function openReminder(debtId?: string, debt?: CollectionDebtRow | null) { setReminderDebt(debt ?? null); setReminderForm(emptyReminderForm(debtId ?? '')); setReminderOpen(true) }
@@ -139,6 +151,8 @@ export default function CollectionOverview() {
   function openActionWithType(type: 'call' | 'reminder' | 'commandment' | 'atd' | 'payment_plan' | 'suspension', debtId?: string) {
     if (type === 'reminder') { openReminder(debtId); return }
     setActionWizardDebtId(debtId ?? null)
+    // Pré-sélectionne le type dans le wizard (sinon il retombe sur PHONE_CONTACT).
+    setActionWizardPresetType(ACTION_PRESET[type] ?? 'PHONE_CONTACT')
     setActionWizardOpen(true)
   }
 
@@ -162,23 +176,24 @@ export default function CollectionOverview() {
     setPage(0)
   }
 
-      function exportCsv() {
+  /** Toutes les créances de recouvrement correspondant aux filtres actifs (hors pagination). */
+  async function exportCollectionRows() {
     const p = new URLSearchParams(buildParams()); p.delete('page'); p.delete('size')
-    apiGet<Page<CollectionDebtRow>>(`/collection/debts?${p.toString()}&size=9999`).then((rows) => {
-      const csv = [
-        t('collection.csv.headers'),
-        ...rows.content.map((d) => [`"${d.reference}"`, d.nif, `"${d.taxpayerName}"`, d.taxTypeCode, d.period, d.totalAmount, d.paidAmount, d.balance, d.dueDate, d.daysOverdue, `"${d.debtStatus}"`, d.collectionPriority].join(',')),
-      ].join('\n')
-      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `recouvrement_${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(url)
-      toast.success(t('collection.exportDone'))
-    }).catch((err) => toast.error(apiErrorMessage(err)))
+    const rows = await apiGet<Page<CollectionDebtRow>>(`/collection/debts?${p.toString()}&size=9999`)
+    return rows.content.map((d) => [
+      d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period,
+      d.totalAmount, d.paidAmount, d.balance, d.dueDate, d.daysOverdue,
+      d.debtStatus, d.collectionPriority,
+    ])
   }
 
   async function exportEtatPdf() {
     try {
       const p = new URLSearchParams()
       if (taxTypeFilter) p.set('taxTypeCode', taxTypeFilter); if (periodFilter) p.set('period', periodFilter); if (searchQ) p.set('q', searchQ)
+      // GET /collection/documents/etat-restes n'accepte que overdue/taxTypeCode/
+      // period/q : le filtre de statut OVERDUE est le seul transmissible.
+      if (advApplied.status === 'OVERDUE') p.set('overdue', 'true')
       const blob = await apiGetBlob(`/collection/documents/etat-restes?${p.toString()}`)
       const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `etat-restes-a-recouvrer_${new Date().toISOString().slice(0, 10)}.pdf`; a.click(); URL.revokeObjectURL(url)
       toast.success(t('collection.pdfGenerated'))
@@ -201,15 +216,24 @@ export default function CollectionOverview() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('collection.subtitle')}</p>
         </div>
         <div className="flex flex-wrap shrink-0 items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
+          <Button variant="ghost" size="sm" onClick={() => invalidateCollectionData(queryClient)}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
           <Link to="/collection/history"><Button variant="ghost" size="sm"><History className="h-4 w-4" />{t('collection.history')}</Button></Link>
-          <Button variant="secondary" size="sm" onClick={exportCsv}><Download className="h-4 w-4" />{t('collection.export')}</Button>
+          <ExportButton
+            filenameBase={`recouvrement_${new Date().toISOString().slice(0, 10)}`}
+            title={t('collection.title')}
+            headers={t('collection.csv.headers').split(',')}
+            rows={exportCollectionRows}
+          />
           <Button variant="secondary" size="sm" onClick={exportEtatPdf}><FileText className="h-4 w-4" />{t('collection.report')}</Button>
           <Link to="/reports"><Button variant="secondary" size="sm"><FileSpreadsheet className="h-4 w-4" />{t('collection.report')}</Button></Link>
-          <Button variant="secondary" size="sm" onClick={openCreateWizard}><Plus className="h-4 w-4" /> {t('collection.wizard.create.title')}</Button>
-          <Button size="sm" className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30" onClick={() => openActionWithType('call')}>
-            <Plus className="h-4 w-4" /> {t('collection.newAction')}
-          </Button>
+          {canWrite && (
+            <Button variant="secondary" size="sm" onClick={openCreateWizard}><Plus className="h-4 w-4" /> {t('collection.wizard.create.title')}</Button>
+          )}
+          {canWrite && (
+            <Button size="sm" className="bg-brand-600 text-white shadow-lg shadow-violet-500/25 hover:bg-brand-500 hover:shadow-xl hover:shadow-violet-500/30" onClick={() => openActionWithType('call')}>
+              <Plus className="h-4 w-4" /> {t('collection.newAction')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -306,7 +330,7 @@ export default function CollectionOverview() {
                             </Td>
                             <Td><span className="text-xs text-slate-500 dark:text-slate-400">{d.lastResponsible ?? '—'}</span></Td>
                             <Td>
-                              <RowActions debt={d} onView={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }} onPayment={() => { setSelectedDebt(d); setPaymentOpen(true) }} onCall={() => openActionWithType('call', String(d.id))} onReminder={() => openActionWithType('reminder', String(d.id))} onNotice={() => openNotice(String(d.id))} onCommandment={() => openActionWithType('commandment', String(d.id))} onAtd={() => openActionWithType('atd', String(d.id))} onPaymentPlan={() => navigate(`/collection/plans?debt=${d.id}`)} onHistory={() => { setHistoryDebtId(d.id); setHistoryOpen(true) }} />
+                              <RowActions debt={d} onView={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }} onPayment={canWrite ? () => { setSelectedDebt(d); setPaymentOpen(true) } : undefined} onCall={canWrite ? () => openActionWithType('call', String(d.id)) : undefined} onReminder={canWrite ? () => openActionWithType('reminder', String(d.id)) : undefined} onNotice={canWrite ? () => openNotice(String(d.id)) : undefined} onCommandment={canWrite ? () => openActionWithType('commandment', String(d.id)) : undefined} onAtd={canWrite ? () => openActionWithType('atd', String(d.id)) : undefined} onPaymentPlan={() => navigate(`/collection/plans?debt=${d.id}`)} onHistory={() => { setHistoryDebtId(d.id); setHistoryOpen(true) }} />
                             </Td>
                           </tr>
                         )
@@ -322,7 +346,7 @@ export default function CollectionOverview() {
       </Card>
 
       {/* WIZARD : NOUVELLE ACTION */}
-      <ActionWizard open={actionWizardOpen} onClose={() => setActionWizardOpen(false)} presetDebtId={actionWizardDebtId ?? undefined} debts={actionDebts?.content ?? data?.content ?? []} />
+      <ActionWizard open={actionWizardOpen} onClose={() => setActionWizardOpen(false)} presetDebtId={actionWizardDebtId ?? undefined} presetType={actionWizardPresetType} debts={actionDebts?.content ?? data?.content ?? []} />
 
       {/* WIZARD : MISE EN DEMEURE */}
       <NoticeWizard open={noticeWizardOpen} onClose={() => setNoticeWizardOpen(false)} presetDebtId={noticeWizardDebtId ?? undefined} debts={actionDebts?.content ?? data?.content ?? []} />

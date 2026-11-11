@@ -18,6 +18,7 @@ import {
 import { apiErrorMessage, apiGet, apiPut } from '../lib/api'
 import { fmtDateTime } from '../lib/format'
 import { useAuth } from '../lib/auth'
+import { useI18n } from '../lib/i18n'
 import type { SystemParameter } from '../types'
 import { Button, Card, EmptyState, Field, Input, Modal } from '../components/ui'
 import RowActionPortal from '../components/RowActionPortal'
@@ -27,8 +28,8 @@ import AdminPanel from '../components/communication/AdminPanel'
 /* ── Category definitions ── */
 interface CategoryDef {
   key: string
-  label: string
-  subtitle: string
+  labelKey: string
+  subtitleKey: string
   icon: React.ReactNode
   color: string
   bgGrad: string
@@ -36,11 +37,11 @@ interface CategoryDef {
 }
 
 const CATEGORIES: CategoryDef[] = [
-  { key: 'all', label: 'Général', subtitle: 'Paramètres généraux', icon: <SlidersHorizontal className="h-5 w-5" />, color: 'text-violet-600', bgGrad: 'bg-brand-600 text-white shadow-lg shadow-violet-500/25', iconBg: 'bg-white/20' },
-  { key: 'FISCAL', label: 'Fiscal', subtitle: 'Paramètres fiscaux', icon: <FileText className="h-5 w-5" />, color: 'text-blue-600', bgGrad: 'bg-blue-600 text-white shadow-lg shadow-blue-500/25', iconBg: 'bg-white/20' },
-  { key: 'INSTITUTION', label: 'Institution', subtitle: 'Informations institutionnelles', icon: <Building2 className="h-5 w-5" />, color: 'text-emerald-600', bgGrad: 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/25', iconBg: 'bg-white/20' },
-  { key: 'QUITTANCE', label: 'Taux & pénalités', subtitle: 'Taxes et pénalités', icon: <Percent className="h-5 w-5" />, color: 'text-amber-600', bgGrad: 'bg-amber-600 text-white shadow-lg shadow-amber-500/25', iconBg: 'bg-white/20' },
-  { key: 'NOTIFICATION', label: 'Notifications', subtitle: 'Préférences des notifications', icon: <Shield className="h-5 w-5" />, color: 'text-rose-600', bgGrad: 'bg-rose-600 text-white shadow-lg shadow-rose-500/25', iconBg: 'bg-white/20' },
+  { key: 'all', labelKey: 'parameters.general', subtitleKey: 'parameters.page.generalSubtitle', icon: <SlidersHorizontal className="h-5 w-5" />, color: 'text-violet-600', bgGrad: 'bg-brand-600 text-white shadow-lg shadow-violet-500/25', iconBg: 'bg-white/20' },
+  { key: 'FISCAL', labelKey: 'parameters.fiscal', subtitleKey: 'parameters.page.fiscalSubtitle', icon: <FileText className="h-5 w-5" />, color: 'text-blue-600', bgGrad: 'bg-blue-600 text-white shadow-lg shadow-blue-500/25', iconBg: 'bg-white/20' },
+  { key: 'INSTITUTION', labelKey: 'parameters.institution', subtitleKey: 'parameters.page.institutionSubtitle', icon: <Building2 className="h-5 w-5" />, color: 'text-emerald-600', bgGrad: 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/25', iconBg: 'bg-white/20' },
+  { key: 'QUITTANCE', labelKey: 'parameters.rates', subtitleKey: 'parameters.page.ratesSubtitle', icon: <Percent className="h-5 w-5" />, color: 'text-amber-600', bgGrad: 'bg-amber-600 text-white shadow-lg shadow-amber-500/25', iconBg: 'bg-white/20' },
+  { key: 'NOTIFICATION', labelKey: 'parameters.notifications', subtitleKey: 'parameters.page.notificationsSubtitle', icon: <Shield className="h-5 w-5" />, color: 'text-rose-600', bgGrad: 'bg-rose-600 text-white shadow-lg shadow-rose-500/25', iconBg: 'bg-white/20' },
 ]
 
 /* ── Icon map per category for parameter rows ── */
@@ -67,6 +68,7 @@ function friendlyValue(p: SystemParameter): string {
 
 export default function Parameters() {
   const { user } = useAuth()
+  const { t } = useI18n()
   const [selected, setSelected] = useState<SystemParameter | null>(null)
   const [editValue, setEditValue] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -92,7 +94,7 @@ export default function Parameters() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['parameters'] })
       setSelected(null)
-      toast.success('Paramètre enregistré avec succès')
+      toast.success(t('parameters.page.saved'))
     },
     onError: (err) => {
       toast.error(apiErrorMessage(err))
@@ -170,10 +172,10 @@ export default function Parameters() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">
-            Paramètres système
+            {t('parameters.title')}
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Configuration globale de l'application et des paramètres fiscaux.
+            {t('parameters.subtitle')}
           </p>
         </div>
         <Button
@@ -186,7 +188,7 @@ export default function Parameters() {
           className="w-full sm:w-auto"
         >
           <Save className="h-4 w-4" />
-          Sauvegarder les modifications
+          {t('parameters.save')}
         </Button>
       </div>
 
@@ -196,36 +198,36 @@ export default function Parameters() {
           icon={<SlidersHorizontal className="h-5 w-5" />}
           iconBg="bg-violet-50"
           iconColor="text-violet-600"
-          label="PARAMÈTRES DÉFINIS"
+          label={t('parameters.page.keysDefined')}
           value={allParams.length}
-          sub="Clés de configuration"
+          sub={t('parameters.page.configKeys')}
           style={{ animationDelay: '0s' }}
         />
         <InfoCard
           icon={<Settings className="h-5 w-5" />}
           iconBg="bg-blue-50"
           iconColor="text-blue-600"
-          label="CATÉGORIES"
+          label={t('parameters.categories')}
           value={categories.length}
-          sub="Catégories configurées"
+          sub={t('parameters.page.configuredCategories')}
           style={{ animationDelay: '0.08s' }}
         />
         <InfoCard
           icon={<Shield className="h-5 w-5" />}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-          label="DERNIÈRE MISE À JOUR"
+          label={t('parameters.page.lastUpdated')}
           value={lastUpdated ? formatDate(lastUpdated.updatedAt) : '—'}
-          sub={lastUpdated ? 'Par Admin Fiscal' : 'Aucune donnée'}
+          sub={lastUpdated ? t('parameters.page.byAdmin') : t('parameters.page.noData')}
           style={{ animationDelay: '0.16s' }}
         />
         <InfoCard
           icon={<Clock className="h-5 w-5" />}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
-          label="PROCHAINE RÉVISION"
+          label={t('parameters.page.nextReview')}
           value={nextReview}
-          sub="Exercice fiscal suivant"
+          sub={t('parameters.page.nextFiscalYear')}
           style={{ animationDelay: '0.24s' }}
         />
       </div>
@@ -233,7 +235,7 @@ export default function Parameters() {
       {/* ── Category navigation ── */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Catégories de paramètres
+          {t('parameters.categories')}
         </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {CATEGORIES.map((cat) => {
@@ -261,14 +263,14 @@ export default function Parameters() {
                       isActive ? 'text-white' : 'text-slate-800 dark:text-slate-200'
                     }`}
                   >
-                    {cat.label}
+                    {t(cat.labelKey)}
                   </p>
                   <p
                     className={`mt-0.5 text-xs ${
                       isActive ? 'text-white/70' : 'text-slate-400 dark:text-slate-500'
                     }`}
                   >
-                    {cat.subtitle}
+                    {t(cat.subtitleKey)}
                   </p>
                 </div>
               </button>
@@ -283,7 +285,7 @@ export default function Parameters() {
         <div className="border-b border-slate-100 dark:border-slate-700/50 px-5 py-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Configuration {activeCategory === 'all' ? 'générale' : CATEGORIES.find((c) => c.key === activeCategory)?.label ?? ''}
+              {t('parameters.page.configuration')} {activeCategory === 'all' ? t('parameters.page.generalLabel') : CATEGORIES.find((c) => c.key === activeCategory) ? t(CATEGORIES.find((c) => c.key === activeCategory)!.labelKey) : ''}
             </h2>
             <div className="flex-1" />
             {/* Search */}
@@ -292,7 +294,7 @@ export default function Parameters() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un paramètre…"
+                placeholder={t('parameters.searchPlaceholder')}
                 className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-2.5 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none transition placeholder:text-slate-400 dark:text-slate-500 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10"
               />
               {search && (
@@ -313,10 +315,10 @@ export default function Parameters() {
                   onChange={(e) => setActiveCategory(e.target.value)}
                   className="bg-transparent text-sm outline-none"
                 >
-                  <option value="all">Toutes catégories</option>
+                  <option value="all">{t('parameters.page.allCategories')}</option>
                   {categories.map((c) => (
                     <option key={c} value={c}>
-                      {CATEGORIES.find((cat) => cat.key === c)?.label ?? c}
+                      {CATEGORIES.find((cat) => cat.key === c) ? t(CATEGORIES.find((cat) => cat.key === c)!.labelKey) : c}
                     </option>
                   ))}
                 </select>
@@ -337,7 +339,7 @@ export default function Parameters() {
                 />
               </span>
               <span className="whitespace-nowrap text-xs font-medium text-slate-500 dark:text-slate-400">
-                Paramètres inactifs
+                {t('parameters.page.inactive')}
               </span>
             </label>
           </div>
@@ -347,8 +349,8 @@ export default function Parameters() {
         <div className="divide-y divide-slate-100">
           {filtered.length === 0 ? (
             <EmptyState
-              title="Aucun paramètre trouvé"
-              subtitle={search ? `Aucun résultat pour « ${search} »` : 'Aucun paramètre dans cette catégorie'}
+              title={t('parameters.page.notFound')}
+              subtitle={search ? t('parameters.page.noResultFor', { q: search }) : t('parameters.page.noneInCategory')}
             />
           ) : (
             filtered.map((p) => {
@@ -390,14 +392,14 @@ export default function Parameters() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
-                      <span className="text-xs font-medium text-emerald-600">Actif</span>
+                      <span className="text-xs font-medium text-emerald-600">{t('common.active')}</span>
                     </div>
                     <RowActionPortal width={192}>
                       <button
                         onClick={() => { openEdit(p) }}
                         className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                       >
-                        <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
+                        <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('common.edit')}
                       </button>
                     </RowActionPortal>
                   </div>
@@ -433,14 +435,14 @@ export default function Parameters() {
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1.5">
                           <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                          <span className="text-[10px] font-medium text-emerald-600">Actif</span>
+                          <span className="text-[10px] font-medium text-emerald-600">{t('common.active')}</span>
                         </div>
                         <RowActionPortal width={192}>
                           <button
                             onClick={() => { openEdit(p) }}
                             className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
-                            <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
+                            <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('common.edit')}
                           </button>
                         </RowActionPortal>
                       </div>
@@ -456,8 +458,8 @@ export default function Parameters() {
         {filtered.length > 0 && (
           <div className="border-t border-slate-100 dark:border-slate-700/50 px-5 py-3">
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              {filtered.length} paramètre{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}
-              {search && ` pour « ${search} »`}
+              {t('parameters.page.count', { count: filtered.length })}
+              {search && ` ${t('parameters.page.forSearch', { q: search })}`}
             </p>
           </div>
         )}
@@ -468,10 +470,10 @@ export default function Parameters() {
         <section className="space-y-4">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Communications
+              {t('parameters.page.communications')}
             </h2>
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              Fournisseurs email/SMS, envoi test, modèles multilingues et règles de relance automatique.
+              {t('parameters.page.communicationsDesc')}
             </p>
           </div>
           <AdminPanel canManage />
@@ -482,7 +484,7 @@ export default function Parameters() {
       <Modal
         open={!!selected}
         onClose={() => setSelected(null)}
-        title={`Modifier : ${selected?.key ?? ''}`}
+        title={t('parameters.page.editTitle', { key: selected?.key ?? '' })}
         subtitle={selected?.description}
         wide
       >
@@ -516,7 +518,7 @@ export default function Parameters() {
               </div>
             </div>
 
-            <Field label="Valeur" hint={selected.key.includes('RATE') ? 'Valeur numérique en pourcentage' : undefined}>
+            <Field label={t('parameters.page.value')} hint={selected.key.includes('RATE') ? t('parameters.page.rateHint') : undefined}>
               <Input
                 type="number"
                 min="0"
@@ -526,33 +528,33 @@ export default function Parameters() {
                 onKeyDown={(e) => {
                   if (e.key === '-') e.preventDefault()
                 }}
-                placeholder="Entrez la valeur…"
+                placeholder={t('parameters.valuePlaceholder')}
                 className="font-mono"
               />
               {editValueIsNegative && (
-                <p className="mt-1 text-xs text-rose-600">La valeur ne peut pas être négative.</p>
+                <p className="mt-1 text-xs text-rose-600">{t('parameters.page.negative')}</p>
               )}
             </Field>
 
-            <Field label="Description">
+            <Field label={t('common.description')}>
               <Input
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
-                placeholder="Description du paramètre…"
+                placeholder={t('parameters.descriptionPlaceholder')}
               />
             </Field>
 
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100 dark:border-slate-700/50 pt-4">
               <p className="text-xs text-slate-400 dark:text-slate-500">
-                Dernière modification : {fmtDateTime(selected.updatedAt)}
+                {t('parameters.page.lastModified', { date: fmtDateTime(selected.updatedAt) })}
               </p>
               <div className="flex gap-2">
                 <Button type="button" variant="secondary" onClick={() => setSelected(null)} className="flex-1 sm:flex-none">
-                  Annuler
+                  {t('common.cancel')}
                 </Button>
                 <Button type="submit" variant="primary" loading={save.isPending} disabled={!editValue || editValueIsNegative} className="flex-1 sm:flex-none">
                   <Save className="h-4 w-4" />
-                  Enregistrer
+                  {t('common.save')}
                 </Button>
               </div>
             </div>

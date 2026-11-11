@@ -183,7 +183,7 @@ public class CollectionService {
         // workflow — jamais automatiquement, toujours suite à une action
         // explicite et autorisée de l'agent.
         if (isFormalNotice(noticeType) && oldStatus != DebtStatus.IN_COLLECTION) {
-            debtService.setInCollection(debt.getId());
+            debtService.setInCollection(debt.getId(), http);
             debt = findDebt(debt.getId());
         }
 
@@ -232,14 +232,15 @@ public class CollectionService {
     @Transactional
     public DisputeDto createDispute(CreateDisputeRequest request, HttpServletRequest http) {
         TaxDebt debt = findDebt(request.debtId());
+        // Le message specific du doublon prime sur la règle générale « litige ouvert ».
+        if (disputeRepository.existsByDebtIdAndStatus(debt.getId(), DisputeStatus.OPEN)) {
+            throw new BusinessException("DISPUTE_ALREADY_OPEN",
+                    "Un litige est déjà en cours sur cette créance.");
+        }
         checkOpenForAction(debt);
         if (debt.getStatus() == DebtStatus.SUSPENDED) {
             throw new BusinessException("DEBT_SUSPENDED",
                     "Cette créance est suspendue : réactivez-la avant de déclarer un litige.");
-        }
-        if (disputeRepository.existsByDebtIdAndStatus(debt.getId(), DisputeStatus.OPEN)) {
-            throw new BusinessException("DISPUTE_ALREADY_OPEN",
-                    "Un litige est déjà en cours sur cette créance.");
         }
         if (request.contestedAmount() != null
                 && request.contestedAmount().compareTo(debt.getBalance()) > 0) {
@@ -354,7 +355,7 @@ public class CollectionService {
     @Transactional(readOnly = true)
     public List<DisputeDto> disputesOf(Long debtId) {
         findDebt(debtId);
-        return disputeRepository.findByDebtIdOrderByContestationDateDescCreatedAtDesc(debtId)
+        return disputeRepository.findByDebtIdWithDebt(debtId)
                 .stream().map(DisputeDto::from).toList();
     }
 
@@ -397,9 +398,9 @@ public class CollectionService {
     @Transactional(readOnly = true)
     public CollectionHistoryDto history(Long debtId) {
         findDebt(debtId);
-        List<CollectionActionDto> actions = actionRepository.findByDebtIdOrderByActionDateDesc(debtId)
+        List<CollectionActionDto> actions = actionRepository.findByDebtIdWithDebtAndTaxpayer(debtId)
                 .stream().map(a -> toActionDto(a, null)).toList();
-        List<CollectionNoticeDto> notices = noticeRepository.findByDebtIdOrderByNoticeDateDesc(debtId)
+        List<CollectionNoticeDto> notices = noticeRepository.findByDebtIdWithDebt(debtId)
                 .stream().map(CollectionNoticeDto::from).toList();
         return new CollectionHistoryDto(actions, notices);
     }
@@ -408,10 +409,11 @@ public class CollectionService {
 
     @Transactional(readOnly = true)
     public CollectionDetailDto detail(Long debtId) {
-        TaxDebt debt = findDebt(debtId);
-        List<CollectionActionDto> actions = actionRepository.findByDebtIdOrderByActionDateDesc(debtId)
+        TaxDebt debt = debtRepository.findByIdWithRelations(debtId)
+                .orElseThrow(() -> new ResourceNotFoundException("Créance", debtId));
+        List<CollectionActionDto> actions = actionRepository.findByDebtIdWithDebtAndTaxpayer(debtId)
                 .stream().map(a -> toActionDto(a, null)).toList();
-        List<CollectionNoticeDto> notices = noticeRepository.findByDebtIdOrderByNoticeDateDesc(debtId)
+        List<CollectionNoticeDto> notices = noticeRepository.findByDebtIdWithDebt(debtId)
                 .stream().map(CollectionNoticeDto::from).toList();
         List<DisputeDto> disputes = disputesOf(debtId);
         return CollectionDetailDto.from(debt, actions, notices, disputes);
@@ -556,7 +558,7 @@ public class CollectionService {
                 debtRepository.countByStatus(DebtStatus.PARTIALLY_PAID),
                 debtRepository.countByStatus(DebtStatus.DISPUTED),
                 debtRepository.countByStatus(DebtStatus.SUSPENDED),
-                actionRepository.countByType(CollectionActionType.REMINDER),
+                actionRepository.countByTypeIn(REMINDER_ACTION_TYPES),
                 noticeRepository.count(),
                 actionRepository.countAll(),
                 actionRepository.countOverdueReminders(today)
@@ -600,6 +602,18 @@ public class CollectionService {
                 || debt.getStatus() == DebtStatus.CLOSED || debt.getStatus() == DebtStatus.SUSPENDED) {
             throw new BusinessException("DEBT_CLOSED",
                     "Cette créance est " + debt.getStatus() + " : aucune action de recouvrement possible.");
+        }
+        checkNoOpenDispute(debt);
+    }
+
+    /**
+     * Un litige ouvert interdit toute action qui ferait basculer la créance
+     * (recouvrement, relance…) pendant que la contestation reste ouverte.
+     */
+    private void checkNoOpenDispute(TaxDebt debt) {
+        if (disputeRepository.existsByDebtIdAndStatus(debt.getId(), DisputeStatus.OPEN)) {
+            throw new BusinessException("DISPUTE_OPEN",
+                    "Un litige est ouvert sur cette créance : résolvez-le avant de poursuivre.");
         }
     }
 

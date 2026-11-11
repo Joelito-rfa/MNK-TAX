@@ -357,8 +357,26 @@ export interface DebtStats {
   byTaxType: { taxType: string; count: number }[]
 }
 
+export interface OverdueMark {
+  id: number
+  reference: string
+  nif: string
+  taxpayerName: string
+  balance: number
+  penalty: number
+  interest: number
+  daysOverdue: number
+  newlyMarked: boolean
+}
+
 export interface MarkOverdueResult {
   updated: number
+  marked: number
+  alreadyOverdue: number
+  totalPenalties: number
+  totalInterest: number
+  totalBalance: number
+  debts: OverdueMark[]
   details: string[]
 }
 
@@ -971,6 +989,7 @@ export interface CommComposeRequest {
   scheduledAt?: string | null
   requireConfirmation?: boolean | null
   emailOverride?: string | null
+  phoneOverride?: string | null
   senderEmail?: string | null
   updateContact?: boolean | null
   externalName?: string | null
@@ -1007,8 +1026,11 @@ export interface CommDelivery {
   status: CommDeliveryStatus
   attemptCount: number
   maxAttempts: number
+  autoRetryCount: number
+  lastErrorRetryable: boolean
   lastError: string | null
   nextRetryAt: string | null
+  lastAttemptAt: string | null
   providerMessageId: string | null
   sentAt: string | null
   deliveredAt: string | null
@@ -1060,6 +1082,10 @@ export interface CommProvidersStatus {
   queueFailed: number
   maxAttempts: number
   retryBackoffMinutes: number
+  autoRetryEnabled: boolean
+  autoRetryMaxCycles: number
+  autoRetryBackoffMinutes: number
+  autoRetryMaxAgeHours: number
 }
 /** État effectif d'un suppléant de livraison (EMAIL/SMS/reel/demo). */
 export interface DeliveryProviderState {

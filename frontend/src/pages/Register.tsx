@@ -4,14 +4,26 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, Navigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { CheckCircle2, User } from 'lucide-react'
+import {
+  Building2,
+  CheckCircle2,
+  FileSearch,
+  Globe,
+  Hash,
+  Landmark,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  User,
+  UserPlus,
+  UserRound,
+} from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useI18n, type Locale } from '../lib/i18n'
 import { apiErrorMessage, apiPost } from '../lib/api'
+import { buildRegistrationPayload } from '../lib/registration'
 import { Button, Field, Input } from '../components/ui'
 import FallingMoney from '../components/FallingMoney'
-import { FileSearch, ShieldCheck, UserPlus } from 'lucide-react'
-import { Globe } from 'lucide-react'
 
 const languages: { code: Locale; label: string; initial: string; color: string; flag: string }[] = [
   { code: 'fr', label: 'Français', initial: 'FR', color: 'bg-blue-600', flag: '🇫🇷' },
@@ -19,19 +31,47 @@ const languages: { code: Locale; label: string; initial: string; color: string; 
   { code: 'en', label: 'English', initial: 'EN', color: 'bg-rose-600', flag: '🇬🇧' },
 ]
 
-const schema = z.object({
-  name: z.string().min(2, 'Le nom est requis'),
-  email: z.string().email('Email invalide'),
-  organization: z.string().min(2, "Le nom de l'organisation est requis"),
-  role: z.string().min(1, 'Le rôle est requis'),
-  message: z.string().optional(),
-})
+/* Les rôles administratifs ne sont jamais demandables publiquement :
+   l'approbation les refuse explicitement. */
+const AGENT_ROLE_OPTIONS = [
+  { value: 'TAX_AGENT', labelKey: 'login.register.role.tax_agent' },
+  { value: 'COLLECTION_AGENT', labelKey: 'login.register.role.collection_agent' },
+  { value: 'ACCOUNTANT', labelKey: 'login.register.role.accountant' },
+  { value: 'OTHER', labelKey: 'login.register.role.other' },
+] as const
+
+const PROFILE_OPTIONS = [
+  { value: 'TAXPAYER', icon: UserRound, labelKey: 'login.register.profile.taxpayer', hintKey: 'login.register.profile.taxpayer.hint' },
+  { value: 'AGENT', icon: Landmark, labelKey: 'login.register.profile.agent', hintKey: 'login.register.profile.agent.hint' },
+] as const
+
+const schema = z
+  .object({
+    profile: z.string().min(1, 'Sélectionnez un profil pour continuer.'),
+    name: z.string().min(2, 'Le nom est requis'),
+    email: z.string().email('Email invalide'),
+    organization: z.string().optional(),
+    role: z.string().optional(),
+    phone: z.string().max(30, '30 caractères au maximum').optional(),
+    nif: z
+      .string()
+      .optional()
+      .refine((v) => !v || /^\d{10}$/.test(v.trim()), 'Le NIF doit contenir exactement 10 chiffres'),
+    address: z.string().max(500, '500 caractères au maximum').optional(),
+    message: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    // Le contribuable n'a ni organisation ni rôle à choisir.
+    if (values.profile !== 'AGENT') return
+    if (!values.organization || values.organization.trim().length < 2) {
+      ctx.addIssue({ code: 'custom', path: ['organization'], message: "Le nom de l'organisation est requis" })
+    }
+    if (!values.role) {
+      ctx.addIssue({ code: 'custom', path: ['role'], message: 'Le rôle est requis' })
+    }
+  })
 
 type FormValues = z.infer<typeof schema>
-
-const roleOptions = ['Agent fiscal', 'Agent de recouvrement', 'Comptable', 'Administrateur', 'Autre']
-
-
 
 export default function Register() {
   const { user } = useAuth()
@@ -46,17 +86,42 @@ export default function Register() {
     handleSubmit,
     trigger,
     watch,
+    setValue,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), mode: 'onTouched' })
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    mode: 'onTouched',
+    defaultValues: {
+      profile: '',
+      name: '',
+      email: '',
+      organization: '',
+      role: '',
+      phone: '',
+      nif: '',
+      address: '',
+      message: '',
+    },
+  })
   const [step, setStep] = useState(0)
+  const watchedProfile = watch('profile')
+  const isTaxpayer = watchedProfile === 'TAXPAYER'
   const watchedName = watch('name')
   const watchedEmail = watch('email')
   const watchedOrg = watch('organization')
   const watchedRole = watch('role')
+  const watchedNif = watch('nif')
+  const watchedPhone = watch('phone')
   const watchedMessage = watch('message')
 
+  const stepTitles = [
+    t('login.register.step.identity'),
+    isTaxpayer ? t('login.register.step.contact') : t('login.register.step.role'),
+    t('login.register.step.summary'),
+  ]
+
   const mutation = useMutation({
-    mutationFn: (data: FormValues) => apiPost('/auth/register', data),
+    mutationFn: (values: FormValues) => apiPost('/auth/register', buildRegistrationPayload(values)),
     onSuccess: () => setSuccess(true),
     onError: (err: Error) => setError(apiErrorMessage(err)),
   })
@@ -76,6 +141,17 @@ export default function Register() {
   function onSubmit(values: FormValues) {
     setError('')
     mutation.mutate(values)
+  }
+
+  async function goNext() {
+    const fields =
+      step === 0
+        ? (['profile', 'name', 'email'] as const)
+        : isTaxpayer
+          ? (['nif', 'phone', 'address'] as const)
+          : (['organization', 'role'] as const)
+    const ok = await trigger(fields)
+    if (ok) setStep(step + 1)
   }
 
   return (
@@ -137,7 +213,7 @@ export default function Register() {
         <div className="absolute left-8 top-1/2 h-12 w-12 animate-float rounded-full border border-emerald-400/20 bg-emerald-500/10" style={{ animationDelay: '0.8s', animationDuration: '6s' }} />
         <div className="absolute bottom-32 right-20 h-8 w-8 animate-float rounded-lg border border-indigo-300/20 bg-indigo-400/10" style={{ animationDelay: '2s', animationDuration: '8s' }} />
         <div className="absolute left-1/3 top-20 h-6 w-6 animate-float rounded-full border border-white/10 bg-white/5" style={{ animationDelay: '3s', animationDuration: '9s' }} />
-        <div className="absolute bottom-48 left-16 h-14 w-14 animate-float-slow rounded-2xl border border-brand-300/15 bg-brand-500/5" style={{ animationDelay: '1s' }} />
+        <div className="absolute bottom-48 left-16 h-14 w-14 animate-float-slow rounded-2xl border border-brand-300/15 bg-brand-500/5" style={{ animationDelay: '1s', animationDuration: '6s' }} />
         <div className="absolute right-1/4 bottom-24 h-20 w-20 animate-float rounded-3xl border border-indigo-300/10 bg-indigo-500/5" style={{ animationDelay: '2.5s', animationDuration: '10s' }} />
 
         <div className="relative z-10 flex animate-fade-in items-center gap-3">
@@ -206,7 +282,9 @@ export default function Register() {
             <>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('login.register.title')}</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('login.register.subtitle')}</p>
-              <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-400">Étape {step + 1}/3 — {step === 0 ? 'Identité' : step === 1 ? 'Organisation et rôle' : 'Message et validation'}</p>
+              <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-400">
+                {t('login.register.progress', { step: step + 1 })} — {stepTitles[step]}
+              </p>
 
               <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5" noValidate>
                 {error && (
@@ -222,7 +300,7 @@ export default function Register() {
                     ))}
                   </div>
                   <div className="mt-1.5 flex justify-between text-[11px] font-medium uppercase tracking-wide">
-                    {['Identité', 'Rôle', 'Récapitulatif'].map((label, i) => (
+                    {stepTitles.map((label, i) => (
                       <span key={label} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
                     ))}
                   </div>
@@ -230,6 +308,40 @@ export default function Register() {
 
                 {step === 0 && (
                   <div className="space-y-5 animate-fade-in">
+                    {/* Profil : le contribuable demande un accès pour son propre compte */}
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                        {t('login.register.profile.title')}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {PROFILE_OPTIONS.map((option) => {
+                          const selected = watchedProfile === option.value
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() => setValue('profile', option.value, { shouldValidate: true })}
+                              className={`rounded-xl border p-3.5 text-left transition ${
+                                selected
+                                  ? 'border-brand-500 bg-brand-50/70 ring-4 ring-brand-500/10 dark:bg-brand-900/25'
+                                  : 'border-slate-200 bg-white hover:border-brand-300 dark:border-slate-600 dark:bg-slate-800 dark:hover:border-brand-500/50'
+                              }`}
+                            >
+                              <option.icon className={`h-5 w-5 ${selected ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}`} />
+                              <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                                {t(option.labelKey)}
+                              </p>
+                              <p className="mt-1 text-xs leading-snug text-slate-500 dark:text-slate-400">
+                                {t(option.hintKey)}
+                              </p>
+                            </button>
+                          )
+                        })}
+                      </div>
+                      {errors.profile && <p className="mt-1.5 text-xs text-rose-600">{errors.profile.message}</p>}
+                    </div>
+
                     <Field label={t('login.register.name')}>
                       <div className="relative">
                         <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -250,13 +362,11 @@ export default function Register() {
                   </div>
                 )}
 
-                {step === 1 && (
+                {step === 1 && !isTaxpayer && (
                   <div className="space-y-5 animate-fade-in">
                     <Field label={t('login.register.organization')}>
                       <div className="relative">
-                        <svg className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
+                        <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <Input className="pl-10" placeholder={t('login.register.organization.placeholder')} {...register('organization')} />
                       </div>
                       {errors.organization && <p className="mt-1 text-xs text-rose-600">{errors.organization.message}</p>}
@@ -267,10 +377,38 @@ export default function Register() {
                         <ShieldCheck className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <select {...register('role')} className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                           <option value="">{t('login.register.role.placeholder')}</option>
-                          {roleOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+                          {AGENT_ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{t(r.labelKey)}</option>)}
                         </select>
                       </div>
                       {errors.role && <p className="mt-1 text-xs text-rose-600">{errors.role.message}</p>}
+                    </Field>
+                  </div>
+                )}
+
+                {step === 1 && isTaxpayer && (
+                  <div className="space-y-5 animate-fade-in">
+                    <Field label={t('login.register.nif')} hint={t('login.register.nif.hint')}>
+                      <div className="relative">
+                        <Hash className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input className="pl-10" inputMode="numeric" maxLength={10} placeholder={t('login.register.nif.placeholder')} {...register('nif')} />
+                      </div>
+                      {errors.nif && <p className="mt-1 text-xs text-rose-600">{errors.nif.message}</p>}
+                    </Field>
+
+                    <Field label={t('login.register.phone')}>
+                      <div className="relative">
+                        <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input className="pl-10" type="tel" placeholder={t('login.register.phone.placeholder')} {...register('phone')} />
+                      </div>
+                      {errors.phone && <p className="mt-1 text-xs text-rose-600">{errors.phone.message}</p>}
+                    </Field>
+
+                    <Field label={t('login.register.address')}>
+                      <div className="relative">
+                        <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input className="pl-10" placeholder={t('login.register.address.placeholder')} {...register('address')} />
+                      </div>
+                      {errors.address && <p className="mt-1 text-xs text-rose-600">{errors.address.message}</p>}
                     </Field>
                   </div>
                 )}
@@ -288,10 +426,21 @@ export default function Register() {
 
                     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
                       <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+                      <div className="flex justify-between gap-4"><span className="text-slate-500">Profil</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedProfile === 'TAXPAYER' ? t('login.register.profile.taxpayer') : t('login.register.profile.agent')}</span></div>
                       <div className="flex justify-between gap-4"><span className="text-slate-500">Nom</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedName || '—'}</span></div>
                       <div className="flex justify-between gap-4"><span className="text-slate-500">Email</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedEmail || '—'}</span></div>
-                      <div className="flex justify-between gap-4"><span className="text-slate-500">Organisation</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedOrg || '—'}</span></div>
-                      <div className="flex justify-between gap-4"><span className="text-slate-500">Rôle</span><span className="font-medium text-violet-600 dark:text-violet-400">{watchedRole || '—'}</span></div>
+                      {isTaxpayer ? (
+                        <>
+                          <div className="flex justify-between gap-4"><span className="text-slate-500">NIF</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedNif || '—'}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-slate-500">Téléphone</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedPhone || '—'}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-slate-500">Rôle</span><span className="font-medium text-violet-600 dark:text-violet-400">{t('login.register.role.taxpayer')}</span></div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between gap-4"><span className="text-slate-500">Organisation</span><span className="font-medium text-slate-900 dark:text-slate-100">{watchedOrg || '—'}</span></div>
+                          <div className="flex justify-between gap-4"><span className="text-slate-500">Rôle</span><span className="font-medium text-violet-600 dark:text-violet-400">{AGENT_ROLE_OPTIONS.find((r) => r.value === watchedRole) ? t(AGENT_ROLE_OPTIONS.find((r) => r.value === watchedRole)!.labelKey) : '—'}</span></div>
+                        </>
+                      )}
                       {watchedMessage && <div className="flex justify-between gap-4"><span className="text-slate-500">Message</span><span className="max-w-48 truncate text-right font-medium text-slate-900 dark:text-slate-100">{watchedMessage}</span></div>}
                     </div>
                   </div>
@@ -305,14 +454,7 @@ export default function Register() {
                   </div>
                   <div>
                     {step < 2 ? (
-                      <Button
-                        type="button"
-                        onClick={async () => {
-                          const fields = step === 0 ? (['name', 'email'] as const) : (['organization', 'role'] as const)
-                          const ok = await trigger(fields)
-                          if (ok) setStep(step + 1)
-                        }}
-                      >
+                      <Button type="button" onClick={goNext}>
                         Suivant →
                       </Button>
                     ) : (

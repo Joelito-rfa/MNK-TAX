@@ -116,10 +116,10 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
     navigate('/login')
   }
 
-  const languages: { code: Locale; label: string; initial: string; color: string }[] = [
-    { code: 'fr', label: 'Français', initial: 'FR', color: 'bg-blue-600' },
-    { code: 'mg', label: 'Malagasy', initial: 'MG', color: 'bg-emerald-600' },
-    { code: 'en', label: 'English', initial: 'EN', color: 'bg-rose-600' },
+  const languages: { code: Locale; labelKey: string; initial: string; color: string }[] = [
+    { code: 'fr', labelKey: 'lang.fr', initial: 'FR', color: 'bg-blue-600' },
+    { code: 'mg', labelKey: 'lang.mg', initial: 'MG', color: 'bg-emerald-600' },
+    { code: 'en', labelKey: 'lang.en', initial: 'EN', color: 'bg-rose-600' },
   ]
 
   return (
@@ -287,7 +287,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: { onToggleSideb
                         }`}
                       >
                         <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[10px] font-bold text-white ${lang.color}`}>{lang.initial}</span>
-                        <span>{lang.label}</span>
+                        <span>{t(lang.labelKey)}</span>
                         {locale === lang.code && <span className="ml-auto text-brand-500 dark:text-brand-400">✓</span>}
                       </button>
                     ))}

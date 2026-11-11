@@ -52,6 +52,7 @@ class TaxRuleRepositoryResolveTest {
     private Long reelId;
     private Long simpId;
     private Long forfaitId;
+    private Long uncoveredId;
 
     @BeforeEach
     void setUp() {
@@ -62,12 +63,13 @@ class TaxRuleRepositoryResolveTest {
         reelId = saveRegime("RGT-RL" + suffix);
         simpId = saveRegime("RGT-SP" + suffix);
         forfaitId = saveRegime("RGT-FR" + suffix);
+        uncoveredId = saveRegime("RGT-UN" + suffix);
 
         // Regle specifique au regime reel, sans activite.
         saveRule("RZT-REEL", reelId, null, "20");
         // Regle specifique au regime simplifie.
         saveRule("RZT-SIMP", simpId, null, "10");
-        // Regle specifique a un regime tiers : ne doit jamais etre retenue.
+        // Regle specifique a un regime tiers : ne doit etre retenue que pour ce regime.
         saveRule("RZT-FORF", forfaitId, null, "2");
         // Regle generique : repli pour tout regime non couvert.
         saveRule("RZT-GEN", null, null, "15");
@@ -88,10 +90,17 @@ class TaxRuleRepositoryResolveTest {
     }
 
     @Test
+    @DisplayName("Contribuable du regime forfait : sa propre regle est retenue")
+    void forfaitRegimePicksItsOwnRule() {
+        assertEquals("RZT-FORF", first("COMPANY", forfaitId, null));
+    }
+
+    @Test
     @DisplayName("Contribuable d'un regime non couvert : repli sur la regle generique")
     void uncoveredRegimeFallsBackToGeneric() {
         // Avant correction, la regle du regime reel etait retenue faute de filtre.
-        assertEquals("RZT-GEN", first("COMPANY", forfaitId, null));
+        // uncoveredId n'a aucune regle dediee : seul le repli generique s'applique.
+        assertEquals("RZT-GEN", first("COMPANY", uncoveredId, null));
     }
 
     @Test

@@ -115,7 +115,7 @@ public class Taxpayer {
     /** Canaux préférés, ex : "IN_APP,EMAIL" ou "IN_APP,EMAIL,SMS". */
     @Column(name = "preferred_channels", length = 100, nullable = false)
     @Builder.Default
-    private String preferredChannels = "IN_APP";
+    private String preferredChannels = "IN_APP,EMAIL";
 
     /** Numéro normalisé E.164 (+261XXXXXXXXX) généré depuis phone. */
     @Column(name = "phone_normalized", length = 20)

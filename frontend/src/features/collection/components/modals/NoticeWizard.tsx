@@ -17,6 +17,7 @@ import {
 } from '../../../../components/ui'
 import { useToast } from '../../../../components/Toast'
 import { TERMINAL_STATUSES } from '../../../../components/collection/constants'
+import { invalidateCollectionData } from '../../api/keys'
 
 interface NoticeWizardProps {
   open: boolean
@@ -62,10 +63,9 @@ export function NoticeWizard({ open, onClose, presetDebtId, debts: externalDebts
         content: content.trim() || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['collection-debts'] })
-      queryClient.invalidateQueries({ queryKey: ['collection-stats'] })
-      queryClient.invalidateQueries({ queryKey: ['collection-history'] })
-      queryClient.invalidateQueries({ queryKey: ['collection-notices'] })
+      // 'collection-notices' est une clé morte (aucune query) : on invalide tout
+      // le périmètre recouvrement à la place.
+      invalidateCollectionData(queryClient)
       toast.success(t('collection.noticeIssued'))
       onClose()
     },

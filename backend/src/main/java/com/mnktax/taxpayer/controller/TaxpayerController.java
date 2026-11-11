@@ -82,6 +82,13 @@ public class TaxpayerController {
         return ResponseEntity.ok(taxpayerService.contacts(q, pageable));
     }
 
+    @GetMapping("/contacts/all")
+    @PreAuthorize("hasAuthority('" + Permissions.MESSAGE_WRITE + "')")
+    @Operation(summary = "Tous les contribuables enregistrés (sélection dans le composeur)")
+    public ResponseEntity<java.util.List<com.mnktax.taxpayer.dto.TaxpayerDtos.TaxpayerContactDto>> allContacts() {
+        return ResponseEntity.ok(taxpayerService.allContacts());
+    }
+
     @GetMapping("/{id:\\d+}/contact")
     @PreAuthorize("hasAuthority('" + Permissions.MESSAGE_WRITE + "')")
     @Operation(summary = "Coordonnées de communication d'un contribuable")

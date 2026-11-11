@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Calculator, Download, Eye, FileText, Receipt, Scale, Wallet } from 'lucide-react'
+import { Calculator, Eye, FileText, Receipt, Scale, Wallet } from 'lucide-react'
 import { fmtDate, fmtMGA, fmtNumber } from '../lib/format'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
-import { apiGetBlob } from '../lib/api'
-import type { Assessment } from '../types'
+import { apiGet, apiGetBlob } from '../lib/api'
+import type { Assessment, Page } from '../types'
+import { ExportButton } from '../components/ExportButton'
 import {
   Badge,
   Button,
   Card,
   EmptyState,
+  Input,
   Modal,
   PageHeader,
   Pagination,
@@ -30,17 +32,18 @@ import {
   useAssessmentStats,
   useAssessments,
   useCancelAssessment,
-  useCreateOffice,
   useNotifyAssessment,
   useSimulate,
   useTaxTypesRef,
 } from '../features/assessment/api/queries'
+import { OfficeWizard } from '../features/assessment/components/OfficeWizard'
+import { useTaxpayersRef } from '../features/taxpayer/api/queries'
 
 const ORIGINS = ['', 'DECLARATIVE', 'RECTIFICATIVE', 'REDRESSEMENT', 'OFFICE']
 const STATUSES = ['', 'EMISED', 'NOTIFIEE', 'ANNULEE']
 
 export default function Assessments() {
-  const { locale } = useI18n()
+  const { t, locale } = useI18n()
   const { can } = useAuth()
   const canWrite = can('ASSESSMENT_WRITE')
   const [params, setParams] = useSearchParams()
@@ -71,52 +74,48 @@ export default function Assessments() {
   const { data: taxTypes } = useTaxTypesRef()
   const { data: stats } = useAssessmentStats()
 
-  const exportCsv = () => {
-    const rows = data?.content ?? []
-    const header = 'reference;contribuable;nif;impot;periode;origine;statut;base;net;regle\n'
-    const body = rows
-      .map((a) =>
-        [a.reference, `"${a.taxpayerName}"`, a.nif, a.taxTypeCode, a.period, a.origin, a.status, a.taxBase ?? 0, a.netTax ?? 0, `${a.ruleCode} v${a.ruleVersion}`].join(';'),
-      )
-      .join('\n')
-    const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'impositions.csv'
-    link.click()
-    URL.revokeObjectURL(url)
+  /** Toutes les impositions correspondant aux filtres actifs (hors pagination). */
+  const exportAssessmentRows = async () => {
+    const p = new URLSearchParams(query)
+    p.delete('page')
+    p.delete('size')
+    const rows = await apiGet<Page<Assessment>>(`/assessments?${p.toString()}&size=9999`)
+    return rows.content.map((a) => [
+      a.reference, a.taxpayerName, a.nif, a.taxTypeCode, a.period, a.origin, a.status,
+      a.taxBase ?? 0, a.netTax ?? 0, `${a.ruleCode} v${a.ruleVersion}`,
+    ])
   }
 
   return (
     <div className="fx-page space-y-6">
       <PageHeader
-        title="Impositions"
-        subtitle="Cycle de vie complet : déclarative, rectificative (delta), redressement, office"
+        title={t('assessments.page.title')}
+        subtitle={t('assessments.page.subtitle')}
         actions={
           <div className="flex flex-wrap gap-2">
             {taxpayerId && (
               <Button variant="secondary" onClick={() => setParams({})}>
-                Retirer le filtre contribuable
-              </Button>
+                {t('assessments.page.removeTaxpayerFilter')}{' '}</Button>
             )}
             <Button variant="secondary" onClick={() => setShowSimulate(true)}>
-              <Calculator className="h-4 w-4" /> Simuler
-            </Button>
-            <Button variant="secondary" onClick={exportCsv}>
-              <Download className="h-4 w-4" /> CSV
-            </Button>
-            {canWrite && <Button onClick={() => setShowOffice(true)}>Taxation d'office</Button>}
+              <Calculator className="h-4 w-4" /> {t('assessments.page.simulate')}{' '}</Button>
+            <ExportButton
+              filenameBase="impositions"
+              title={t('assessments.page.title')}
+              headers={['Référence', 'Contribuable', 'NIF', 'Impôt', 'Période', 'Origine', 'Statut', 'Assiette', 'Net', 'Règle']}
+              rows={exportAssessmentRows}
+            />
+            {canWrite && <Button onClick={() => setShowOffice(true)}>{t('assessments.page.officeAssessment')}</Button>}
           </div>
         }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Impositions (total)" value={fmtNumber(stats?.total ?? data?.totalElements ?? 0, locale)} icon={<Scale className="h-5 w-5" />} tone="violet" />
-        <StatCard label="Base imposable (total)" value={fmtMGA(stats?.baseTotal ?? 0, locale)} icon={<Calculator className="h-5 w-5" />} tone="brand" />
-        <StatCard label="Impôt net (total)" value={fmtMGA(stats?.netTotal ?? 0, locale)} icon={<Wallet className="h-5 w-5" />} tone="emerald" />
+        <StatCard label={t('assessments.page.stat.total')} value={fmtNumber(stats?.total ?? data?.totalElements ?? 0, locale)} icon={<Scale className="h-5 w-5" />} tone="violet" />
+        <StatCard label={t('assessments.page.stat.baseTotal')} value={fmtMGA(stats?.baseTotal ?? 0, locale)} icon={<Calculator className="h-5 w-5" />} tone="brand" />
+        <StatCard label={t('assessments.page.stat.netTotal')} value={fmtMGA(stats?.netTotal ?? 0, locale)} icon={<Wallet className="h-5 w-5" />} tone="emerald" />
         <StatCard
-          label="Origines"
+          label={t('assessments.page.stat.origins')}
           value={(stats?.byOrigin ?? []).map((o) => `${o.origin}:${o.count}`).join(' · ') || '—'}
           sub={(stats?.byStatus ?? []).map((s) => `${s.status}:${s.count}`).join(' · ')}
           icon={<FileText className="h-5 w-5" />}
@@ -132,7 +131,7 @@ export default function Assessments() {
               setQ(v)
               setPage(0)
             }}
-            placeholder="Rechercher par référence, NIF ou nom…"
+            placeholder={t('assessments.page.searchPlaceholder')}
             className="min-w-56 flex-1"
           />
           <div className="w-52">
@@ -143,7 +142,7 @@ export default function Assessments() {
                 setPage(0)
               }}
             >
-              <option value="">Tous les impôts</option>
+              <option value="">{t('assessments.page.allTaxes')}</option>
               {taxTypes?.map((tt) => (
                 <option key={tt.id} value={tt.code}>
                   {tt.code} — {tt.name}
@@ -158,21 +157,21 @@ export default function Assessments() {
                 setPeriod(e.target.value)
                 setPage(0)
               }}
-              placeholder="Période (2026-01…)"
+              placeholder={t('assessments.page.periodPlaceholder')}
               className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
             />
           </div>
           <div className="w-44">
             <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0) }}>
               {STATUSES.map((s) => (
-                <option key={s} value={s}>{s === '' ? 'Tous statuts' : s}</option>
+                <option key={s} value={s}>{s === '' ? t('assessments.page.allStatuses') : s}</option>
               ))}
             </Select>
           </div>
           <div className="w-44">
             <Select value={origin} onChange={(e) => { setOrigin(e.target.value); setPage(0) }}>
               {ORIGINS.map((o) => (
-                <option key={o} value={o}>{o === '' ? 'Toutes origines' : o}</option>
+                <option key={o} value={o}>{o === '' ? t('assessments.page.allOrigins') : o}</option>
               ))}
             </Select>
           </div>
@@ -182,23 +181,23 @@ export default function Assessments() {
           <Spinner />
         ) : !data || data.content.length === 0 ? (
           <EmptyState
-            title="Aucune imposition"
-            subtitle="Les impositions sont générées lors de la validation, par taxation d'office ou par redressement."
+            title={t('assessments.page.empty.title')}
+            subtitle={t('assessments.page.empty.subtitle')}
           />
         ) : (
           <>
             <Table>
               <thead className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-700/50 dark:bg-slate-800/30">
                 <tr>
-                  <Th>Référence</Th>
-                  <Th>Contribuable</Th>
-                  <Th>Impôt</Th>
-                  <Th>Période</Th>
-                  <Th>Origine</Th>
-                  <Th>Statut</Th>
-                  <Th>Base imposable</Th>
-                  <Th>Impôt net</Th>
-                  <Th>Calculé le</Th>
+                  <Th>{t('common.reference')}</Th>
+                  <Th>{t('common.taxpayer')}</Th>
+                  <Th>{t('assessments.page.table.tax')}</Th>
+                  <Th>{t('common.period')}</Th>
+                  <Th>{t('assessments.page.table.origin')}</Th>
+                  <Th>{t('common.status')}</Th>
+                  <Th>{t('assessments.page.table.taxBase')}</Th>
+                  <Th>{t('assessments.page.table.netTax')}</Th>
+                  <Th>{t('assessments.page.table.calculatedAt')}</Th>
                   <Th></Th>
                 </tr>
               </thead>
@@ -226,8 +225,7 @@ export default function Assessments() {
                         onClick={() => setDetailId(a.id)}
                         className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-brand-700 transition hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-500/10"
                       >
-                        <Eye className="h-4 w-4" /> Détail
-                      </button>
+                        <Eye className="h-4 w-4" /> {t('common.details')}{' '}</button>
                     </Td>
                   </tr>
                 ))}
@@ -250,7 +248,7 @@ export default function Assessments() {
 
       {detailId != null && <AssessmentDetailModal id={detailId} onClose={() => setDetailId(null)} />}
       {showSimulate && <SimulateModal onClose={() => setShowSimulate(false)} />}
-      {showOffice && <OfficeModal onClose={() => setShowOffice(false)} />}
+      {showOffice && <OfficeWizard open onClose={() => setShowOffice(false)} />}
     </div>
   )
 }
@@ -258,7 +256,7 @@ export default function Assessments() {
 /* ──────────────────────── Détail + liens croisés ──────────────────────── */
 
 export function AssessmentDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
-  const { locale } = useI18n()
+  const { t, locale } = useI18n()
   const { can } = useAuth()
   const canWrite = can('ASSESSMENT_WRITE')
   const qc = useQueryClient()
@@ -285,7 +283,7 @@ export function AssessmentDetailModal({ id, onClose }: { id: number; onClose: ()
   const refresh = () => qc.invalidateQueries({ queryKey: ['assessments'] })
 
   return (
-    <Modal open onClose={onClose} title="Détail de l'imposition" wide>
+    <Modal open onClose={onClose} title={t('assessments.page.modal.detailTitle')} wide>
       {isLoading || !data ? (
         <Spinner />
       ) : (
@@ -293,50 +291,41 @@ export function AssessmentDetailModal({ id, onClose }: { id: number; onClose: ()
           <AssessmentDetailBody a={data} locale={locale} />
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => downloadAvis(data.reference)}>
-              <Receipt className="h-4 w-4" /> Avis PDF
-            </Button>
+              <Receipt className="h-4 w-4" /> {t('assessments.page.modal.avisPdf')}{' '}</Button>
             <Link
               to={`/debts?taxpayerId=${data.taxpayerId}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand-300 hover:text-brand-700 dark:border-slate-700 dark:text-slate-300"
             >
-              <Receipt className="h-3.5 w-3.5" /> Créances du contribuable
-            </Link>
+              <Receipt className="h-3.5 w-3.5" /> {t('assessments.page.modal.taxpayerDebts')}{' '}</Link>
             <Link
               to={`/payments?q=${encodeURIComponent(data.nif)}`}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:border-brand-300 hover:text-brand-700 dark:border-slate-700 dark:text-slate-300"
             >
-              <Wallet className="h-3.5 w-3.5" /> Paiements du contribuable
-            </Link>
+              <Wallet className="h-3.5 w-3.5" /> {t('assessments.page.modal.taxpayerPayments')}{' '}</Link>
             {data.status !== 'ANNULEE' && canWrite && (
               <>
                 <Button variant="secondary" onClick={() => notifyMut.mutate(undefined, { onSuccess: refresh })}>
-                  Notifier
-                </Button>
+                  {t('assessments.page.notify')}{' '}</Button>
                 <Button variant="secondary" onClick={() => setAdjustOpen((v) => !v)}>
-                  Ajuster
-                </Button>
+                  {t('assessments.page.adjust')}{' '}</Button>
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    const r = window.prompt('Motif d’annulation ?') ?? ''
+                    const r = window.prompt(t('assessments.page.cancelReason')) ?? ''
                     cancelMut.mutate({ reason: r }, { onSuccess: refresh })
                   }}
                 >
-                  Annuler
-                </Button>
+                  {t('common.cancel')}{' '}</Button>
               </>
             )}
           </div>
           {adjustOpen && (
             <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-100 p-3 dark:border-slate-700/50">
-              <label className="text-xs">Crédit
-                <input value={credit} onChange={(e) => setCredit(e.target.value)} placeholder="0" className="ml-2 w-32 rounded-lg border px-2 py-1.5 text-sm" />
+              <label className="text-xs">{t('assessments.page.credit')}{' '}<input value={credit} onChange={(e) => setCredit(e.target.value)} placeholder="0" className="ml-2 w-32 rounded-lg border px-2 py-1.5 text-sm" />
               </label>
-              <label className="text-xs">Ajustement
-                <input value={adjustment} onChange={(e) => setAdjustment(e.target.value)} placeholder="0" className="ml-2 w-32 rounded-lg border px-2 py-1.5 text-sm" />
+              <label className="text-xs">{t('assessments.page.adjustment')}{' '}<input value={adjustment} onChange={(e) => setAdjustment(e.target.value)} placeholder="0" className="ml-2 w-32 rounded-lg border px-2 py-1.5 text-sm" />
               </label>
-              <label className="text-xs">Observations
-                <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motif…" className="ml-2 w-48 rounded-lg border px-2 py-1.5 text-sm" />
+              <label className="text-xs">{t('assessments.page.observations')}{' '}<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t('assessments.page.reasonPlaceholder')} className="ml-2 w-48 rounded-lg border px-2 py-1.5 text-sm" />
               </label>
               <Button
                 onClick={() =>
@@ -346,13 +335,12 @@ export function AssessmentDetailModal({ id, onClose }: { id: number; onClose: ()
                   )
                 }
               >
-                Appliquer
-              </Button>
+                {t('common.apply')}{' '}</Button>
             </div>
           )}
           <div>
             <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-              Historique ({history?.length ?? 0})
+              {t('assessments.page.history', { count: history?.length ?? 0 })}
             </h4>
             <div className="space-y-1.5">
               {(history ?? []).map((h) => (
@@ -360,10 +348,10 @@ export function AssessmentDetailModal({ id, onClose }: { id: number; onClose: ()
                   <span className="font-mono text-slate-400">{fmtDate(h.createdAt)}</span>
                   <span className="font-semibold text-slate-700 dark:text-slate-300">{h.action}</span>
                   <span>{h.commentaire}</span>
-                  <span className="text-slate-400">par {h.username}</span>
+                  <span className="text-slate-400">{t('assessments.page.by')}{' '}{h.username}</span>
                 </div>
               ))}
-              {(history ?? []).length === 0 && <p className="text-xs text-slate-400">Aucun événement tracé.</p>}
+              {(history ?? []).length === 0 && <p className="text-xs text-slate-400">{t('assessments.page.noHistory')}</p>}
             </div>
           </div>
         </div>
@@ -373,6 +361,7 @@ export function AssessmentDetailModal({ id, onClose }: { id: number; onClose: ()
 }
 
 function AssessmentDetailBody({ a, locale }: { a: Assessment; locale: 'fr' | 'mg' | 'en' }) {
+  const { t } = useI18n()
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4 dark:border-slate-700/50 dark:bg-slate-800/30">
@@ -387,59 +376,59 @@ function AssessmentDetailBody({ a, locale }: { a: Assessment; locale: 'fr' | 'mg
           <Badge tone={a.status === 'ANNULEE' ? 'rose' : 'green'}>{a.status}</Badge>
         </div>
         {a.parentReference && (
-          <p className="mt-2 text-xs text-slate-500">Imposition d'origine : <span className="font-mono">{a.parentReference}</span> (annule-et-remplace / redressement rattaché)</p>
+          <p className="mt-2 text-xs text-slate-500">{t('assessments.page.parentOrigin')}{' '}<span className="font-mono">{a.parentReference}</span> {t('assessments.page.parentNote')}</p>
         )}
         <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Contribuable</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('common.taxpayer')}</p>
             <Link to={`/taxpayers/${a.taxpayerId}`} className="font-medium text-brand-700 hover:underline dark:text-brand-300">
               {a.taxpayerName}
             </Link>
             <p className="font-mono text-xs text-slate-400">{a.nif}</p>
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Déclaration d'origine</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('assessments.page.originalDeclaration')}</p>
             {a.declarationId ? (
               <Link to={`/declarations/${a.declarationId}`} className="font-medium text-brand-700 hover:underline dark:text-brand-300">
                 {a.declarationReference}
               </Link>
             ) : (
-              <p className="text-slate-500">Sans déclaration (office / redressement)</p>
+              <p className="text-slate-500">{t('assessments.page.noDeclaration')}</p>
             )}
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Calcul</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('assessments.page.calculation')}</p>
             <p className="text-slate-700 dark:text-slate-300">{fmtDate(a.calculationDate)}</p>
-            <p className="text-xs text-slate-400">par {a.computedBy}</p>
+            <p className="text-xs text-slate-400">{t('assessments.page.by')}{' '}{a.computedBy}</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Amount label="Base imposable" value={fmtMGA(a.taxBase, locale)} />
-        <Amount label="Impôt brut" value={fmtMGA(a.grossTax, locale)} />
-        <Amount label="Exonération" value={fmtMGA(a.exemption, locale)} />
-        <Amount label="Déduction" value={fmtMGA(a.deduction, locale)} />
-        <Amount label="Crédit" value={fmtMGA(a.credit, locale)} />
-        <Amount label="Ajustement" value={fmtMGA(a.adjustment, locale)} />
-        <Amount label="Impôt net" value={fmtMGA(a.netTax, locale)} emphasized />
+        <Amount label={t('assessments.page.table.taxBase')} value={fmtMGA(a.taxBase, locale)} />
+        <Amount label={t('assessments.page.gross')} value={fmtMGA(a.grossTax, locale)} />
+        <Amount label={t('assessments.page.exemption')} value={fmtMGA(a.exemption, locale)} />
+        <Amount label={t('assessments.page.deduction')} value={fmtMGA(a.deduction, locale)} />
+        <Amount label={t('assessments.page.credit')} value={fmtMGA(a.credit, locale)} />
+        <Amount label={t('assessments.page.adjustment')} value={fmtMGA(a.adjustment, locale)} />
+        <Amount label={t('assessments.page.table.netTax')} value={fmtMGA(a.netTax, locale)} emphasized />
       </div>
 
       <div>
         <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Détail du calcul ({a.lines.length} lignes)
+          {t('assessments.page.calculationDetail', { count: a.lines.length })}
         </h4>
         {a.lines.length === 0 ? (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Aucune ligne de calcul enregistrée.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">{t('assessments.page.noLines')}</p>
         ) : (
           <Table>
             <thead className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-700/50 dark:bg-slate-800/30">
               <tr>
                 <Th>#</Th>
-                <Th>Libellé</Th>
-                <Th>Base</Th>
-                <Th>Taux</Th>
-                <Th>Montant</Th>
+                <Th>{t('assessments.page.label')}</Th>
+                <Th>{t('assessments.page.base')}</Th>
+                <Th>{t('assessments.page.rate')}</Th>
+                <Th>{t('common.amount')}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
@@ -461,68 +450,59 @@ function AssessmentDetailBody({ a, locale }: { a: Assessment; locale: 'fr' | 'mg
 }
 
 function SimulateModal({ onClose }: { onClose: () => void }) {
-  const [taxpayerId, setTaxpayerId] = useState('')
+  const { t } = useI18n()
+  const [taxpayerId, setTaxpayerId] = useState(0)
   const [taxTypeCode, setTaxTypeCode] = useState('')
   const [period, setPeriod] = useState('')
   const [taxBase, setTaxBase] = useState('')
   const mut = useSimulate()
+  const { data: taxpayers } = useTaxpayersRef()
+  const { data: taxTypes } = useTaxTypesRef()
+  const selectedTaxpayer = taxpayers?.content?.find((tp) => tp.id === taxpayerId)
+  const canCalculate = !!taxpayerId && !!taxTypeCode && !!period && Number(taxBase) > 0
   return (
-    <Modal open onClose={onClose} title="Simuler un calcul">
-      <div className="grid grid-cols-2 gap-2">
-        <input value={taxpayerId} onChange={(e) => setTaxpayerId(e.target.value)} placeholder="ID contribuable" className="rounded-lg border px-2 py-1.5 text-sm" />
-        <input value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)} placeholder="Code impôt (ex. IRSA)" className="rounded-lg border px-2 py-1.5 text-sm" />
-        <input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="Période (2026-01)" className="rounded-lg border px-2 py-1.5 text-sm" />
-        <input value={taxBase} onChange={(e) => setTaxBase(e.target.value)} placeholder="Assiette" className="rounded-lg border px-2 py-1.5 text-sm" />
+    <Modal open onClose={onClose} title={t('assessments.page.simulateTitle')}>
+      <div className="grid grid-cols-2 gap-3">
+        <Select value={String(taxpayerId)} onChange={(e) => setTaxpayerId(Number(e.target.value) || 0)}>
+          <option value="0">{t('assessments.page.selectTaxpayer')}</option>
+          {taxpayers?.content?.map((tp) => (
+            <option key={tp.id} value={tp.id}>{tp.nif} — {tp.name}</option>
+          ))}
+        </Select>
+        <Select value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)}>
+          <option value="">{t('assessments.page.selectTax')}</option>
+          {taxTypes?.map((tt) => (
+            <option key={tt.id} value={tt.code}>{tt.code} — {tt.name}</option>
+          ))}
+        </Select>
+        <Input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder={t('assessments.page.periodPlaceholderShort')} maxLength={10} />
+        <Input
+          type="number"
+          min="0"
+          step="0.01"
+          value={taxBase}
+          onChange={(e) => setTaxBase(e.target.value)}
+          placeholder={t('assessments.page.taxBasePlaceholder')}
+        />
       </div>
+      {selectedTaxpayer && (
+        <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800/50">
+          <p className="font-medium">{selectedTaxpayer.nif} — {selectedTaxpayer.name}</p>
+          {selectedTaxpayer.taxCenterCode && <p className="text-slate-500">{t('assessments.page.taxCenter')}{' '}{selectedTaxpayer.taxCenterCode}</p>}
+          {selectedTaxpayer.taxRegimeCode && <p className="text-slate-500">{t('assessments.page.regime')}{' '}{selectedTaxpayer.taxRegimeCode}</p>}
+        </div>
+      )}
       <div className="mt-3 flex gap-2">
-        <Button
-          onClick={() =>
-            mut.mutate({ taxpayerId: Number(taxpayerId), taxTypeCode, period, taxBase: Number(taxBase) })
-          }
-        >
-          Calculer
-        </Button>
+        <Button onClick={() => mut.mutate({ taxpayerId, taxTypeCode, period, taxBase: Number(taxBase) })} disabled={!canCalculate}>
+          {t('assessments.page.calculate')}{' '}</Button>
       </div>
       {mut.data && (
         <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm dark:bg-slate-800">
-          <p>Règle : <span className="font-mono">{mut.data.ruleCode} v{mut.data.ruleVersion}</span> — taux {mut.data.rate}%</p>
-          <p>Brut : {mut.data.grossTax} · Exonération : {mut.data.exemption} · Déduction : {mut.data.deduction}</p>
-          <p className="font-semibold">Net : {mut.data.netTax} MGA</p>
+          <p>{t('assessments.page.rule')}{' '}<span className="font-mono">{mut.data.ruleCode} v{mut.data.ruleVersion}</span> {t('assessments.page.rateShort')}{' '}{mut.data.rate}%</p>
+          <p>{t('assessments.page.grossShort')}{' '}{mut.data.grossTax} {t('assessments.page.exemptionShort')}{' '}{mut.data.exemption} {t('assessments.page.deductionShort')}{' '}{mut.data.deduction}</p>
+          <p className="font-semibold">{t('assessments.page.netShort')}{' '}{mut.data.netTax} MGA</p>
         </div>
       )}
-    </Modal>
-  )
-}
-
-function OfficeModal({ onClose }: { onClose: () => void }) {
-  const qc = useQueryClient()
-  const [taxpayerId, setTaxpayerId] = useState('')
-  const [taxTypeCode, setTaxTypeCode] = useState('')
-  const [period, setPeriod] = useState('')
-  const [taxBase, setTaxBase] = useState('')
-  const [observations, setObservations] = useState('')
-  const mut = useCreateOffice()
-  return (
-    <Modal open onClose={onClose} title="Taxation d'office">
-      <div className="grid grid-cols-2 gap-2">
-        <input value={taxpayerId} onChange={(e) => setTaxpayerId(e.target.value)} placeholder="ID contribuable *" className="rounded-lg border px-2 py-1.5 text-sm" />
-        <input value={taxTypeCode} onChange={(e) => setTaxTypeCode(e.target.value)} placeholder="Code impôt *" className="rounded-lg border px-2 py-1.5 text-sm" />
-        <input value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="Période *" className="rounded-lg border px-2 py-1.5 text-sm" />
-        <input value={taxBase} onChange={(e) => setTaxBase(e.target.value)} placeholder="Assiette *" className="rounded-lg border px-2 py-1.5 text-sm" />
-        <input value={observations} onChange={(e) => setObservations(e.target.value)} placeholder="Motif / observations" className="col-span-2 rounded-lg border px-2 py-1.5 text-sm" />
-      </div>
-      <div className="mt-3 flex gap-2">
-        <Button
-          onClick={() =>
-            mut.mutate(
-              { taxpayerId: Number(taxpayerId), taxTypeCode, period, taxBase: Number(taxBase), observations: observations || null } as unknown as Record<string, unknown>,
-              { onSuccess: () => { qc.invalidateQueries({ queryKey: ['assessments'] }); onClose() } },
-            )
-          }
-        >
-          Émettre l'imposition
-        </Button>
-      </div>
     </Modal>
   )
 }

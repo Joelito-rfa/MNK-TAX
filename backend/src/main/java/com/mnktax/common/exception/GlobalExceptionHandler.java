@@ -7,11 +7,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -54,6 +56,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest()
                 .body(ApiError.of(400, "INVALID_ARGUMENT",
                         "Paramètre invalide : " + ex.getName(), request.getRequestURI()));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParameter(MissingServletRequestParameterException ex,
+                                                           HttpServletRequest request) {
+        return ResponseEntity.badRequest()
+                .body(ApiError.of(400, "MISSING_PARAMETER",
+                        "Paramètre obligatoire manquant : " + ex.getParameterName(), request.getRequestURI()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException ex,
+                                                         HttpServletRequest request) {
+        return ResponseEntity.badRequest()
+                .body(ApiError.of(400, "INVALID_BODY",
+                        "Corps de requête illisible ou JSON invalide.", request.getRequestURI()));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -99,7 +117,7 @@ public class GlobalExceptionHandler {
             case "RESOURCE_NOT_FOUND", "NOT_FOUND" -> HttpStatus.NOT_FOUND;
             case "FORBIDDEN" -> HttpStatus.FORBIDDEN;
             case "UNAUTHORIZED", "BAD_CREDENTIALS", "TOKEN_EXPIRED", "TOKEN_INVALID" -> HttpStatus.UNAUTHORIZED;
-            case "DATA_CONFLICT", "DUPLICATE" -> HttpStatus.CONFLICT;
+            case "DATA_CONFLICT", "DUPLICATE", "DISPUTE_OPEN" -> HttpStatus.CONFLICT;
             default -> HttpStatus.BAD_REQUEST;
         };
     }

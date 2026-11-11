@@ -1,15 +1,23 @@
 import { ArrowRight, CheckCircle2, Search, ShieldCheck, FileText, MessageSquare, ClipboardList, BarChart3 } from 'lucide-react'
 import { Button } from '../ui'
 import ScrollReveal from './ScrollReveal'
+import { useI18n } from '../../lib/i18n'
 
 export function ForAgents({ onLogin }: { onLogin: () => void }) {
+  const { t } = useI18n()
   const features = [
-    { icon: Search, text: 'Recherche rapide de contribuables' },
-    { icon: FileText, text: 'Validation des déclarations' },
-    { icon: ShieldCheck, text: 'Suivi des créances' },
-    { icon: ClipboardList, text: 'Contrôle fiscal ciblé' },
-    { icon: MessageSquare, text: 'Messagerie intégrée' },
-    { icon: BarChart3, text: 'Reporting et statistiques' },
+    { icon: Search, textKey: 'landing.agents.feature.search' },
+    { icon: FileText, textKey: 'landing.agents.feature.validate' },
+    { icon: ShieldCheck, textKey: 'landing.agents.feature.debts' },
+    { icon: ClipboardList, textKey: 'landing.agents.feature.control' },
+    { icon: MessageSquare, textKey: 'landing.agents.feature.messaging' },
+    { icon: BarChart3, textKey: 'landing.agents.feature.reporting' },
+  ]
+  const notifications = [
+    'landing.agents.notification.vat',
+    'landing.agents.notification.debt',
+    'landing.agents.notification.payment',
+    'landing.agents.notification.control',
   ]
 
   return (
@@ -19,22 +27,22 @@ export function ForAgents({ onLogin }: { onLogin: () => void }) {
           <ScrollReveal animation="blur-up">
             <div>
               <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Conçu pour les agents,
-                <span className="block text-brand-400">pensé pour la performance.</span>
+                {t('landing.agents.titleLine1')}
+                <span className="block text-brand-400">{t('landing.agents.titleLine2')}</span>
               </h2>
-              <p className="mt-4 text-slate-400">Outils puissants pour gérer efficacement vos opérations fiscales au quotidien.</p>
+              <p className="mt-4 text-slate-400">{t('landing.agents.description')}</p>
               <ul className="mt-8 space-y-3">
                 {features.map((f, i) => (
-                  <ScrollReveal key={f.text} animation="blur-up" delay={100 + i * 60}>
+                  <ScrollReveal key={f.textKey} animation="blur-up" delay={100 + i * 60}>
                     <li className="flex items-center gap-3 text-sm text-slate-300">
                       <f.icon className="h-4 w-4 shrink-0 text-brand-400" />
-                      {f.text}
+                      {t(f.textKey)}
                     </li>
                   </ScrollReveal>
                 ))}
               </ul>
               <Button onClick={onLogin} size="lg" className="mt-8 rounded-2xl bg-brand-600 px-8 text-white shadow-xl shadow-brand-600/25">
-                Accéder à la plateforme <ArrowRight className="h-4 w-4" />
+                {t('landing.agents.cta')} <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </ScrollReveal>
@@ -42,12 +50,12 @@ export function ForAgents({ onLogin }: { onLogin: () => void }) {
             <div className="hidden lg:block">
               <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-8 backdrop-blur-xl">
                 <div className="space-y-3">
-                  {['Déclaration TVA en cours de validation', 'Nouvelle créance IRSA détectée', 'Paiement reçu — 2 500 000 Ar', 'Contrôle fiscal planifié'].map((item, i) => (
-                    <ScrollReveal key={i} animation="blur-up" delay={300 + i * 80}>
+                  {notifications.map((key, i) => (
+                    <ScrollReveal key={key} animation="blur-up" delay={300 + i * 80}>
                       <div className="notif-row flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.04] p-3"
                         style={{ ['--d' as string]: `${i * 1.5}s` }}>
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                        <span className="text-xs text-slate-300">{item}</span>
+                        <span className="text-xs text-slate-300">{t(key)}</span>
                       </div>
                     </ScrollReveal>
                   ))}
@@ -62,13 +70,14 @@ export function ForAgents({ onLogin }: { onLogin: () => void }) {
 }
 
 export function ForTaxpayers({ onRequestAccess }: { onRequestAccess: () => void }) {
-  const features = [
-    'Déclarations fiscales',
-    'Échéances à venir',
-    'Paiements en ligne',
-    'Quittances téléchargeables',
-    'Messagerie avec l\'administration',
-    'Réclamations',
+  const { t } = useI18n()
+  const featureKeys = [
+    'landing.taxpayers.feature.declarations',
+    'landing.taxpayers.feature.deadlines',
+    'landing.taxpayers.feature.payments',
+    'landing.taxpayers.feature.receipts',
+    'landing.taxpayers.feature.messages',
+    'landing.taxpayers.feature.complaints',
   ]
 
   return (
@@ -79,12 +88,12 @@ export function ForTaxpayers({ onRequestAccess }: { onRequestAccess: () => void 
             <div className="hidden lg:block">
               <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-8 backdrop-blur-xl">
                 <div className="grid grid-cols-2 gap-3">
-                  {features.map((f, i) => (
-                    <ScrollReveal key={f} animation="blur-up" delay={200 + i * 70}>
+                  {featureKeys.map((key, i) => (
+                    <ScrollReveal key={key} animation="blur-up" delay={200 + i * 70}>
                       <div className="notif-row flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.04] p-3"
                         style={{ ['--d' as string]: `${i * 1.2}s` }}>
                         <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-brand-400" />
-                        <span className="text-xs text-slate-300">{f}</span>
+                        <span className="text-xs text-slate-300">{t(key)}</span>
                       </div>
                     </ScrollReveal>
                   ))}
@@ -95,12 +104,12 @@ export function ForTaxpayers({ onRequestAccess }: { onRequestAccess: () => void 
           <ScrollReveal animation="blur-up">
             <div>
               <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Un accès plus simple
-                <span className="block text-brand-400">à vos obligations fiscales.</span>
+                {t('landing.taxpayers.titleLine1')}
+                <span className="block text-brand-400">{t('landing.taxpayers.titleLine2')}</span>
               </h2>
-              <p className="mt-4 text-slate-400">Consultez vos déclarations, échéances et paiements depuis une interface intuitive.</p>
+              <p className="mt-4 text-slate-400">{t('landing.taxpayers.description')}</p>
               <Button onClick={onRequestAccess} size="lg" variant="secondary" className="mt-8 rounded-2xl border-white/10 bg-white/5 text-white hover:bg-white/10">
-                Demander un accès <ArrowRight className="h-4 w-4" />
+                {t('landing.taxpayers.cta')} <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </ScrollReveal>
@@ -111,12 +120,18 @@ export function ForTaxpayers({ onRequestAccess }: { onRequestAccess: () => void 
 }
 
 export function Transparency() {
-  const items = [
-    'Chaque action est traçable.',
-    'Chaque opération est historisée.',
-    'Chaque paiement peut être vérifié.',
+  const { t } = useI18n()
+  const itemKeys = [
+    'landing.transparency.item1',
+    'landing.transparency.item2',
+    'landing.transparency.item3',
   ]
-  const steps = ['Action', 'Audit', 'Historique', 'Vérification']
+  const stepKeys = [
+    'landing.transparency.step.action',
+    'landing.transparency.step.audit',
+    'landing.transparency.step.history',
+    'landing.transparency.step.verification',
+  ]
 
   return (
     <section className="relative py-24">
@@ -125,15 +140,15 @@ export function Transparency() {
           <ScrollReveal animation="blur-up">
             <div>
               <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Chaque action est traçable.
+                {t('landing.transparency.title')}
               </h2>
-              <p className="mt-4 text-slate-400">Journal d'audit complet pour chaque opération effectuée dans le système.</p>
+              <p className="mt-4 text-slate-400">{t('landing.transparency.description')}</p>
               <ul className="mt-8 space-y-4">
-                {items.map((item, i) => (
-                  <ScrollReveal key={item} animation="blur-up" delay={100 + i * 80}>
+                {itemKeys.map((key, i) => (
+                  <ScrollReveal key={key} animation="blur-up" delay={100 + i * 80}>
                     <li className="flex items-center gap-3 text-sm text-slate-300">
                       <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                      {item}
+                      {t(key)}
                     </li>
                   </ScrollReveal>
                 ))}
@@ -142,14 +157,14 @@ export function Transparency() {
           </ScrollReveal>
           <ScrollReveal animation="slide-left" delay={150}>
             <div className="flex flex-col items-start gap-3">
-              {steps.map((s, i) => (
-                <ScrollReveal key={s} animation="blur-up" delay={200 + i * 90}>
+              {stepKeys.map((key, i) => (
+                <ScrollReveal key={key} animation="blur-up" delay={200 + i * 90}>
                   <div className="flex items-center gap-4">
                     <div className="audit-step flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-xs font-bold text-brand-400"
                       style={{ ['--d' as string]: `${i * 1.2}s` }}>
                       {i + 1}
                     </div>
-                    <span className="text-sm font-medium text-white">{s}</span>
+                    <span className="text-sm font-medium text-white">{t(key)}</span>
                   </div>
                 </ScrollReveal>
               ))}

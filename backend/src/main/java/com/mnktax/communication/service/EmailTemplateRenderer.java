@@ -1,13 +1,39 @@
 package com.mnktax.communication.service;
 
+import com.mnktax.communication.provider.EmailAttachment;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Rendu HTML professionnel des emails MNK-TAX :
- * en-tête institutionnel, contenu, bouton d'action, pied de page légal.
+ * en-tête institutionnel avec le logo du projet, contenu, bouton d'action,
+ * pied de page légal.
+ *
+ * <p>Le logo est embarqué dans le message (CID) plutôt que référencé par une
+ * URL : il s'affiche donc même si le destinataire n'a pas accès au frontend
+ * (localhost, intranet, réseau restreint).</p>
  */
 @Service
 public class EmailTemplateRenderer {
+
+    /** Identifiant CID du logo, référencé dans le HTML par {@code cid:mnk-tax-logo}. */
+    public static final String LOGO_CONTENT_ID = "mnk-tax-logo";
+
+    private static final Logger log = LoggerFactory.getLogger(EmailTemplateRenderer.class);
+    private static final String LOGO_PATH = "email/logo.png";
+
+    private final byte[] logoPng;
+
+    public EmailTemplateRenderer() {
+        this.logoPng = loadLogo();
+    }
 
     public String render(String title, String body, String buttonLabel, String buttonUrl, String referenceLine) {
         String safeBody = escape(body);
@@ -23,10 +49,21 @@ public class EmailTemplateRenderer {
             .append("style=\"max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;")
             .append("box-shadow:0 1px 3px rgba(15,23,42,0.12);\">\n")
 
-            // En-tête institutionnel
-            .append("<tr><td style=\"background-color:#0f3d6e;padding:24px 32px;\">\n")
+            // En-tête institutionnel : logo embarqué + identité
+            .append("<tr><td style=\"background-color:#0f3d6e;padding:20px 32px;\">\n")
+            .append("<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>\n");
+        if (logoPng != null) {
+            html.append("<td style=\"padding-right:14px;\">\n")
+                .append("<img src=\"cid:").append(LOGO_CONTENT_ID).append("\" alt=\"MNK-TAX\" ")
+                .append("width=\"56\" height=\"56\" style=\"display:block;width:56px;height:56px;")
+                .append("border-radius:12px;background-color:#ffffff;\">\n")
+                .append("</td>\n");
+        }
+        html.append("<td>\n")
             .append("<div style=\"color:#ffffff;font-size:20px;font-weight:bold;letter-spacing:1px;\">MNK-TAX</div>\n")
             .append("<div style=\"color:#c7d6ea;font-size:12px;margin-top:4px;\">Administration fiscale</div>\n")
+            .append("</td>\n")
+            .append("</tr></table>\n")
             .append("</td></tr>\n")
 
             // Titre
@@ -73,6 +110,31 @@ public class EmailTemplateRenderer {
         return html.toString();
     }
 
+    /**
+     * Version texte brut du même message. Envoyée en alternative au HTML
+     * (multipart/alternative) : les filtres anti-spam et les clients simples
+     * privilégient un email contenant une vraie partie texte.
+     */
+    public String renderText(String title, String body, String buttonLabel, String buttonUrl, String referenceLine) {
+        StringBuilder text = new StringBuilder();
+        text.append("MNK-TAX — Administration fiscale\n\n");
+        text.append(title == null ? "Notification fiscale" : title).append("\n\n");
+        if (body != null) {
+            text.append(body).append("\n");
+        }
+        if (referenceLine != null && !referenceLine.isBlank()) {
+            text.append("\nRéférence : ").append(referenceLine).append("\n");
+        }
+        if (buttonLabel != null && !buttonLabel.isBlank() && buttonUrl != null && !buttonUrl.isBlank()) {
+            text.append("\n").append(buttonLabel).append(" : ").append(buttonUrl).append("\n");
+        }
+        text.append("\n--\n")
+            .append("MNK-TAX — Administration fiscale de Madagascar.\n")
+            .append("Cet email et ses pièces jointes contiennent des informations fiscales protégées.\n")
+            .append("Si vous n'êtes pas le destinataire prévu, ne le diffusez pas et signalez-le à l'administration.\n");
+        return text.toString();
+    }
+
     public String escape(String value) {
         if (value == null) return "";
         return value
@@ -81,6 +143,38 @@ public class EmailTemplateRenderer {
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
                 .replace("'", "&#39;");
+    }
+
+    /** Ressources inline à joindre à chaque email (logo de l'en-tête). */
+    public List<EmailAttachment> inlineAssets() {
+        if (logoPng == null) {
+            return List.of();
+        }
+        return List.of(new EmailAttachment(
+                "mnk-tax-logo.png", "image/png", logoPng, LOGO_CONTENT_ID));
+    }
+
+    /** Ajoute les ressources de marque (logo) aux pièces jointes métier. */
+    public List<EmailAttachment> withInlineAssets(List<EmailAttachment> attachments) {
+        List<EmailAttachment> all = new ArrayList<>(inlineAssets());
+        if (attachments != null) {
+            all.addAll(attachments);
+        }
+        return all;
+    }
+
+    private static byte[] loadLogo() {
+        ClassPathResource resource = new ClassPathResource(LOGO_PATH);
+        if (!resource.exists()) {
+            log.warn("Logo email absent (classpath:{}) : en-tête sans logo.", LOGO_PATH);
+            return null;
+        }
+        try (InputStream input = resource.getInputStream()) {
+            return input.readAllBytes();
+        } catch (IOException ex) {
+            log.warn("Logo email illisible (classpath:{}) : {}", LOGO_PATH, ex.getMessage());
+            return null;
+        }
     }
 
     private String escapeUrl(String url) {

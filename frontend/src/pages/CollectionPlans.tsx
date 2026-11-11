@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useLocaleFormatters } from '../lib/format'
 import { useI18n } from '../lib/i18n'
+import { useAuth } from '../lib/auth'
 import { apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
 import type { CollectionDebtRow, InstallmentStatus, Page, PaymentPlan, PaymentPlanStatus } from '../types'
 import {
@@ -36,6 +37,7 @@ import {
   Th,
 } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { ExportButton } from '../components/ExportButton'
 
 /* ═══════════════════════════════════════════════════════════
    LIBELLÉS — statuts des échéanciers et tranches
@@ -434,6 +436,9 @@ export default function CollectionPlans() {
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { t } = useI18n()
+  const { can } = useAuth()
+  const canWrite = can('COLLECTION_WRITE')
 
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(20)
@@ -470,6 +475,26 @@ export default function CollectionPlans() {
     queryFn: () => apiGet<Page<PaymentPlan>>(`/collection/plans?${buildUrl()}`),
   })
 
+  /** Tous les échéanciers correspondant aux filtres actifs (hors pagination). */
+  const exportPlanRows = async () => {
+    const p = new URLSearchParams({ size: '9999' })
+    if (status) p.set('status', status)
+    if (q) p.set('q', q)
+    const rows = await apiGet<Page<PaymentPlan>>(`/collection/plans?${p.toString()}`)
+    return rows.content.map((plan) => [
+      plan.reference,
+      plan.debtReference,
+      `${plan.taxpayerName} (${plan.nif})`,
+      plan.totalAmount,
+      plan.paidAmount,
+      plan.remainingAmount,
+      plan.totalAmount > 0 ? Math.min(100, Math.round((plan.paidAmount / plan.totalAmount) * 100)) : 0,
+      `${plan.paidInstallments}/${plan.installmentCount}`,
+      plan.nextDueDate ?? '',
+      t(PLAN_STATUS_KEYS[plan.status]),
+    ])
+  }
+
   const { data: stats } = useQuery({
     queryKey: ['plan-stats'],
     queryFn: () =>
@@ -488,7 +513,7 @@ export default function CollectionPlans() {
       queryClient.invalidateQueries({ queryKey: ['plan-stats'] })
       setCancelTarget(null)
       setCancelReason('')
-      toast.success(`Échéancier ${plan.reference} annulé`)
+      toast.success(t('collection.plans.cancelledToast', { ref: plan.reference }))
     },
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
@@ -513,9 +538,19 @@ export default function CollectionPlans() {
             Plans d'étalement des créances — tranches soldées par les paiements réels, alertes en cas de tranche échue
           </p>
         </div>
-        <Button onClick={() => { setPresetDebtId(''); setCreateOpen(true) }}>
-          <Plus className="h-4 w-4" /> Nouvel échéancier
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportButton
+            filenameBase={`echanciers_${new Date().toISOString().slice(0, 10)}`}
+            title="Échéanciers de paiement"
+            headers={['Référence', 'Créance', 'Contribuable', 'Total', 'Payé', 'Reste', 'Avancement', 'Tranches', 'Prochaine échéance', 'Statut']}
+            rows={exportPlanRows}
+          />
+          {canWrite && (
+            <Button onClick={() => { setPresetDebtId(''); setCreateOpen(true) }}>
+              <Plus className="h-4 w-4" /> Nouvel échéancier
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* ── Synthèse (style Règles fiscales) ── */}
@@ -611,6 +646,7 @@ export default function CollectionPlans() {
                         open={open}
                         onToggle={() => setExpanded(open ? null : plan.id)}
                         onCancel={() => setCancelTarget(plan)}
+                        canCancel={canWrite}
                       />
                     )
                   })}
@@ -635,7 +671,7 @@ export default function CollectionPlans() {
       </Card>
 
       {/* ── Modales ── */}
-      <CreatePlanModal open={createOpen} onClose={() => setCreateOpen(false)} presetDebtId={presetDebtId} />
+      {canWrite && <CreatePlanModal open={createOpen} onClose={() => setCreateOpen(false)} presetDebtId={presetDebtId} />}
       <ConfirmDialog
         open={cancelTarget !== null}
         title="Annuler l'échéancier"
@@ -668,11 +704,13 @@ function PlanRow({
   open,
   onToggle,
   onCancel,
+  canCancel,
 }: {
   plan: PaymentPlan
   open: boolean
   onToggle: () => void
   onCancel: () => void
+  canCancel: boolean
 }) {
   const { fmtMGA, fmtDate } = useLocaleFormatters()
   return (
@@ -706,7 +744,7 @@ function PlanRow({
         <Td>{plan.nextDueDate ? <span className="text-xs">{fmtDate(plan.nextDueDate)}</span> : <span className="text-xs text-slate-400">—</span>}</Td>
         <Td><PlanBadge status={plan.status} /></Td>
         <Td>
-          {plan.status === 'ACTIVE' && (
+          {canCancel && plan.status === 'ACTIVE' && (
             <button
               onClick={onCancel}
               className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-900/20"

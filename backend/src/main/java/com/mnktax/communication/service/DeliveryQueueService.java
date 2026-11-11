@@ -55,6 +55,8 @@ public class DeliveryQueueService {
     private final EmailTemplateRenderer emailRenderer;
     private final CommunicationProperties properties;
     private final AuditService auditService;
+    /** Proxy Spring du service : garantit que selfProcess() ouvre bien une nouvelle transaction. */
+    private final org.springframework.beans.factory.ObjectProvider<DeliveryQueueService> self;
 
     public DeliveryQueueService(MessageDeliveryRepository deliveryRepository,
                                 MessageRepository messageRepository,
@@ -64,7 +66,8 @@ public class DeliveryQueueService {
                                 SmsProvider smsProvider,
                                 EmailTemplateRenderer emailRenderer,
                                 CommunicationProperties properties,
-                                AuditService auditService) {
+                                AuditService auditService,
+                                org.springframework.beans.factory.ObjectProvider<DeliveryQueueService> self) {
         this.deliveryRepository = deliveryRepository;
         this.messageRepository = messageRepository;
         this.attachmentRepository = attachmentRepository;
@@ -74,13 +77,15 @@ public class DeliveryQueueService {
         this.emailRenderer = emailRenderer;
         this.properties = properties;
         this.auditService = auditService;
+        this.self = self;
     }
 
     /**
      * Worker périodique : traite les livraisons PENDING échues (première
      * tentative ou retry), par petits lots — jamais en masse dans une requête HTTP.
      */
-    @Scheduled(fixedDelayString = "${mnk-tax.communication.queue.poll-delay-ms:20000}", initialDelay = 8000)
+    @Scheduled(fixedDelayString = "${mnk-tax.communication.queue.poll-delay-ms:20000}",
+            initialDelayString = "${mnk-tax.communication.queue.poll-initial-delay-ms:8000}")
     public void processDueDeliveries() {
         try {
             List<MessageDelivery> due = deliveryRepository.findDue(
@@ -88,10 +93,150 @@ public class DeliveryQueueService {
                     PageRequest.of(0, properties.getQueue().getBatchSize()));
             for (MessageDelivery delivery : due) {
                 // Transaction indépendante : une erreur d'un canal ne bloque pas les autres.
-                selfProcess(delivery.getId());
+                // Passage par le proxy Spring : un appel direct this.selfProcess()
+                // ignorerait @Transactional(REQUIRES_NEW).
+                self.getObject().selfProcess(delivery.getId());
             }
         } catch (Exception ex) {
             log.error("Erreur du worker de livraison", ex);
+        }
+    }
+
+    /**
+     * Filet de sécurité périodique : relance les emails dont les tentatives
+     * immédiates sont épuisées et récupère les livraisons restées bloquées en
+     * SENDING (arrêt brutal du serveur, coupure réseau…).
+     *
+     * <p>La relance automatique ne concerne que les erreurs temporaires
+     * ({@code lastErrorRetryable}) et reste plafonnée par la configuration.
+     * Une adresse invalide (422) n'est donc jamais rejouée en boucle ; la
+     * relance manuelle reste disponible pour ces cas.</p>
+     */
+    @Scheduled(fixedDelayString = "${mnk-tax.communication.queue.sweep-delay-ms:60000}",
+            initialDelayString = "${mnk-tax.communication.queue.sweep-initial-delay-ms:20000}")
+    public void retryLateDeliveries() {
+        if (!properties.getQueue().isAutoRetryEnabled()) {
+            return;
+        }
+        try {
+            // Reprise des envois interrompus : toujours utile, même sans fournisseur.
+            self.getObject().recoverStaleSendingDeliveries();
+            if (emailProvider.isConfigured()) {
+                self.getObject().requeueFailedEmailDeliveries();
+            } else {
+                log.debug("Relance automatique des emails ignorée : fournisseur email non configuré.");
+            }
+        } catch (Exception ex) {
+            log.error("Erreur du balayage de relance automatique", ex);
+        }
+    }
+
+    /** Remet en file les livraisons bloquées en SENDING au-delà du délai configuré. */
+    @Transactional
+    public void recoverStaleSendingDeliveries() {
+        CommunicationProperties.Queue queue = properties.getQueue();
+        Instant now = Instant.now();
+        Instant threshold = now.minus(Math.max(1, queue.getStaleSendingMinutes()), ChronoUnit.MINUTES);
+        List<MessageDelivery> stale = deliveryRepository.findStaleSending(
+                DeliveryStatus.SENDING, threshold, PageRequest.of(0, queue.getBatchSize()));
+
+        for (MessageDelivery delivery : stale) {
+            Message message = messageRepository.findById(delivery.getMessageId()).orElse(null);
+            Instant previousUpdate = delivery.getUpdatedAt();
+            if (delivery.getAutoRetryCount() >= queue.getAutoRetryMaxCycles()) {
+                delivery.setStatus(DeliveryStatus.FAILED);
+                delivery.setLastError(truncate(
+                        "Envoi interrompu — reprise automatique épuisée.", 1000));
+                delivery.setLastErrorRetryable(false);
+                delivery.setNextRetryAt(null);
+                delivery.setUpdatedAt(now);
+                deliveryRepository.save(delivery);
+                if (message != null) {
+                    refreshMessageStatus(message);
+                    messageRepository.save(message);
+                }
+                auditService.record("MESSAGE_AUTO_RETRY_EXHAUSTED", "MESSAGE",
+                        String.valueOf(delivery.getMessageId()), null,
+                        "delivery=" + delivery.getId() + ", channel=" + delivery.getChannel().name()
+                                + ", staleSince=" + previousUpdate);
+                log.warn("Livraison {} bloquée en SENDING : reprise automatique épuisée "
+                                + "({} cycles), passage en FAILED.",
+                        delivery.getId(), delivery.getAutoRetryCount());
+                continue;
+            }
+
+            int cycle = delivery.getAutoRetryCount() + 1;
+            delivery.setStatus(DeliveryStatus.PENDING);
+            delivery.setAutoRetryCount(cycle);
+            delivery.setNextRetryAt(now);
+            delivery.setLastError(truncate(
+                    "Envoi interrompu — reprise automatique en cours.", 1000));
+            delivery.setLastErrorRetryable(true);
+            delivery.setUpdatedAt(now);
+            deliveryRepository.save(delivery);
+            if (message != null) {
+                message.setLastError(null);
+                refreshMessageStatus(message);
+                messageRepository.save(message);
+            }
+            auditService.record("MESSAGE_DELIVERY_RECOVERED", "MESSAGE",
+                    String.valueOf(delivery.getMessageId()), DeliveryStatus.SENDING.name(),
+                    "delivery=" + delivery.getId() + ", channel=" + delivery.getChannel().name()
+                            + ", cycle=" + cycle);
+            log.warn("Livraison {} bloquée en SENDING depuis plus de {} min — remise en file "
+                            + "(reprise {}/{}).",
+                    delivery.getId(), queue.getStaleSendingMinutes(), cycle,
+                    queue.getAutoRetryMaxCycles());
+        }
+    }
+
+    /** Remet en file les emails en échec temporaire, dans la limite des cycles/âge configurés. */
+    @Transactional
+    public void requeueFailedEmailDeliveries() {
+        CommunicationProperties.Queue queue = properties.getQueue();
+        Instant now = Instant.now();
+        Instant minFailedAt = now.minus(Math.max(1, queue.getAutoRetryMaxAgeHours()), ChronoUnit.HOURS);
+        long baseBackoff = Math.max(1, queue.getAutoRetryBackoffMinutes());
+        Instant notBefore = now.minus(baseBackoff, ChronoUnit.MINUTES);
+
+        List<MessageDelivery> candidates = deliveryRepository.findAutoRetryCandidates(
+                DeliveryStatus.FAILED, DeliveryChannel.EMAIL, queue.getAutoRetryMaxCycles(),
+                minFailedAt, notBefore, PageRequest.of(0, queue.getBatchSize()));
+
+        int requeued = 0;
+        for (MessageDelivery delivery : candidates) {
+            if (delivery.getRecipientAddress() == null || delivery.getRecipientAddress().isBlank()) {
+                continue;
+            }
+            // Délai progressif : le cycle N attend base × (N + 1) minutes après l'échec.
+            long cooldown = baseBackoff * (delivery.getAutoRetryCount() + 1L);
+            if (delivery.getUpdatedAt().plus(cooldown, ChronoUnit.MINUTES).isAfter(now)) {
+                continue;
+            }
+
+            int cycle = delivery.getAutoRetryCount() + 1;
+            delivery.setStatus(DeliveryStatus.PENDING);
+            delivery.setAttemptCount(0);
+            delivery.setAutoRetryCount(cycle);
+            delivery.setNextRetryAt(now);
+            delivery.setUpdatedAt(now);
+            deliveryRepository.save(delivery);
+
+            messageRepository.findById(delivery.getMessageId()).ifPresent(message -> {
+                message.setLastError(null);
+                refreshMessageStatus(message);
+                messageRepository.save(message);
+            });
+            auditService.record("MESSAGE_AUTO_RETRIED", "MESSAGE",
+                    String.valueOf(delivery.getMessageId()), null,
+                    "delivery=" + delivery.getId() + ", channel=EMAIL, cycle=" + cycle
+                            + ", error=" + truncate(delivery.getLastError(), 200));
+            log.info("Relance automatique email #{} (cycle {}/{}) pour le message {}.",
+                    delivery.getId(), cycle, queue.getAutoRetryMaxCycles(), delivery.getMessageId());
+            requeued++;
+        }
+        if (requeued > 0) {
+            log.info("Relance automatique : {} email(s) remis en file.", requeued);
         }
     }
 
@@ -106,14 +251,17 @@ public class DeliveryQueueService {
         if (message == null) {
             delivery.setStatus(DeliveryStatus.FAILED);
             delivery.setLastError("Message introuvable");
+            delivery.setLastErrorRetryable(false);
             delivery.setUpdatedAt(Instant.now());
             deliveryRepository.save(delivery);
             return;
         }
 
+        Instant now = Instant.now();
         delivery.setStatus(DeliveryStatus.SENDING);
         delivery.setAttemptCount(delivery.getAttemptCount() + 1);
-        delivery.setUpdatedAt(Instant.now());
+        delivery.setLastAttemptAt(now);
+        delivery.setUpdatedAt(now);
         deliveryRepository.saveAndFlush(delivery);
 
         ProviderResult result = switch (delivery.getChannel()) {
@@ -133,6 +281,7 @@ public class DeliveryQueueService {
             delivery.setSentAt(now);
             delivery.setProviderMessageId(result.providerMessageId());
             delivery.setLastError(null);
+            delivery.setLastErrorRetryable(false);
             delivery.setNextRetryAt(null);
             // Audit : envoi confirmé par le fournisseur (jamais avant).
             auditService.record("MESSAGE_SENT", "MESSAGE", String.valueOf(message.getId()),
@@ -144,10 +293,12 @@ public class DeliveryQueueService {
                     * delivery.getAttemptCount();
             delivery.setStatus(DeliveryStatus.PENDING);
             delivery.setLastError(truncate(result.error(), 1000));
+            delivery.setLastErrorRetryable(true);
             delivery.setNextRetryAt(now.plus(Math.max(1, backoff), ChronoUnit.MINUTES));
         } else {
             delivery.setStatus(DeliveryStatus.FAILED);
             delivery.setLastError(truncate(result.error(), 1000));
+            delivery.setLastErrorRetryable(result.retryable());
             delivery.setNextRetryAt(null);
             // Audit : échec définitif (fournisseur absent ou tentatives épuisées).
             auditService.record("MESSAGE_FAILED", "MESSAGE", String.valueOf(message.getId()),
@@ -227,16 +378,34 @@ public class DeliveryQueueService {
             return ProviderResult.failure("Adresse email du destinataire inconnue.", false);
         }
         if (!emailProvider.isConfigured()) {
-            return ProviderResult.failure("Envoi impossible : fournisseur email non configuré (MAIL_HOST).", false);
+            // Configuration absente = réparable : autoriser la relance automatique
+            // dès que le fournisseur sera configuré (aucun envoi réel entre-temps).
+            return ProviderResult.failure(
+                    "Envoi impossible : fournisseur email non configuré (SMTP ou API).", true);
         }
+        String subject = message.getSubject() != null ? message.getSubject() : "Notification fiscale";
+        // Un bouton vers http://localhost ne fonctionne pas chez le destinataire et
+        // dégrade la délivrabilité : on ne l'ajoute que si une URL publique est configurée.
+        String baseUrl = properties.getMail().getBaseUrl();
+        boolean publicBaseUrl = baseUrl != null && !baseUrl.isBlank()
+                && !baseUrl.contains("localhost") && !baseUrl.contains("127.0.0.1");
+        String buttonLabel = publicBaseUrl ? "Ouvrir MNK-TAX" : null;
+        String buttonUrl = publicBaseUrl ? baseUrl + "/messages" : null;
         String html = emailRenderer.render(
-                message.getSubject() != null ? message.getSubject() : "Notification fiscale",
+                subject,
                 message.getContent(),
-                "Ouvrir MNK-TAX",
-                properties.getMail().getBaseUrl() + "/messages",
-                message.getSubject());
-        List<EmailAttachment> attachments = loadAttachments(message.getId());
-        return emailProvider.send(to, message.getSubject(), html, null, attachments);
+                buttonLabel,
+                buttonUrl,
+                subject);
+        String text = emailRenderer.renderText(
+                subject,
+                message.getContent(),
+                buttonLabel,
+                buttonUrl,
+                subject);
+        List<EmailAttachment> attachments =
+                emailRenderer.withInlineAssets(loadAttachments(message.getId()));
+        return emailProvider.send(to, message.getSubject(), html, text, attachments);
     }
 
     /** Canal SMS réel : texte court vers un numéro normalisé E.164. */
@@ -246,7 +415,8 @@ public class DeliveryQueueService {
             return ProviderResult.failure("Numéro de téléphone manquant ou non normalisé.", false);
         }
         if (!smsProvider.isConfigured()) {
-            return ProviderResult.failure("Envoi impossible : fournisseur SMS non configuré.", false);
+            // Configuration absente = réparable, comme pour l'email.
+            return ProviderResult.failure("Envoi impossible : fournisseur SMS non configuré.", true);
         }
         // Corps SMS rendu depuis le modèle (repli : email tronqué pour les messages libres).
         String text = message.getSmsContent() != null && !message.getSmsContent().isBlank()
@@ -305,19 +475,20 @@ public class DeliveryQueueService {
                 && delivery.getStatus() != DeliveryStatus.BOUNCED) {
             return false;
         }
+        Instant now = Instant.now();
         delivery.setStatus(DeliveryStatus.PENDING);
         delivery.setAttemptCount(0);
-        delivery.setNextRetryAt(Instant.now());
-        delivery.setUpdatedAt(Instant.now());
+        // Une relance manuelle ouvre un nouveau budget de relances automatiques.
+        delivery.setAutoRetryCount(0);
+        delivery.setLastErrorRetryable(true);
+        delivery.setNextRetryAt(now);
+        delivery.setUpdatedAt(now);
         deliveryRepository.save(delivery);
 
         messageRepository.findById(delivery.getMessageId()).ifPresent(message -> {
-            if (message.getStatus() == com.mnktax.communication.entity.MessageStatus.FAILED) {
-                message.setStatus(com.mnktax.communication.entity.MessageStatus.QUEUED);
-                message.setLastError(null);
-                message.setUpdatedAt(Instant.now());
-                messageRepository.save(message);
-            }
+            message.setLastError(null);
+            refreshMessageStatus(message);
+            messageRepository.save(message);
         });
         return true;
     }

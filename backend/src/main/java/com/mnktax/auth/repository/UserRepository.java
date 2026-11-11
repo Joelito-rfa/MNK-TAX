@@ -37,4 +37,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "LOWER(u.lastName) LIKE LOWER(CONCAT('%', :q, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%')))")
     Page<User> search(@Param("q") String q, Pageable pageable);
+
+    @Query("SELECT COUNT(u) FROM User u JOIN u.roles r WHERE r.code = 'SUPER_ADMIN' AND u.enabled = true")
+    long countActiveSuperAdmins();
 }

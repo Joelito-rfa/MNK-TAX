@@ -125,7 +125,7 @@ via `taxpayers.user_id` :
 
 ## 7. Comptes de démonstration
 
-Seed activé par `SEED_DEMO` (défaut `true` en dev, `false` en prod/test).
+Données fictives activées par `SEED_DEMO=true` (désactivé par défaut ; activé explicitement en profil `dev`). Les permissions et rôles système sont toujours créés au démarrage.
 
 | Login | Mot de passe | Rôle |
 | ----- | ------------ | ---- |
@@ -140,7 +140,7 @@ Seed activé par `SEED_DEMO` (défaut `true` en dev, `false` en prod/test).
 
 1. `SUPER_ADMIN` ≡ `ADMIN` : aucune différence effective dans le modèle de données.
 2. `DemoDataSeeder.seedRoles()` réécrase `role_permissions` des rôles système à chaque
-   démarrage si `SEED_DEMO=true`.
+   démarrage, indépendamment de `SEED_DEMO` : les rôles système restent alignés sur le code.
 3. Les permissions non référencées par un endpoint ne sont pas appliquées ; la liste
    ci-dessus est le catalogue, `docs/API.md` la matrice endpoint ↔ permission.
 4. Les rôles personnalisés (`system=false`) sont créés via `POST /api/roles`, qui exige

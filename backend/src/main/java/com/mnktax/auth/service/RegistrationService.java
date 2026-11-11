@@ -14,6 +14,7 @@ import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.ReferenceGenerator;
 import com.mnktax.common.util.SecurityUtils;
+import com.mnktax.taxpayer.entity.Taxpayer;
 import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -39,25 +40,70 @@ public class RegistrationService {
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
+    /** Types de demande acceptés (filtre « type » côté administration). */
+    private static final Set<String> REQUEST_TYPES = Set.of(
+            "INDIVIDUAL", "COMPANY", "TAX_AGENT", "ACCOUNTANT", "COLLECTION_AGENT", "OTHER");
+
+    /** Organisation par défaut d'un particulier (profil contribuable). */
+    private static final String INDIVIDUAL_ORGANIZATION = "Particulier";
+
+    /**
+     * Libellés historiques et valeurs de type vers code de rôle attendu par la
+     * table {@code roles}. Le formulaire public envoie désormais des codes
+     * (TAXPAYER, TAX_AGENT…), mais les demandes déjà saisies portent des
+     * libellés (« Agent fiscal ») ou des types (« INDIVIDUAL »).
+     */
+    private static final Map<String, String> ROLE_ALIASES = Map.ofEntries(
+            Map.entry("AGENT_FISCAL", Role.TAX_AGENT),
+            Map.entry("AGENT_DE_RECOUVREMENT", Role.COLLECTION_AGENT),
+            Map.entry("AGENT_RECOUVREMENT", Role.COLLECTION_AGENT),
+            Map.entry("COMPTABLE", Role.ACCOUNTANT),
+            Map.entry("CONTRIBUABLE", Role.TAXPAYER),
+            Map.entry("PARTICULIER", Role.TAXPAYER),
+            Map.entry("INDIVIDUAL", Role.TAXPAYER),
+            Map.entry("COMPANY", Role.TAXPAYER),
+            Map.entry("ENTREPRISE", Role.TAXPAYER),
+            Map.entry("AUTRE", Role.TAXPAYER),
+            Map.entry("OTHER", Role.TAXPAYER),
+            Map.entry("ADMINISTRATEUR", Role.ADMIN),
+            Map.entry("ADMIN", Role.ADMIN));
+
+    /**
+     * Normalise le rôle saisi (code, libellé ou type de demande) vers un code
+     * de rôle. Retourne {@code null} si la valeur est vide ; les rôles
+     * administratifs sont conservés tels quels afin de déclencher le refus
+     * explicite de {@link #approve}.
+     */
+    static String resolveRoleCode(String requested) {
+        if (requested == null || requested.isBlank()) {
+            return null;
+        }
+        String key = requested.trim().toUpperCase().replaceAll("\\s+", "_");
+        return ROLE_ALIASES.getOrDefault(key, key);
+    }
+
     private final RegistrationRequestRepository repo;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
     private final TaxpayerRepository taxpayerRepository;
+    private final AccountCredentialsNotifier credentialsNotifier;
 
     public RegistrationService(RegistrationRequestRepository repo,
                                UserRepository userRepository,
                                RoleRepository roleRepository,
                                AuditService auditService,
                                PasswordEncoder passwordEncoder,
-                               TaxpayerRepository taxpayerRepository) {
+                               TaxpayerRepository taxpayerRepository,
+                               AccountCredentialsNotifier credentialsNotifier) {
         this.repo = repo;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
         this.taxpayerRepository = taxpayerRepository;
+        this.credentialsNotifier = credentialsNotifier;
     }
 
     /* ── Création (publique) ─────────────────────────────── */
@@ -72,8 +118,20 @@ public class RegistrationService {
         }
 
         String name = buildName(request);
-        String type = (request.requestType() != null && !request.requestType().isBlank())
-                ? request.requestType().toUpperCase() : "OTHER";
+        // Rôle absent => contribuable : c'est le profil par défaut d'un compte
+        // créé pour le compte de son propre détenteur.
+        String requestedRole = resolveRoleCode(request.role());
+        String role = (requestedRole == null) ? Role.TAXPAYER : requestedRole;
+        // Type absent => déduit du rôle, pour qu'une demande sans `requestType`
+        // reste correctement filtrée côté administration.
+        String type = (request.requestType() == null || request.requestType().isBlank())
+                ? defaultRequestTypeForRole(role)
+                : normalizeRequestType(request.requestType());
+        // L'organisation n'est pas pertinente pour un particulier : on conserve
+        // une valeur d'affichage plutôt que de la forcer à saisir un nom.
+        String organization = (request.organization() == null || request.organization().isBlank())
+                ? INDIVIDUAL_ORGANIZATION
+                : request.organization().trim();
 
         RegistrationRequest reg = RegistrationRequest.builder()
                 .reference(ReferenceGenerator.next("REG"))
@@ -85,9 +143,9 @@ public class RegistrationService {
                 .phone(request.phone())
                 .nif(request.nif())
                 .address(request.address())
-                .organization(request.organization())
+                .organization(organization)
                 .position(request.position())
-                .role(request.role())
+                .role(role)
                 .taxCenter(request.taxCenter())
                 .message(request.message())
                 .status("PENDING")
@@ -177,9 +235,13 @@ public class RegistrationService {
             throw new BusinessException("DUPLICATE", "Un compte existe déjà avec cet email.");
         }
 
-        // Valider le rôle
-        String finalRole = (roleCode != null && !roleCode.isBlank()) ? roleCode : r.getRole();
-        String normalizedRole = finalRole.toUpperCase().replace(" ", "_");
+        // Valider le rôle : code, libellé historique ou type de demande
+        String requestedRole = (roleCode != null && !roleCode.isBlank()) ? roleCode : r.getRole();
+        String normalizedRole = resolveRoleCode(requestedRole);
+        if (normalizedRole == null) {
+            throw new BusinessException("VALIDATION_ERROR",
+                    "Le rôle souhaité est obligatoire pour approuver cette demande.");
+        }
 
         // Protéger les rôles administratifs
         if ("SUPER_ADMIN".equals(normalizedRole) || "ADMIN".equals(normalizedRole)) {
@@ -194,11 +256,13 @@ public class RegistrationService {
         r.setUpdatedAt(Instant.now());
         repo.save(r);
 
-        // Créer l'utilisateur
+        // Créer l'utilisateur avec un mot de passe temporaire, transmis
+        // exclusivement par email (jamais dans la réponse HTTP).
+        String temporaryPassword = "Temp@" + UUID.randomUUID().toString().substring(0, 8);
         User user = User.builder()
                 .username(r.getEmail().split("@")[0])
                 .email(r.getEmail())
-                .password(passwordEncoder.encode("Temp@" + UUID.randomUUID().toString().substring(0, 8)))
+                .password(passwordEncoder.encode(temporaryPassword))
                 .firstName(r.getFirstName() != null ? r.getFirstName() : r.getName())
                 .lastName(r.getLastName())
                 .phone(r.getPhone())
@@ -211,21 +275,23 @@ public class RegistrationService {
                 .build();
 
         Role role = roleRepository.findByCode(normalizedRole)
-                .orElseThrow(() -> new BusinessException("VALIDATION_ERROR", "Rôle inconnu : " + normalizedRole));
+                .orElseThrow(() -> new BusinessException("VALIDATION_ERROR",
+                        "Rôle inconnu : " + normalizedRole + ". Rôles attribuables : "
+                                + Role.TAXPAYER + ", " + Role.TAX_AGENT + ", "
+                                + Role.COLLECTION_AGENT + ", " + Role.ACCOUNTANT + "."));
         requireAssignable(role);
         user.getRoles().add(role);
         User savedUser = userRepository.save(user);
 
-        // Rattacher le compte au dossier contribuable portant le même email,
-        // afin que le contributeur accède à ses propres données (cf. DataScope).
-        if (r.getEmail() != null && !r.getEmail().isBlank()) {
-            taxpayerRepository.findByEmailIgnoreCase(r.getEmail().trim()).ifPresent(tp -> {
-                if (tp.getUserId() == null) {
-                    tp.setUserId(savedUser.getId());
-                    taxpayerRepository.save(tp);
-                }
-            });
-        }
+        // Rattacher le compte au dossier contribuable portant le même email
+        // ou le même NIF, afin que le contribuable accède à ses propres
+        // données (cf. DataScope).
+        linkTaxpayerRecord(r, savedUser.getId());
+
+        // Transmettre le mot de passe temporaire par email : si l'envoi échoue,
+        // l'approbation est annulée (rollback) plutôt que de créer un compte
+        // dont l'utilisateur ne peut pas se connecter.
+        credentialsNotifier.sendTemporaryPassword(savedUser, temporaryPassword);
 
         auditService.record("REGISTRATION_APPROVED", "REGISTRATION_REQUEST",
                 String.valueOf(id), "PENDING/UNDER_REVIEW", "APPROVED", httpRequest);
@@ -297,6 +363,52 @@ public class RegistrationService {
             return r.lastName() + " " + r.firstName();
         }
         return r.name();
+    }
+
+    /** Type de demande : valeur inconnue => OTHER (garde le filtre admin fiable). */
+    private String normalizeRequestType(String requestType) {
+        if (requestType == null || requestType.isBlank()) {
+            return "OTHER";
+        }
+        String type = requestType.trim().toUpperCase();
+        return REQUEST_TYPES.contains(type) ? type : "OTHER";
+    }
+
+    /** Type par défaut déduit du rôle normalisé (quand le client n'envoie pas `requestType`). */
+    private static String defaultRequestTypeForRole(String role) {
+        return switch (role) {
+            case Role.TAX_AGENT -> Role.TAX_AGENT;
+            case Role.COLLECTION_AGENT -> Role.COLLECTION_AGENT;
+            case Role.ACCOUNTANT -> Role.ACCOUNTANT;
+            default -> "INDIVIDUAL";
+        };
+    }
+
+    /**
+     * Rattache le compte créé au dossier contribuable existant : par email
+     * d'abord, puis par NIF (le dossier peut avoir été saisi avec une autre
+     * adresse). Ne jamais écraser un rattachement déjà existant.
+     */
+    private void linkTaxpayerRecord(RegistrationRequest r, Long userId) {
+        boolean linked = false;
+        if (r.getEmail() != null && !r.getEmail().isBlank()) {
+            var byEmail = taxpayerRepository.findByEmailIgnoreCase(r.getEmail().trim());
+            if (byEmail.isPresent()) {
+                linked = attachToTaxpayer(byEmail.get(), userId);
+            }
+        }
+        if (!linked && r.getNif() != null && !r.getNif().isBlank()) {
+            taxpayerRepository.findByNif(r.getNif().trim()).ifPresent(tp -> attachToTaxpayer(tp, userId));
+        }
+    }
+
+    private boolean attachToTaxpayer(Taxpayer taxpayer, Long userId) {
+        if (taxpayer.getUserId() != null) {
+            return false;
+        }
+        taxpayer.setUserId(userId);
+        taxpayerRepository.save(taxpayer);
+        return true;
     }
 
     private String clean(String s) {

@@ -1,7 +1,5 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect, type ReactNode } from 'react'
-import { fr } from '../locales/fr'
-import { mg } from '../locales/mg'
-import { en } from '../locales/en'
+import { fr, mg, en } from '../locales'
 
 export type Locale = 'fr' | 'mg' | 'en'
 

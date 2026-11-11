@@ -10,9 +10,9 @@ import {
   Trash2,
   XCircle,
 } from 'lucide-react'
-import { apiErrorMessage } from '../lib/api'
+import { apiErrorMessage, apiGet } from '../lib/api'
 import { fmtDateTime, fmtDate, fmtNumber } from '../lib/format'
-import type { ComplaintContextType } from '../types'
+import type { Complaint, ComplaintContextType, Page } from '../types'
 import { useAuth } from '../lib/auth'
 import {
   Badge,
@@ -43,22 +43,24 @@ import {
 } from '../features/complaint/api/mutations'
 import { complaintContextLink } from '../features/complaint/lib/context-links'
 import RowActionPortal from '../components/RowActionPortal'
+import { ExportButton } from '../components/ExportButton'
+import { useI18n } from '../lib/i18n'
 
 export const complaintContextLabels: Record<string, string> = {
-  DECLARATION: 'Déclaration',
-  DEBT: 'Créance',
-  PAYMENT: 'Paiement',
-  CONTROL: 'Contrôle fiscal',
-  REFUND: 'Remboursement',
-  GENERAL: 'Général',
+  DECLARATION: 'complaints.page.context.DECLARATION',
+  DEBT: 'complaints.page.context.DEBT',
+  PAYMENT: 'complaints.page.context.PAYMENT',
+  CONTROL: 'complaints.page.context.CONTROL',
+  REFUND: 'complaints.page.context.REFUND',
+  GENERAL: 'complaints.page.context.GENERAL',
 }
 
 const complaintStatusLabels: Record<string, string> = {
-  OPEN: 'Ouverte',
-  UNDER_REVIEW: 'En examen',
-  ACCEPTED: 'Acceptée',
-  REJECTED: 'Rejetée',
-  CLOSED: 'Clôturée',
+  OPEN: 'status.OPEN',
+  UNDER_REVIEW: 'status.UNDER_REVIEW',
+  ACCEPTED: 'status.ACCEPTED',
+  REJECTED: 'status.REJECTED',
+  CLOSED: 'status.CLOSED',
 }
 
 const allowedTransitions: Record<string, string[]> = {
@@ -70,6 +72,7 @@ const allowedTransitions: Record<string, string[]> = {
 }
 
 export default function Complaints() {
+  const { t } = useI18n()
   const { can } = useAuth()
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(20)
@@ -89,31 +92,58 @@ export default function Complaints() {
   return (
     <div className="fx-page space-y-6">
       <PageHeader
-        title="Réclamations"
-        subtitle="Réclamations des contribuables et suivi des décisions"
+        title={t('complaints.title')}
+        subtitle={t('complaints.page.subtitle')}
         actions={
-          can('COMPLAINT_WRITE') && (
-            <Button onClick={() => setCreateOpen(true)}>
-              <FileQuestion className="h-4 w-4" /> Nouvelle réclamation
-            </Button>
-          )
+          <>
+            <ExportButton
+              filenameBase={`reclamations_${new Date().toISOString().slice(0, 10)}`}
+              title={t('complaints.title')}
+              headers={[
+                t('common.reference'),
+                t('common.taxpayer'),
+                t('complaints.page.subject'),
+                t('complaints.page.context'),
+                t('common.status'),
+                t('complaints.page.createdAt'),
+              ]}
+              rows={async () => {
+                const p = new URLSearchParams(params)
+                p.delete('page')
+                p.delete('size')
+                const res = await apiGet<Page<Complaint>>(`/complaints?${p.toString()}&size=9999`)
+                return res.content.map((c) => [
+                  c.reference,
+                  `${c.taxpayerName} (${c.nif})`,
+                  c.subject,
+                  complaintContextLabels[c.contextType] ? t(complaintContextLabels[c.contextType]) : c.contextType,
+                  t(complaintStatusLabels[c.status] ?? c.status),
+                  c.createdAt,
+                ])
+              }}
+            />
+            {can('COMPLAINT_WRITE') && (
+              <Button onClick={() => setCreateOpen(true)}>
+                <FileQuestion className="h-4 w-4" /> {t('complaints.page.new')}{' '}</Button>
+            )}
+          </>
         }
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total" value={fmtNumber(stats?.total ?? 0)} icon={<FolderOpen className="h-5 w-5" />} tone="brand" />
+        <StatCard label={t('common.total')} value={fmtNumber(stats?.total ?? 0)} icon={<FolderOpen className="h-5 w-5" />} tone="brand" />
         <StatCard
-          label="Ouvertes"
+          label={t('complaints.page.stat.open')}
           value={fmtNumber(stats?.open ?? 0)}
-          sub={stats ? `${stats.underReview} en examen` : undefined}
+          sub={stats ? t('complaints.page.stat.underReview', { count: stats.underReview }) : undefined}
           icon={<FileQuestion className="h-5 w-5" />}
           tone="amber"
         />
-        <StatCard label="Acceptées" value={fmtNumber(stats?.accepted ?? 0)} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
+        <StatCard label={t('complaints.page.stat.accepted')} value={fmtNumber(stats?.accepted ?? 0)} icon={<CheckCircle2 className="h-5 w-5" />} tone="emerald" />
         <StatCard
-          label="Rejetées"
+          label={t('complaints.page.stat.rejected')}
           value={fmtNumber(stats?.rejected ?? 0)}
-          sub={stats ? `${stats.closed} clôturée(s)` : undefined}
+          sub={stats ? t('complaints.page.stat.closed', { count: stats.closed }) : undefined}
           icon={<XCircle className="h-5 w-5" />}
           tone="rose"
         />
@@ -124,14 +154,14 @@ export default function Complaints() {
           <SearchInput
             value={q}
             onChange={(v) => { setQ(v); setPage(0) }}
-            placeholder="Rechercher par référence, NIF, nom ou objet…"
+            placeholder={t('complaints.page.searchPlaceholder')}
             className="min-w-56 flex-1"
           />
           <div className="w-48">
             <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0) }}>
-              <option value="">Tous les statuts</option>
+              <option value="">{t('tp.allStatuses')}</option>
               {Object.entries(complaintStatusLabels).map(([v, label]) => (
-                <option key={v} value={v}>{label}</option>
+                <option key={v} value={v}>{t(label)}</option>
               ))}
             </Select>
           </div>
@@ -140,18 +170,18 @@ export default function Complaints() {
         {isLoading ? (
           <Spinner />
         ) : !data || data.content.length === 0 ? (
-          <EmptyState title="Aucune réclamation" subtitle="Modifiez vos critères de recherche." />
+          <EmptyState title={t('complaints.noResult')} subtitle={t('complaints.page.emptyHint')} />
         ) : (
           <>
             <Table>
               <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
                 <tr>
-                  <Th>Référence</Th>
-                  <Th>Contribuable</Th>
-                  <Th>Objet</Th>
-                  <Th>Contexte</Th>
-                  <Th>Statut</Th>
-                  <Th>Créée le</Th>
+                  <Th>{t('common.reference')}</Th>
+                  <Th>{t('common.taxpayer')}</Th>
+                  <Th>{t('complaints.page.subject')}</Th>
+                  <Th>{t('complaints.page.context')}</Th>
+                  <Th>{t('common.status')}</Th>
+                  <Th>{t('complaints.page.createdAt')}</Th>
                   <Th></Th>
                 </tr>
               </thead>
@@ -169,10 +199,10 @@ export default function Complaints() {
                     <Td>
                       {complaintContextLink(c.contextType, c.contextRef) ? (
                         <Link to={complaintContextLink(c.contextType, c.contextRef)!}>
-                          <Badge tone="slate">{complaintContextLabels[c.contextType] ?? c.contextType}</Badge>
+                          <Badge tone="slate">{complaintContextLabels[c.contextType] ? t(complaintContextLabels[c.contextType]) : c.contextType}</Badge>
                         </Link>
                       ) : (
-                        <Badge tone="slate">{complaintContextLabels[c.contextType] ?? c.contextType}</Badge>
+                        <Badge tone="slate">{complaintContextLabels[c.contextType] ? t(complaintContextLabels[c.contextType]) : c.contextType}</Badge>
                       )}
                     </Td>
                     <Td>
@@ -187,8 +217,7 @@ export default function Complaints() {
                                     }}
                                    className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                  >
-                                   <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
-                                 </button>
+                                   <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('common.seeDetails')}{' '}</button>
                                  {c.status !== 'CLOSED' && (
                                    <>
                                       <button
@@ -197,27 +226,24 @@ export default function Complaints() {
                                         }}
                                        className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                      >
-                                       <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
-                                     </button>
+                                       <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('common.edit')}{' '}</button>
                                       <button
                                         onClick={() => {
                                           setDetailId(c.id)
                                         }}
                                        className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                      >
-                                       <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
-                                     </button>
+                                       <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('complaints.page.changeStatus')}{' '}</button>
                                      {c.status === 'OPEN' && (
                                        <>
                                          <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                                           <button
                                             onClick={() => {
-                                              if (confirm('Supprimer cette réclamation ?')) remove.mutate(c.id)
+                                              if (confirm(t('complaints.page.deleteConfirm'))) remove.mutate(c.id)
                                             }}
                                            className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                                          >
-                                           <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
-                                         </button>
+                                           <Trash2 className="h-4 w-4 shrink-0" /> {t('common.delete')}{' '}</button>
                                        </>
                                      )}
                                    </>
@@ -249,6 +275,7 @@ export default function Complaints() {
 /* ──────────────────────── Création ──────────────────────── */
 
 export function CreateComplaintModal({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n()
   const [step, setStep] = useState(0)
   const [taxpayerId, setTaxpayerId] = useState('')
   const [subject, setSubject] = useState('')
@@ -265,7 +292,7 @@ export function CreateComplaintModal({ onClose }: { onClose: () => void }) {
     { onSuccess: onClose },
   )
   return (
-    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — Nouvelle réclamation`} size="full">
+    <Modal open onClose={onClose} title={t('complaints.page.createTitle', { step: step + 1 })} size="full">
       <form onSubmit={(e) => { e.preventDefault(); if (step === 2) submit() }} className="space-y-4">
         {create.isError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{apiErrorMessage(create.error)}</div>
@@ -277,57 +304,57 @@ export function CreateComplaintModal({ onClose }: { onClose: () => void }) {
         </div>
         {step === 0 && (
           <div className="space-y-4 animate-fade-in">
-            <Field label="Contribuable">
+            <Field label={t('common.taxpayer')}>
               <Select value={taxpayerId} onChange={(e) => setTaxpayerId(e.target.value)} required>
-                <option value="">— Sélectionner —</option>
+                <option value="">{t('complaints.page.selectPlaceholder')}</option>
                 {loadingTaxpayers ? null : taxpayers?.content.map((t) => (
                   <option key={t.id} value={t.id}>{t.nif} — {t.name}</option>
                 ))}
               </Select>
             </Field>
-            <Field label="Objet">
+            <Field label={t('complaints.page.subject')}>
               <Input value={subject} onChange={(e) => setSubject(e.target.value)} required maxLength={200} />
             </Field>
           </div>
         )}
         {step === 1 && (
           <div className="space-y-4 animate-fade-in">
-            <Field label="Description">
+            <Field label={t('common.description')}>
               <Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} required />
             </Field>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Contexte">
+              <Field label={t('complaints.page.context')}>
                 <Select value={contextType} onChange={(e) => setContextType(e.target.value)}>
                   {Object.entries(complaintContextLabels).map(([v, label]) => (
-                    <option key={v} value={v}>{label}</option>
+                    <option key={v} value={v}>{t(label)}</option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Référence du dossier (contexte)">
-                <Input value={contextRef} onChange={(e) => setContextRef(e.target.value)} placeholder="ex : DEC-2026-001" />
+              <Field label={t('complaints.page.contextRef')}>
+                <Input value={contextRef} onChange={(e) => setContextRef(e.target.value)} placeholder={t('complaints.page.contextRefPlaceholder')} />
               </Field>
             </div>
           </div>
         )}
         {step === 2 && (
           <div className="space-y-4 animate-fade-in">
-            <h4 className="text-sm font-semibold">Récapitulatif</h4>
+            <h4 className="text-sm font-semibold">{t('login.register.step.summary')}</h4>
             <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
-              <div className="flex justify-between"><span className="text-slate-500">Contribuable</span><span className="font-medium">{selectedTp ? `${selectedTp.name} (${selectedTp.nif})` : '—'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Objet</span><span className="font-medium">{subject || '—'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Contexte</span><span className="font-medium">{complaintContextLabels[contextType] ?? contextType}{contextRef ? ` — ${contextRef}` : ''}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">{t('common.taxpayer')}</span><span className="font-medium">{selectedTp ? `${selectedTp.name} (${selectedTp.nif})` : '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">{t('complaints.page.subject')}</span><span className="font-medium">{subject || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">{t('complaints.page.context')}</span><span className="font-medium">{complaintContextLabels[contextType] ? t(complaintContextLabels[contextType]) : contextType}{contextRef ? ` — ${contextRef}` : ''}</span></div>
               <p className="whitespace-pre-wrap text-slate-600 dark:text-slate-400">{description || '—'}</p>
             </div>
           </div>
         )}
         <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
-          <div>{step > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>}</div>
+          <div>{step > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>{t('complaints.page.previous')}</Button>}</div>
           <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            <Button type="button" variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
             {step < 2 ? (
-              <Button type="button" size="sm" className="bg-brand-600 text-white" disabled={step === 0 ? !taxpayerId || !subject.trim() : !description.trim()} onClick={() => setStep(step + 1)}>Suivant →</Button>
+              <Button type="button" size="sm" className="bg-brand-600 text-white" disabled={step === 0 ? !taxpayerId || !subject.trim() : !description.trim()} onClick={() => setStep(step + 1)}>{t('complaints.page.next')}</Button>
             ) : (
-              <Button type="submit" disabled={create.isPending || !taxpayerId || !subject.trim() || !description.trim()}>{create.isPending ? 'Création…' : 'Créer'}</Button>
+              <Button type="submit" disabled={create.isPending || !taxpayerId || !subject.trim() || !description.trim()}>{create.isPending ? t('complaints.page.creating') : t('common.create')}</Button>
             )}
           </div>
         </div>
@@ -339,6 +366,7 @@ export function CreateComplaintModal({ onClose }: { onClose: () => void }) {
 /* ──────────────────────── Détail + réponses ──────────────────────── */
 
 export function ComplaintDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const { t } = useI18n()
   const { can } = useAuth()
   const [content, setContent] = useState('')
   const [nextStatus, setNextStatus] = useState('')
@@ -353,7 +381,7 @@ export function ComplaintDetailModal({ id, onClose }: { id: number; onClose: () 
   const canUpdate = can('COMPLAINT_WRITE') && transitions.length > 0
 
   return (
-    <Modal open onClose={onClose} title="Détail de la réclamation" wide>
+    <Modal open onClose={onClose} title={t('complaints.page.detailTitle')} wide>
       {isLoading || !complaint ? (
         <Spinner />
       ) : (
@@ -362,7 +390,7 @@ export function ComplaintDetailModal({ id, onClose }: { id: number; onClose: () 
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-sm font-medium text-brand-700">{complaint.reference}</span>
               <StatusBadge value={complaint.status} />
-              <Badge tone="slate">{complaintContextLabels[complaint.contextType] ?? complaint.contextType}</Badge>
+              <Badge tone="slate">{complaintContextLabels[complaint.contextType] ? t(complaintContextLabels[complaint.contextType]) : complaint.contextType}</Badge>
               {complaint.contextRef &&
                 (complaintContextLink(complaint.contextType, complaint.contextRef) ? (
                   <Link to={complaintContextLink(complaint.contextType, complaint.contextRef)!}>
@@ -378,11 +406,11 @@ export function ComplaintDetailModal({ id, onClose }: { id: number; onClose: () 
               <Link to={`/taxpayers/${complaint.taxpayerId}`} className="text-brand-700 hover:underline">
                 {complaint.taxpayerName} ({complaint.nif})
               </Link>
-              {' · '}créée le {fmtDateTime(complaint.createdAt)}
+              {' · '}{t('complaints.page.createdOn')}{' '}{fmtDateTime(complaint.createdAt)}
             </p>
             {complaint.resolution && (
               <div className="mt-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                <span className="font-semibold">Décision : </span>
+                <span className="font-semibold">{t('complaints.page.decisionLabel')}</span>
                 {complaint.resolution}
               </div>
             )}
@@ -390,10 +418,10 @@ export function ComplaintDetailModal({ id, onClose }: { id: number; onClose: () 
 
           <div>
             <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Réponses ({data.responses.length})
+              {t('complaints.page.responses')}{data.responses.length})
             </h4>
             {data.responses.length === 0 ? (
-              <p className="text-sm text-slate-400 dark:text-slate-500">Aucune réponse pour l'instant.</p>
+              <p className="text-sm text-slate-400 dark:text-slate-500">{t('complaints.page.noResponses')}</p>
             ) : (
               <ol className="space-y-2">
                 {data.responses.map((r) => (
@@ -417,13 +445,12 @@ export function ComplaintDetailModal({ id, onClose }: { id: number; onClose: () 
               }}
               className="space-y-2"
             >
-              <Field label="Ajouter une réponse">
+              <Field label={t('complaints.page.addResponse')}>
                 <Textarea rows={3} value={content} onChange={(e) => setContent(e.target.value)} required />
               </Field>
               <div className="flex justify-end">
                 <Button type="submit" size="sm" disabled={addResponse.isPending || !content.trim()}>
-                  Répondre
-                </Button>
+                  {t('complaints.page.reply')}{' '}</Button>
               </div>
             </form>
           )}
@@ -431,22 +458,21 @@ export function ComplaintDetailModal({ id, onClose }: { id: number; onClose: () 
           {canUpdate && (
             <div className="rounded-xl border border-slate-100 dark:border-slate-700/50 p-4">
               <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Changer le statut
-              </h4>
+                {t('complaints.page.changeStatus')}{' '}</h4>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="min-w-44 flex-1">
-                  <Field label="Nouveau statut">
+                  <Field label={t('complaints.page.newStatus')}>
                     <Select value={nextStatus} onChange={(e) => setNextStatus(e.target.value)}>
-                      <option value="">— Sélectionner —</option>
-                      {transitions.map((t) => (
-                        <option key={t} value={t}>{complaintStatusLabels[t] ?? t}</option>
+                      <option value="">{t('complaints.page.selectPlaceholder')}</option>
+                      {transitions.map((s) => (
+                        <option key={s} value={s}>{complaintStatusLabels[s] ? t(complaintStatusLabels[s]) : s}</option>
                       ))}
                     </Select>
                   </Field>
                 </div>
                 <div className="min-w-52 flex-[2]">
-                  <Field label="Décision / résolution">
-                    <Input value={resolution} onChange={(e) => setResolution(e.target.value)} placeholder="Motif de la décision" />
+                  <Field label={t('complaints.page.resolution')}>
+                    <Input value={resolution} onChange={(e) => setResolution(e.target.value)} placeholder={t('complaints.page.resolutionPlaceholder')} />
                   </Field>
                 </div>
                 <Button
@@ -463,8 +489,7 @@ export function ComplaintDetailModal({ id, onClose }: { id: number; onClose: () 
                   }
                   disabled={update.isPending || !nextStatus}
                 >
-                  Appliquer
-                </Button>
+                  {t('common.apply')}{' '}</Button>
               </div>
             </div>
           )}

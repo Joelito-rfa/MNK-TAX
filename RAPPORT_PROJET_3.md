@@ -15,10 +15,10 @@
 
 | # | Problème | Localisation | Impact |
 |---|---|---|---|
-| P-1 | **2 tests en échec** lors du dernier passage (04/10/2026) : `TaxRuleRepositoryResolveTest.uncoveredRegimeFallsBackToGeneric` (`expected RZT-GEN, got RZT-FORF`) et `ComplaintRefundModuleIntegrationTest.searchRefundsWithAdvancedFilters` | `backend/target/surefire-reports` | Bug réel de **priorité de résolution des règles fiscales** (une règle forfaitaire écrase la règle générique) et filtre de remboursement défaillant |
-| P-2 | **`SEED_DEMO=true` forcé en production** | `render.yaml` (envVars API) | Le jeu de démonstration (comptes, dettes fictives) est injecté à chaque déploiement en production |
-| P-3 | **Valeur par défaut du secret JWT codée en dur** | `backend/src/main/resources/application.yml:57` (`jwt.secret: ${JWT_SECRET:…}` — repli base64 du type `change-me…`) | Si `JWT_SECRET` n'est pas fourni, tous les jetons sont signés avec cette valeur publique |
-| P-4 | **Mots de passe temporaires renvoyés dans la réponse HTTP** | `RegistrationService.java:201` (`"Temp@" + UUID…`) | Secret exposé dans la réponse d'approbation d'inscription (à ne jamais logger/afficher) |
+| P-1 | **Corrigé** — les 2 tests en échec du 04/10/2026 (`TaxRuleRepositoryResolveTest.uncoveredRegimeFallsBackToGeneric`, `ComplaintRefundModuleIntegrationTest.searchRefundsWithAdvancedFilters`) passent désormais ; suite complète au vert le 28/10/2026 | `backend/target/surefire-reports` | **202 exécutions, 0 échec** ; priorité de résolution des règles fiscales et filtre de remboursement corrigés |
+| P-2 | **Corrigé (28/10/2026)** — `SEED_DEMO` n'est plus forcé en production | `render.yaml`, `application.yml`, `application-render.yml` | `SEED_DEMO` vaut `false` par défaut ; les blueprints Render le fixent à `false`. Les permissions et rôles système restent amorcés, mais aucune donnée fictive n'est chargée sans activation explicite |
+| P-3 | **Corrigé (28/10/2026)** — plus de valeur par défaut pour le secret JWT | `backend/src/main/resources/application.yml:60` (`jwt.secret: ${JWT_SECRET}`), `JwtService` | Le démarrage échoue si `JWT_SECRET` est absent, vide, inférieur à 32 octets ou égal à l'ancienne valeur publiée ; seuls les profils `dev` et `test` fournissent une valeur locale explicite |
+| P-4 | **Corrigé (28/10/2026)** — mots de passe temporaires jamais renvoyés par HTTP | `RegistrationService`, `UserService`, `AccountCredentialsNotifier`, `UserController` | Le secret est généré côté serveur et envoyé par email ; l'API répond `204 No Content`, la réinitialisation révoque les sessions, et l'approbation échoue (rollback) si l'email ne peut pas être envoyé |
 | P-5 | **Aucune intégration continue** | Pas de `.github/`, pas de workflow | Rien ne vérifie compilation, tests ou lint à chaque commit |
 | P-6 | **Fichiers uploadés non persistants en production** | `render.yaml` : aucun disque persistant (`disk:` absent) ; stockage `data/…` | QR/PDF de quittances, avatars et pièces **perdus à chaque redéploiement** sur le plan gratuit Render |
 
@@ -69,8 +69,8 @@
 | **dev** (défaut) | `application-dev.yml` | H2 en mémoire (`jdbc:h2:mem:mnktax;MODE=PostgreSQL`), seed de démonstration, Swagger ouvert, console H2 |
 | **test** | `application-test.yml` | H2 dédié aux tests d'intégration, rate-limit assoupli |
 | **docker** | `application-docker.yml` | PostgreSQL du `docker-compose`, Redis activé (mais non utilisé), seed activé |
-| **prod** | `application-prod.yml` | PostgreSQL managé, seed désactivable, `ssl` délégué au proxy |
-| **render** | `application-render.yml` | Render free (port `SERVER_PORT`, `JAVA_OPTS` 256–384 Mo), uploads 10 MB, chemins `data/…` |
+| **prod** | `application-prod.yml` | PostgreSQL managé, seed désactivé par défaut, `ssl` délégué au proxy |
+| **render** | `application-render.yml` | Render free (port `SERVER_PORT`, `JAVA_OPTS` 256–384 Mo), seed désactivé par défaut, uploads 10 MB, chemins `data/…` |
 | — | `application.yml` | Commun : Flyway `baseline-on-migrate`, `ddl-auto: validate`, JWT (TTL 1 h/7 j), rate-limit 120 req/min, multipart 10 MB |
 
 Activation : `SPRING_PROFILES_ACTIVE` (sur Render : `render`).
@@ -94,7 +94,7 @@ Commandes (README) : `docker compose up -d` ; ou sans Docker : `cd backend && ./
 
 | Service | Type | Configuration |
 |---|---|---|
-| `mnk-tax-api` | `web`, runtime **docker**, `rootDir: backend`, plan `free` | `SPRING_PROFILES_ACTIVE=render`, `DATABASE_URL` (secret), `JWT_SECRET` (valeur générée par Render), `CORS_ALLOWED_ORIGINS` et `RECEIPT_BASE_URL` = URL du front, **`SEED_DEMO="true"`**, `SERVER_PORT=10000`, `JAVA_OPTS=-Xms256m -Xmx384m…`, `healthCheckPath=/actuator/health` |
+| `mnk-tax-api` | `web`, runtime **docker**, `rootDir: backend`, plan `free` | `SPRING_PROFILES_ACTIVE=render`, `DATABASE_URL` (secret), `JWT_SECRET` (valeur générée par Render), `CORS_ALLOWED_ORIGINS` et `RECEIPT_BASE_URL` = URL du front, **`SEED_DEMO="false"`**, `SERVER_PORT=10000`, `JAVA_OPTS=-Xms256m -Xmx384m…`, `healthCheckPath=/actuator/health` |
 | `mnk-tax-frontend` | `static`, `rootDir: frontend` | `buildCommand: npm run build`, `staticPublishPath: dist`, rewrite `/* → /index.html` (SPA), `VITE_API_BASE_URL` = URL de l'API |
 
 - **Base de données** : **Neon** (PostgreSQL managé), branché par `DATABASE_URL` via `RenderDataSourceConfig` (profil `prod`/`render`).
@@ -114,7 +114,7 @@ Commandes (README) : `docker compose up -d` ; ou sans Docker : `cd backend && ./
 | **Planificateurs** | `OVERDUE_SCHEDULER_CRON`, `DEADLINE_SCHEDULER_CRON`, `SCHEDULER_TIMEZONE`, `SCHEDULER_POOL_SIZE` |
 | **Auto-paramétrés** | `SPRING_PROFILES_ACTIVE`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS`, `VITE_API_BASE_URL`, `SERVER_PORT`, `JAVA_OPTS`, `RATE_LIMIT_ENABLED`, `RATE_LIMIT_PER_MINUTE`, `EXPOSE_API_DOCS`, `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL` |
 
-> Aucune valeur secrète n'est reproduite ici ; les valeurs par défaut non sécurisées du code applicatif sont signalées en §12 et annexe A.9.
+> Aucune valeur secrète n'est reproduite ici. `JWT_SECRET` n'a plus de valeur de repli : il est obligatoire hors profils `dev`/`test` (voir §12 P-3 et annexe A.9).
 
 ### 13.5 Procédure de build et de publication
 
@@ -224,7 +224,7 @@ git push origin main      # Render détecte le commit et reconstruit (blueprint 
 | `ACCESS_MATRIX.md` | 122 | Matrice rôles/permissions | Récent (ajout du dépôt) |
 | `analyse_memoire.md` | 679 | Analyse orientée mémoire | Récent (ajout du dépôt) |
 | `fake-data-seed.json` | 182 | Jeu de démonstration structuré | ✅ source fiable pour l'annexe A.4 |
-| `README.md` | — | Présentation, démarrage | ⚠️ « **35 tests** » (196 réels), **5 comptes listés (6 réels)**, mention « IA » sans précision |
+| `README.md` | — | Présentation, démarrage | ✅ « **202 tests** », 6 comptes listés ; mention « IA » à préciser |
 
 ### 15.2 Écarts documentations ↔ code
 
@@ -232,8 +232,8 @@ git push origin main      # Render détecte le commit et reconstruit (blueprint 
 |---|---|---|---|
 | 1 | `DATABASE.md` : contrôle de clé **NIF mod 97** | Regex `^[0-9]{10}$` seule (`NifValidator.java`) | **Écart : contrôle non implémenté** |
 | 2 | `DATABASE.md` : **5 rôles** | **6 rôles** (ajout de `ADMIN`) | **Écart documentaire** |
-| 3 | `README.md` : **35 tests** | **196 exécutions** (2 en échec) | **Écart documentaire** |
-| 4 | `README.md` : **5 comptes** de démonstration | **6 comptes** (`superadmin` non listé) | **Écart documentaire** |
+| 3 | `README.md` : **202 tests** | **202 exécutions, 0 échec** (28/10/2026) | ✅ aligné |
+| 4 | `README.md` : **6 comptes** de démonstration | **6 comptes** (`superadmin` inclus) | ✅ aligné |
 | 5 | `README.md` / bandeau « **IA** », « assistant intelligent » | Moteur de **règles + appariement textuel** (Levenshtein) — **aucun LLM**, aucun appel réseau de modèle | **Écart sémantique : à expliciter dans le mémoire** |
 | 6 | `docs/ARCHITECTURE.md` : « mise en cache » | `@EnableCaching` sans `@Cacheable` | **Non implémenté** |
 | 7 | `docker-compose` : Redis | Jamais utilisé par l'application | **Service superflu** |
@@ -447,7 +447,7 @@ erDiagram
 | Demandes d'inscription | 10 | En attente, acceptées, rejetées |
 | Annexes de déclaration | 3 | Fichiers joints |
 
-**Activation** : automatique au démarrage si `SEED_DEMO=true` (défaut en profil `dev`/`docker`, **et forcé dans `render.yaml`** — voir §12 P-2). Toutes les règles créées portent `is_demo = true` et `created_by = "seed"`.
+**Activation** : uniquement si `SEED_DEMO=true` (explicite en profil `dev`, `false` par défaut et dans `render.yaml` — voir §12 P-2). Les permissions et rôles système sont en revanche toujours synchronisés au démarrage. Toutes les règles créées portent `is_demo = true` et `created_by = "seed"`.
 
 ---
 
@@ -581,14 +581,14 @@ auth.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/register
 | Contribuables | ✅ **Complet** | CRUD, recherche, statuts, NIF, adresses, activités, liaison compte |
 | Déclarations | ✅ **Complet** | Cycle de vie complet, rectificative, annexes, historique, calendrier |
 | Impositions | ✅ **Complet** | Émission, origines (dont office), ajustement, annulation, avis PDF, historique |
-| Moteur de règles | ⚠️ **Partiel** | Calculs (4 méthodes) et versionnage OK ; **résolution en échec sur le repli générique** (test rouge) ; taux sans source légale |
+| Moteur de règles | ✅ **Complet** | Calculs (4 méthodes), versionnage et repli générique couverts (10 tests, 0 échec) ; taux sans source légale |
 | Créances | ✅ **Complet** | Composantes, majorations, statuts, priorités, observations, historique, création manuelle |
 | Recouvrement | ✅ **Complet** | Actions, avis + PDF, litiges, état des restes, événements automatiques |
 | Échéanciers | ✅ **Complet** | Plans, échéances, marquage des retards, relances automatiques |
 | Paiements | ✅ **Complet** | Enregistrement, confirmation, imputation ordonnée, rapprochement, annulation, rejet |
 | Quittances | ⚠️ **Partiel** | Émission, QR, vérification publique, annulation/remplacement OK ; **`pdf_path` jamais renseigné** (PDF régénéré à la volée) |
 | Contrôle fiscal | ✅ **Complet** | Ouverture, pièces, anomalies, redressement → créance, clôture |
-| Réclamations / remboursements | ⚠️ **Partiel** | Flux complet, mais **filtres avancés en échec** (test rouge) |
+| Réclamations / remboursements | ✅ **Complet** | Flux complet et filtres avancés couverts (10 tests, 0 échec) |
 | Messagerie interne | ✅ **Complet** | Fils, pièces jointes, contexte métier, archivage, recherche indexée |
 | Communication multicanal | ✅ **Complet** | Modèles trilingues, campagnes, file de reprise, règles d'événements configurables |
 | Notifications | ✅ **Complet** | Centre de notifications, compteurs, lecture groupée |
@@ -597,7 +597,7 @@ auth.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/register
 | Paramètres système | ✅ **Complet** | Lecture/écriture en IHM |
 | Multi-langue (IHM) | ⚠️ **Partiel** | 3 locales et ~850 appels `t()`, mais **libellés en dur en français** dans plusieurs pages ; **le serveur ignore `Accept-Language`** |
 | Assistant « IA » | ⚠️ **Partiel** | Fonctionnel (règles + appariement) mais **sans modèle de langage** ; accessible sans permission dédiée |
-| Déploiement | ⚠️ **Partiel** | Render + Neon + Docker fonctionnels ; **aucun disque persistant**, `SEED_DEMO=true` en prod, pas de CI |
+| Déploiement | ⚠️ **Partiel** | Render + Neon + Docker fonctionnels ; **aucun disque persistant**, `SEED_DEMO=false` par défaut en prod, pas de CI |
 
 ### A.7.2 Absences fonctionnelles confirmées
 
@@ -621,7 +621,7 @@ auth.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/register
 | Indicateur | Valeur |
 |---|---|
 | `TODO` / `FIXME` / `HACK` **réels** | **0** (les 8 correspondances relevées sont des mots dans des chaînes de caractères : « todo », « XXX » dans des libellés) |
-| Tests backend en échec | **2** / 196 |
+| Tests backend en échec | **0** / 202 (28/10/2026) |
 | Couverture instructions | **40,7 %** |
 | Couverture branches | **28,9 %** |
 | Endpoints sans test dédié | 228 (tests uniquement par module) |
@@ -684,7 +684,7 @@ auth.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/register
 | Service `redis` du `docker-compose.yml` | Aucun composant applicatif ne s'y connecte : il ne consomme que des ressources |
 | Répertoire `infra/nginx/` | Déclaré dans l'arborescence mais **vide** (le nginx réel est `frontend/nginx.conf`) |
 | Mentions « IA » / « 3D AI assistant » du `README.md` | Aucune dépendance d'IA : le module `ai` est un moteur de règles + distance de Levenshtein ; l'aspect « 3D » se limite à des animations CSS/`motion` |
-| Bandeau/tests annoncés au `README.md` (« 35 tests ») | Information obsolète : 196 exécutions réelles |
+| Bandeau/tests annoncés au `README.md` (« 202 tests ») | ✅ Aligné : 202 exécutions réelles, 0 échec |
 | Documentation des rôles en `DATABASE.md` (5 rôles) | Ne reflète plus les 6 rôles du code |
 | Mention d'un contrôle de clé NIF (mod 97) dans `DATABASE.md` | Non implémenté |
 | `motion` (^13.4.0) | Fonctionnelle mais **limitée à un seul composant** (`AiAssistant.tsx`) : coût de dépendance élevé pour un usage ponctuel |
@@ -698,11 +698,11 @@ auth.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/register
 
 | # | Recommandation | Fichier / point de vigilance |
 |---|---|---|
-| P1.1 | **Ne plus forcer le jeu de démonstration en production** : passer `SEED_DEMO` à `"false"` (ou supprimer la variable) dans le blueprint | `render.yaml` (`mnk-tax-api`) |
-| P1.2 | **Imposer `JWT_SECRET`** sans valeur par défaut (démarrage refusé si absent) et le faire générer par le gestionnaire de secrets | `application.yml:57` |
-| P1.3 | **Ne jamais renvoyer le mot de passe temporaire** en clair : le communiquer une seule fois hors journal, ou forcer la réinitialisation par lien à usage unique | `RegistrationService.java:201` |
+| P1.1 | ✅ **Corrigé (28/10/2026)** — jeu de démonstration désactivé par défaut (`SEED_DEMO=false`) et jamais forcé en production ; les blueprints Render le fixent à `false`, le profil `render` aussi | `render.yaml`, `application.yml`, `application-render.yml`, `DemoDataSeeder` |
+| P1.2 | ✅ **Corrigé (28/10/2026)** — `JWT_SECRET` obligatoire, sans valeur de repli ; démarrage refusé si absent, vide, inférieur à 32 octets ou égal à l'ancienne valeur publiée | `application.yml:60`, `JwtService.buildSigningKey` |
+| P1.3 | ✅ **Corrigé (28/10/2026)** — mot de passe temporaire généré côté serveur et envoyé uniquement par email (`AccountCredentialsNotifier`) ; réponse HTTP `204 No Content`, sessions révoquées, rollback si l'envoi échoue | `RegistrationService`, `UserService`, `UserController`, `AccountCredentialsNotifier` |
 | P1.4 | **Persister les fichiers** (QR/PDF, avatars, pièces) sur un stockage externe ou un disque persistant, sinon ils disparaissent à chaque redéploiement | `render.yaml` (aucun `disk:`), chemins `data/…` |
-| P1.5 | **Corriger les 2 tests en échec** (priorité de résolution des règles fiscales, filtres de remboursement) | `TaxRuleRepositoryResolveTest`, `ComplaintRefundModuleIntegrationTest` |
+| P1.5 | ✅ **Corrigé (28/10/2026)** — les 2 tests en échec (priorité de résolution des règles fiscales, filtres de remboursement) passent ; suite complète au vert | `TaxRuleRepositoryResolveTest`, `ComplaintRefundModuleIntegrationTest` — 202 tests, 0 échec |
 | P1.6 | **Revérifier la source des taux** avant toute utilisation réelle (actuellement `is_demo = true`, aucune référence légale) | `tax_rules.legal_reference` |
 | P1.7 | **Hors ligne les comptes de démonstration** en production (suppression ou comptes désactivés) | `DemoDataSeeder.seedUsers()` |
 
@@ -714,7 +714,7 @@ auth.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/register
 | P2.2 | Sortir Swagger et la console H2 de la liste `permitAll` (les protéger par profil) et laisser `EXPOSE_API_DOCS=false` par défaut |
 | P2.3 | Persister le rate-limit (Redis ou base) pour qu'il survive aux redémarragements et soit partagé entre instances |
 | P2.4 | Documenter explicitement que l'« IA » est un **moteur de règles** (et non un LLM) dans le `README.md` |
-| P2.5 | Corriger les chiffres du `README.md` (« 35 tests » → 196 ; 5 → 6 comptes ; 5 → 6 rôles dans `DATABASE.md`) |
+| P2.5 | ✅ Chiffres du `README.md` corrigés (202 tests, 6 comptes) ; reste à aligner `DATABASE.md` sur les 6 rôles |
 | P2.6 | Supprimer le service `redis` du `docker-compose` ou brancher réellement un cache |
 | P2.7 | Mettre en place une intégration continue (build + tests + lint) et une couverture minimale (objectif ≥ 60 %) |
 | P2.8 | Ajouter les tests manquants : contrôle des endpoints, exports, PDF de recouvrement |

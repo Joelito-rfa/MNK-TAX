@@ -10,6 +10,9 @@ import com.mnktax.taxpayer.entity.Taxpayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -32,11 +35,17 @@ public class CommunicationEventEngine {
 
     private final CommunicationEventRuleRepository ruleRepository;
     private final CommunicationService communicationService;
+    private final TransactionTemplate communicationTx;
 
     public CommunicationEventEngine(CommunicationEventRuleRepository ruleRepository,
-                                    CommunicationService communicationService) {
+                                    CommunicationService communicationService,
+                                    PlatformTransactionManager transactionManager) {
         this.ruleRepository = ruleRepository;
         this.communicationService = communicationService;
+        this.communicationTx = new TransactionTemplate(transactionManager);
+        // Transaction séparée : un échec d'envoi ne doit jamais marquer la
+        // transaction métier appelante (paiement, déclaration…) en rollback-only.
+        this.communicationTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     /**
@@ -56,61 +65,88 @@ public class CommunicationEventEngine {
                         Map<String, String> variables,
                         MessageContextType contextType, String contextRef) {
         try {
-            if (taxpayer == null || taxpayer.getUserId() == null) {
-                return;
-            }
-            var rules = ruleRepository.findByEventTypeAndEnabledTrue(eventType);
-            if (rules.isEmpty()) {
-                return;
-            }
-            Map<String, String> vars = new HashMap<>();
-            if (variables != null) {
-                vars.putAll(variables);
-            }
-            vars.putIfAbsent("taxpayer_name", taxpayer.getName() == null ? "" : taxpayer.getName());
-            vars.putIfAbsent("nif", taxpayer.getNif() == null ? "" : taxpayer.getNif());
-
-            for (CommunicationEventRule rule : rules) {
-                List<String> channels = effectiveChannels(rule, taxpayer);
-                ComposeRequest request = new ComposeRequest(
-                        taxpayer.getId(),
-                        taxpayer.getUserId(),
-                        null,
-                        "SINGLE",
-                        null,
-                        null,
-                        channels,
-                        null,                     // sujet issu du modèle
-                        null,                     // contenu issu du modèle
-                        rule.getTemplateCode(),
-                        null,                     // langue du contribuable
-                        rule.getPriority(),
-                        eventType.name(),
-                        null,
-                        true, null, null, null, null,
-                        contextType,
-                        contextRef);
-                ComposeResult result = communicationService.compose(request, null);
-                log.info("Événement {} : communication {} canaux={} destinataire={}",
-                        eventType, rule.getTemplateCode(), String.join(",", channels), taxpayer.getNif());
-            }
+            communicationTx.executeWithoutResult(status ->
+                    dispatch(eventType, taxpayer, variables, contextType, contextRef));
         } catch (Exception ex) {
             log.error("Échec du moteur de notification pour {} (contribuable {}) : {}",
                     eventType, taxpayer == null ? "?" : taxpayer.getNif(), ex.getMessage(), ex);
         }
     }
 
+    private void dispatch(CommunicationEventType eventType, Taxpayer taxpayer,
+                          Map<String, String> variables,
+                          MessageContextType contextType, String contextRef) {
+        if (!isReachable(taxpayer)) {
+            return;
+        }
+        var rules = ruleRepository.findByEventTypeAndEnabledTrue(eventType);
+        if (rules.isEmpty()) {
+            return;
+        }
+        Map<String, String> vars = new HashMap<>();
+        if (variables != null) {
+            vars.putAll(variables);
+        }
+        vars.putIfAbsent("taxpayer_name", taxpayer.getName() == null ? "" : taxpayer.getName());
+        vars.putIfAbsent("nif", taxpayer.getNif() == null ? "" : taxpayer.getNif());
+
+        for (CommunicationEventRule rule : rules) {
+            List<String> channels = effectiveChannels(rule, taxpayer);
+            if (channels.isEmpty()) {
+                log.debug("Événement {} ignoré pour le contribuable {} : aucun canal joignable.",
+                        eventType, taxpayer.getNif());
+                continue;
+            }
+            ComposeRequest request = new ComposeRequest(
+                    taxpayer.getId(),
+                    taxpayer.getUserId(),
+                    null,
+                    "SINGLE",
+                    null,
+                    null,
+                    channels,
+                    null,                     // sujet issu du modèle
+                    null,                     // contenu issu du modèle
+                    rule.getTemplateCode(),
+                    null,                     // langue du contribuable
+                    rule.getPriority(),
+                    eventType.name(),
+                    null,
+                    true, null, null, null, null, null,
+                    contextType,
+                    contextRef);
+            ComposeResult result = communicationService.compose(request, null);
+            log.info("Événement {} : communication {} canaux={} destinataire={}",
+                    eventType, rule.getTemplateCode(), String.join(",", channels), taxpayer.getNif());
+        }
+    }
+
+    /**
+     * Un contribuable est joignable s'il a un compte (canal IN_APP) ou des
+     * coordonnées directes (EMAIL sur la fiche ou SMS). Un contribuable sans
+     * compte mais avec une adresse email doit recevoir les relances automatiques.
+     */
+    static boolean isReachable(Taxpayer taxpayer) {
+        if (taxpayer == null) {
+            return false;
+        }
+        return taxpayer.getUserId() != null
+                || (taxpayer.getEmail() != null && !taxpayer.getEmail().isBlank())
+                || (taxpayer.getPhoneNormalized() != null && !taxpayer.getPhoneNormalized().isBlank());
+    }
+
     /**
      * Intersection des canaux de la règle et des préférences du contribuable.
-     * Repli sur IN_APP si l'intersection est vide (le canal interne est toujours
-     * disponible et ne dépend d'aucun fournisseur externe).
+     * Repli sur IN_APP si l'intersection est vide et que le contribuable a un
+     * compte ; sinon aucun canal (le contribuable n'est pas joignable).
      */
     private List<String> effectiveChannels(CommunicationEventRule rule, Taxpayer taxpayer) {
         List<String> ruleChannels = splitCsv(rule.getChannels());
         List<String> preferred = splitCsv(taxpayer.getPreferredChannels());
         List<String> intersection = ruleChannels.stream().filter(preferred::contains).toList();
         if (intersection.isEmpty()) {
-            return List.of("IN_APP");
+            // Le canal interne n'est utilisable que si le contribuable possède un compte.
+            return taxpayer.getUserId() != null ? List.of("IN_APP") : List.of();
         }
         return intersection;
     }

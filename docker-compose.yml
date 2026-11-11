@@ -37,14 +37,19 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-mnktax}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:-Y2hhbmdlLW1lLWludGVybmFsLXNlY3JldC1mb3ItbW5rLXRheC1wcm90b3R5cGUtMDAx}
-      SEED_DEMO: ${SEED_DEMO:-true}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET est obligatoire (générez-le avec openssl rand -base64 64)}
+      SEED_DEMO: ${SEED_DEMO:-false}
       RECEIPT_BASE_URL: ${RECEIPT_BASE_URL:-http://localhost:3000}
       # Centre de communication — Email (SMTP réel)
       MAIL_HOST: ${MAIL_HOST:-}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-true}
+      MAIL_SMTP_SSL: ${MAIL_SMTP_SSL:-false}
+      MAIL_SMTP_SSL_TRUST: ${MAIL_SMTP_SSL_TRUST:-}
+      MAIL_DEBUG: ${MAIL_DEBUG:-false}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@mnk-tax.mg}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-MNK-TAX — Administration fiscale}
       # Envois test (destination explicite uniquement)

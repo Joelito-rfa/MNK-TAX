@@ -62,8 +62,22 @@ public class MessageDelivery {
     @Column(name = "last_error", length = 1000)
     private String lastError;
 
+    /** Vrai si la dernière erreur est temporaire (réseau, 429/5xx…). */
+    @Column(name = "last_error_retryable", nullable = false)
+    @Builder.Default
+    private boolean lastErrorRetryable = true;
+
+    /** Nombre de cycles de relance automatique déjà consommés. */
+    @Column(name = "auto_retry_count", nullable = false)
+    @Builder.Default
+    private int autoRetryCount = 0;
+
     @Column(name = "next_retry_at")
     private Instant nextRetryAt;
+
+    /** Date de la dernière tentative réelle (détection des SENDING bloqués). */
+    @Column(name = "last_attempt_at")
+    private Instant lastAttemptAt;
 
     @Column(name = "provider_message_id", length = 100)
     private String providerMessageId;

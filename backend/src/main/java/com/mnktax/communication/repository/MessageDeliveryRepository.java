@@ -22,6 +22,26 @@ public interface MessageDeliveryRepository extends JpaRepository<MessageDelivery
             + "AND (d.nextRetryAt IS NULL OR d.nextRetryAt <= :now) ORDER BY d.createdAt ASC")
     List<MessageDelivery> findDue(DeliveryStatus pending, Instant now, Pageable pageable);
 
+    /**
+     * Emails en échec éligibles à une relance automatique :
+     * erreur temporaire, cycles restants et échec récent.
+     */
+    @Query("SELECT d FROM MessageDelivery d WHERE d.status = :status "
+            + "AND d.channel = :channel AND d.lastErrorRetryable = true "
+            + "AND d.autoRetryCount < :maxCycles AND d.updatedAt >= :minFailedAt "
+            + "AND d.updatedAt <= :notBefore ORDER BY d.updatedAt ASC")
+    List<MessageDelivery> findAutoRetryCandidates(
+            DeliveryStatus status, DeliveryChannel channel, int maxCycles,
+            Instant minFailedAt, Instant notBefore, Pageable pageable);
+
+    /** Livraisons restées bloquées en SENDING (arrêt brutal, timeout non tracé…). */
+    @Query("SELECT d FROM MessageDelivery d WHERE d.status = :status "
+            + "AND ((d.lastAttemptAt IS NOT NULL AND d.lastAttemptAt <= :threshold) "
+            + "OR (d.lastAttemptAt IS NULL AND d.updatedAt <= :threshold)) "
+            + "ORDER BY d.updatedAt ASC")
+    List<MessageDelivery> findStaleSending(
+            DeliveryStatus status, Instant threshold, Pageable pageable);
+
     @Query("SELECT d FROM MessageDelivery d WHERE d.messageId IN "
             + "(SELECT m.id FROM com.mnktax.message.entity.Message m WHERE m.senderId = :senderId) "
             + "AND (:status IS NULL OR d.status = :status) ORDER BY d.createdAt DESC")

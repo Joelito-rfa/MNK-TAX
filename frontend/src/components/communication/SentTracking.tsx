@@ -12,6 +12,7 @@ import type {
   Page,
 } from '../../types'
 import { Badge, Button, Card, EmptyState, Pagination, SearchInput, Select, Spinner, Table, Td, Th } from '../ui'
+import { ExportButton } from '../ExportButton'
 import { useToast } from '../Toast'
 
 const STATUS_TONES: Record<string, string> = {
@@ -51,6 +52,19 @@ export default function SentTracking({ canManage }: { canManage: boolean }) {
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<number | null>(null)
+
+  /** Tous les envois correspondant aux filtres actifs (hors pagination). */
+  const exportSentRows = async () => {
+    const params = new URLSearchParams()
+    if (status) params.set('status', status)
+    if (search) params.set('search', search)
+    const res = await apiGet<Page<CommSentMessage>>(`/communication/sent?${params.toString()}&size=9999`)
+    return res.content.map((m) => [
+      m.recipientName, m.subject ?? '', m.channels ?? '',
+      t(`comm.status.${m.status}`), m.createdAt,
+      m.lastError ?? '',
+    ])
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ['comm-sent', page, status, search],
@@ -96,6 +110,17 @@ export default function SentTracking({ canManage }: { canManage: boolean }) {
             <option key={s} value={s}>{t(`comm.status.${s}`)}</option>
           ))}
         </Select>
+        <div className="ml-auto">
+          <ExportButton
+            filenameBase={`envois_${new Date().toISOString().slice(0, 10)}`}
+            title={t('comm.tracking.title')}
+            headers={[
+              t('comm.tracking.recipient'), t('comm.compose.subject'), t('comm.tracking.channels'),
+              t('comm.tracking.status'), t('comm.tracking.created'), t('comm.tracking.error'),
+            ]}
+            rows={exportSentRows}
+          />
+        </div>
       </div>
 
       {isLoading ? (
@@ -162,6 +187,10 @@ function SentRow({
 }) {
   const { t } = useI18n()
   const channels = (message.channels ?? '').split(',').filter(Boolean)
+  const hasRetryableDelivery = message.deliveries.some(
+    (d) => d.status === 'FAILED' || d.status === 'BOUNCED',
+  )
+  const canRetry = message.status === 'FAILED' || hasRetryableDelivery
 
   return (
     <>
@@ -205,7 +234,7 @@ function SentRow({
         </Td>
         <Td>
           <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            {message.status === 'FAILED' && (
+            {canRetry && (
               <Button variant="ghost" size="sm" onClick={onRetry} loading={retrying} title={t('comm.tracking.retry')}>
                 <RotateCcw className="h-3.5 w-3.5" /> {t('comm.tracking.retry')}
               </Button>
@@ -260,8 +289,18 @@ function DeliveryChip({ delivery }: { delivery: CommDelivery }) {
       <div className="mt-1 text-slate-400">
         {t('comm.tracking.attempts')} : {delivery.attemptCount}/{delivery.maxAttempts}
       </div>
+      {delivery.autoRetryCount > 0 && (
+        <div className="text-slate-400">
+          {t('comm.tracking.autoRetries')} : {delivery.autoRetryCount}
+        </div>
+      )}
       {delivery.sentAt && (
         <div className="text-slate-400">↳ {fmtDateTime(delivery.sentAt)}</div>
+      )}
+      {delivery.providerMessageId?.startsWith('demo-') && (
+        <div className="text-amber-500" title={t('comm.tracking.simulatedHint')}>
+          {t('comm.tracking.simulated')}
+        </div>
       )}
       {delivery.readAt && (
         <div className="text-emerald-500">✓ {fmtDateTime(delivery.readAt)}</div>

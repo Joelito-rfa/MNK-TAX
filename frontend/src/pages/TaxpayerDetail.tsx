@@ -29,6 +29,7 @@ import type {
 import { CreateComplaintModal, ComplaintDetailModal, complaintContextLabels } from './Complaints'
 import { CreateRefundModal, RefundDetailModal, refundReasonLabels } from './Refunds'
 import { CreateControlModal, ControlDetailModal, controlTypeLabels } from './Controls'
+import { ExportButton } from '../components/ExportButton'
 import { UserAvatar } from '../components/UserAvatar'
 import {
   Badge,
@@ -48,6 +49,7 @@ import {
   Th,
 } from '../components/ui'
 import { useToast } from '../components/Toast'
+import { invalidateCollectionData } from '../features/collection/api/keys'
 import { useObligations } from '../features/obligation/api/queries'
 import { useAssessments } from '../features/assessment/api/queries'
 import {
@@ -351,9 +353,11 @@ function CreateCollectionActionModal({ taxpayerId, onClose }: { taxpayerId: numb
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collection-actions'] })
       queryClient.invalidateQueries({ queryKey: ['collection'] })
+      invalidateCollectionData(queryClient)
       onClose()
       toast.success('Action de recouvrement enregistrée')
     },
+    onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
   const openDebts = (debts?.content ?? []).filter((d) => d.balance > 0)
   return (
@@ -912,30 +916,48 @@ function ObligationsTab({ taxpayerId, taxRegimeId }: { taxpayerId: number; taxRe
         title="Obligations fiscales"
         subtitle={`${obligations.length} obligation(s) — échéances de déclaration et de paiement suivies`}
         actions={
-          canWrite && (
-            <div className="flex flex-wrap gap-2">
-              {taxRegimeId && (
+          <>
+            {canWrite && (
+              <div className="flex flex-wrap gap-2">
+                {taxRegimeId && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => generate.mutate({ taxpayerId, regimeId: taxRegimeId })}
+                    disabled={generate.isPending}
+                  >
+                    <Wand2 className="h-4 w-4" />
+                    {generate.isPending ? 'Génération…' : 'Générer depuis le régime'}
+                  </Button>
+                )}
                 <Button
-                  variant="secondary"
                   size="sm"
-                  onClick={() => generate.mutate({ taxpayerId, regimeId: taxRegimeId })}
-                  disabled={generate.isPending}
+                  onClick={() => {
+                    setEditing(null)
+                    setFormOpen(true)
+                  }}
                 >
-                  <Wand2 className="h-4 w-4" />
-                  {generate.isPending ? 'Génération…' : 'Générer depuis le régime'}
+                  <Plus className="h-4 w-4" /> Nouvelle obligation
                 </Button>
-              )}
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditing(null)
-                  setFormOpen(true)
-                }}
-              >
-                <Plus className="h-4 w-4" /> Nouvelle obligation
-              </Button>
-            </div>
-          )
+              </div>
+            )}
+            <ExportButton
+              filenameBase={`obligations_${new Date().toISOString().slice(0, 10)}`}
+              title="Obligations fiscales"
+              headers={['Impôt', 'Périodicité', 'Début', 'Fin', 'Échéance déclaration', 'Échéance paiement', 'Déclaration', 'Paiement', 'Statut']}
+              rows={obligations.map((o) => [
+                `${o.taxTypeName} (${o.taxTypeCode})`,
+                periodicityLabels[o.periodicity] ?? o.periodicity,
+                o.startDate,
+                o.endDate,
+                o.declarationDeadline,
+                o.paymentDeadline,
+                o.declarationStatus,
+                o.paymentStatus,
+                o.status,
+              ])}
+            />
+          </>
         }
       />
       {isLoading ? (
@@ -1181,9 +1203,25 @@ function AssessmentsTab({ taxpayerId }: { taxpayerId: number }) {
         title="Impositions"
         subtitle={`${assessments.length} imposition(s) calculée(s) automatiquement`}
         actions={
-          <Link to={`/assessments?taxpayerId=${taxpayerId}`} className="text-sm font-medium text-brand-700 hover:underline">
-            Voir tout
-          </Link>
+          <>
+            <Link to={`/assessments?taxpayerId=${taxpayerId}`} className="text-sm font-medium text-brand-700 hover:underline">
+              Voir tout
+            </Link>
+            <ExportButton
+              filenameBase={`impositions_${new Date().toISOString().slice(0, 10)}`}
+              title="Impositions"
+              headers={['Référence', 'Impôt', 'Période', 'Base imposable', 'Impôt net', 'Calculé le', 'Déclaration']}
+              rows={assessments.map((a) => [
+                a.reference,
+                a.taxTypeCode,
+                a.period,
+                a.taxBase,
+                a.netTax,
+                a.calculationDate,
+                a.declarationReference,
+              ])}
+            />
+          </>
         }
       />
       {assessments.length === 0 ? (
@@ -1245,9 +1283,24 @@ function DeclarationsTab({ taxpayerId, closed = false }: { taxpayerId: number; c
       <CardHeader
         title="Déclarations"
         actions={
-          <Button size="sm" disabled={closed} title={closed ? 'Contribuable clôturé : création de déclaration impossible' : undefined} onClick={() => setOpen(true)}>
-            <FilePlus2 className="h-4 w-4" /> Nouvelle déclaration
-          </Button>
+          <>
+            <Button size="sm" disabled={closed} title={closed ? 'Contribuable clôturé : création de déclaration impossible' : undefined} onClick={() => setOpen(true)}>
+              <FilePlus2 className="h-4 w-4" /> Nouvelle déclaration
+            </Button>
+            <ExportButton
+              filenameBase={`declarations_${new Date().toISOString().slice(0, 10)}`}
+              title="Déclarations"
+              headers={['Référence', 'Impôt', 'Période', 'Assiette', 'Montant déclaré', 'Statut']}
+              rows={(data?.content ?? []).map((d) => [
+                d.reference,
+                d.taxTypeCode,
+                d.period,
+                d.taxBase,
+                d.declaredAmount,
+                d.status,
+              ])}
+            />
+          </>
         }
       />
       {isLoading ? (
@@ -1358,6 +1411,27 @@ function DebtsTab({ taxpayerId }: { taxpayerId: number }) {
   })
   return (
     <Card>
+      <CardHeader
+        title="Créances"
+        actions={
+          <ExportButton
+            filenameBase={`creances_${new Date().toISOString().slice(0, 10)}`}
+            title="Créances"
+            headers={['Référence', 'Impôt', 'Période', 'Principal', 'Pénalités', 'Intérêts', 'Total', 'Solde', 'Statut']}
+            rows={(data?.content ?? []).map((d) => [
+              d.reference,
+              d.taxTypeCode,
+              d.period,
+              d.principalAmount,
+              d.penaltyAmount,
+              d.interestAmount,
+              d.totalAmount,
+              d.balance,
+              d.status,
+            ])}
+          />
+        }
+      />
       {isLoading ? (
         <Spinner />
       ) : !data || data.content.length === 0 ? (
@@ -1413,9 +1487,25 @@ function PaymentsTab({ taxpayerId }: { taxpayerId: number }) {
       <CardHeader
         title="Paiements"
         actions={
-          <Button size="sm" onClick={() => setOpen(true)}>
-            <Wallet className="h-4 w-4" /> Enregistrer un paiement
-          </Button>
+          <>
+            <Button size="sm" onClick={() => setOpen(true)}>
+              <Wallet className="h-4 w-4" /> Enregistrer un paiement
+            </Button>
+            <ExportButton
+              filenameBase={`paiements_${new Date().toISOString().slice(0, 10)}`}
+              title="Paiements"
+              headers={['Référence', 'Date', 'Montant', 'Mode', 'Alloué', 'Statut', 'Quittance']}
+              rows={(data?.content ?? []).map((p) => [
+                p.reference,
+                p.paymentDate,
+                p.amount,
+                p.method,
+                p.allocatedAmount,
+                p.status,
+                p.receiptReference ?? '—',
+              ])}
+            />
+          </>
         }
       />
       {isLoading ? (
@@ -1557,6 +1647,25 @@ function ReceiptsTab({ taxpayerId }: { taxpayerId: number }) {
   }
   return (
     <Card>
+      <CardHeader
+        title="Quittances"
+        actions={
+          <ExportButton
+            filenameBase={`quittances_${new Date().toISOString().slice(0, 10)}`}
+            title="Quittances"
+            headers={['N°', 'Référence', 'Impôt', 'Période', 'Montant', 'Mode', 'Émise le']}
+            rows={(data?.content ?? []).map((r) => [
+              r.receiptNumber,
+              r.reference,
+              r.taxTypeCode,
+              r.period,
+              r.amount,
+              r.method,
+              r.issuedAt,
+            ])}
+          />
+        }
+      />
       {isLoading ? (
         <Spinner />
       ) : !data || data.content.length === 0 ? (
@@ -1625,7 +1734,26 @@ function CollectionTab({ taxpayerId }: { taxpayerId: number }) {
   })
   return (
     <Card>
-      <CardHeader title="Recouvrement" subtitle="Actions de recouvrement liées à ce contribuable" />
+      <CardHeader
+        title="Recouvrement"
+        subtitle="Actions de recouvrement liées à ce contribuable"
+        actions={
+          <ExportButton
+            filenameBase={`recouvrement_${new Date().toISOString().slice(0, 10)}`}
+            title="Recouvrement"
+            headers={['Type', 'Description', 'Créance', 'Agent', 'Date', 'Résultat', 'Prochaine action']}
+            rows={(data?.content ?? []).map((a) => [
+              collectionTypeLabels[a.type] ?? a.type,
+              a.description,
+              a.debtReference,
+              a.responsibleName ?? '—',
+              a.actionDate,
+              a.outcome || '—',
+              a.nextAction || '—',
+            ])}
+          />
+        }
+      />
       {isLoading ? (
         <Spinner />
       ) : !data || data.content.length === 0 ? (
@@ -1684,11 +1812,26 @@ function ControlsTab({ taxpayerId }: { taxpayerId: number }) {
         title="Contrôles fiscaux"
         subtitle="Contrôles et vérifications de ce contribuable"
         actions={
-          can('CONTROL_WRITE') && (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <FileSearch className="h-4 w-4" /> Nouveau contrôle
-            </Button>
-          )
+          <>
+            {can('CONTROL_WRITE') && (
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <FileSearch className="h-4 w-4" /> Nouveau contrôle
+              </Button>
+            )}
+            <ExportButton
+              filenameBase={`controles_${new Date().toISOString().slice(0, 10)}`}
+              title="Contrôles fiscaux"
+              headers={['Référence', 'Type', 'Période contrôlée', 'Agent', 'Statut', 'Redressement']}
+              rows={(data?.content ?? []).map((c) => [
+                c.reference,
+                controlTypeLabels[c.controlType] ?? c.controlType,
+                `${c.periodStart} → ${c.periodEnd}`,
+                c.agentName ?? '—',
+                c.status,
+                c.redressement,
+              ])}
+            />
+          </>
         }
       />
       {isLoading ? (
@@ -1771,11 +1914,25 @@ function ComplaintsTab({ taxpayerId }: { taxpayerId: number }) {
         title="Réclamations"
         subtitle="Réclamations liées à ce contribuable"
         actions={
-          can('COMPLAINT_WRITE') && (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <FileQuestion className="h-4 w-4" /> Nouvelle réclamation
-            </Button>
-          )
+          <>
+            {can('COMPLAINT_WRITE') && (
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <FileQuestion className="h-4 w-4" /> Nouvelle réclamation
+              </Button>
+            )}
+            <ExportButton
+              filenameBase={`reclamations_${new Date().toISOString().slice(0, 10)}`}
+              title="Réclamations"
+              headers={['Référence', 'Objet', 'Contexte', 'Statut', 'Créée le']}
+              rows={(data?.content ?? []).map((c) => [
+                c.reference,
+                c.subject,
+                complaintContextLabels[c.contextType] ?? c.contextType,
+                c.status,
+                c.createdAt,
+              ])}
+            />
+          </>
         }
       />
       {isLoading ? (
@@ -1854,11 +2011,25 @@ function RefundsTab({ taxpayerId }: { taxpayerId: number }) {
         title="Remboursements"
         subtitle="Demandes de remboursement de ce contribuable"
         actions={
-          can('REFUND_WRITE') && (
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <Banknote className="h-4 w-4" /> Demande de remboursement
-            </Button>
-          )
+          <>
+            {can('REFUND_WRITE') && (
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Banknote className="h-4 w-4" /> Demande de remboursement
+              </Button>
+            )}
+            <ExportButton
+              filenameBase={`remboursements_${new Date().toISOString().slice(0, 10)}`}
+              title="Remboursements"
+              headers={['Référence', 'Motif', 'Montant', 'Statut', 'Demandé le']}
+              rows={(data?.content ?? []).map((r) => [
+                r.reference,
+                refundReasonLabels[r.reason] ?? r.reason,
+                r.amount,
+                r.status,
+                r.createdAt,
+              ])}
+            />
+          </>
         }
       />
       {isLoading ? (
@@ -1945,9 +2116,24 @@ function MessagesTab({ taxpayerId }: { taxpayerId: number }) {
         title="Messages"
         subtitle="Conversations liées à ce contribuable"
         actions={
-          <Link to="/messages" className="text-sm font-medium text-brand-600 hover:underline">
-            Ouvrir la messagerie
-          </Link>
+          <>
+            <Link to="/messages" className="text-sm font-medium text-brand-600 hover:underline">
+              Ouvrir la messagerie
+            </Link>
+            <ExportButton
+              filenameBase={`messages_${new Date().toISOString().slice(0, 10)}`}
+              title="Messages"
+              headers={['Expéditeur', 'Sujet', 'Dossier', 'Priorité', 'Date', 'Statut']}
+              rows={(data?.content ?? []).map((m) => [
+                m.senderName,
+                m.subject || '—',
+                m.contextType !== 'GENERAL' ? (msgContextLabels[m.contextType] ?? m.contextType) : '—',
+                m.priority,
+                m.createdAt,
+                m.read ? 'Lu' : 'Non lu',
+              ])}
+            />
+          </>
         }
       />
       {isLoading ? (
@@ -2013,7 +2199,24 @@ function HistoryTab({ taxpayerId }: { taxpayerId: number }) {
   if (isLoading) return <Spinner />
   return (
     <Card>
-      <CardHeader title="Historique" subtitle="Timeline des événements enregistrés pour ce contribuable (audit)" />
+      <CardHeader
+        title="Historique"
+        subtitle="Timeline des événements enregistrés pour ce contribuable (audit)"
+        actions={
+          <ExportButton
+            filenameBase={`historique_${new Date().toISOString().slice(0, 10)}`}
+            title="Historique"
+            headers={['Action', 'Entité', 'Utilisateur', 'Date', 'Valeur']}
+            rows={(data?.content ?? []).map((e) => [
+              auditActionLabels[e.action] ?? e.action,
+              `${e.entityType} #${e.entityId}`,
+              e.username || '—',
+              e.createdAt,
+              e.newValue || '—',
+            ])}
+          />
+        }
+      />
       {!data || data.content.length === 0 ? (
         <EmptyState title="Aucun événement enregistré" />
       ) : (
@@ -2109,7 +2312,24 @@ function DocumentsTab({ taxpayerId }: { taxpayerId: number }) {
 
   return (
     <Card>
-      <CardHeader title="Documents" subtitle="Pièces jointes du dossier" />
+      <CardHeader
+        title="Documents"
+        subtitle="Pièces jointes du dossier"
+        actions={
+          <ExportButton
+            filenameBase={`documents_${new Date().toISOString().slice(0, 10)}`}
+            title="Documents"
+            headers={['Titre', 'Type', 'Taille', 'Déposé par', 'Date']}
+            rows={(data ?? []).map((d) => [
+              d.title,
+              d.documentType || '—',
+              d.size,
+              d.uploadedBy || '—',
+              d.createdAt,
+            ])}
+          />
+        }
+      />
       <form onSubmit={handleUpload} className="flex flex-wrap items-end gap-3 border-b border-slate-100 dark:border-slate-700/50 px-5 py-4">
         <div className="min-w-40 flex-1">
           <Field label="Titre">

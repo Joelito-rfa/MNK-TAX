@@ -16,6 +16,9 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
 
 mnk-tax:
+  jwt:
+    # Secret de test isolé : ne jamais réutiliser hors des tests.
+    secret: dGVzdC1vbmx5LW1uay10YXgtand0LXNlY3JldC0wMDEtbmUtcGFzLXV0aWxpc2VyLWVuLXByb2Q=
   rate-limit:
     enabled: false
   receipt:
@@ -26,3 +29,8 @@ mnk-tax:
   communication:
     demo-provider:
       enabled: false
+    queue:
+      # Workers planifiés neutralisés : les tests appellent explicitement les
+      # traitements pour rester déterministes (aucune course avec le scheduler).
+      poll-initial-delay-ms: 3600000
+      sweep-initial-delay-ms: 3600000

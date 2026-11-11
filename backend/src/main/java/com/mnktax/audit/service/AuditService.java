@@ -7,7 +7,6 @@ import com.mnktax.common.util.SecurityUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -26,7 +25,13 @@ public class AuditService {
         this.objectMapper = objectMapper;
     }
 
-    @Async
+    /**
+     * Enregistre une entrée d'audit. Synchrone volontairement : le
+     * SecurityContextHolder (utilisateur) et l'HttpServletRequest (IP,
+     * User-Agent) ne sont valides que sur le fil de la requête — un dispatch
+     * @Async les perdait (requête Tomcat recyclée → entrée entièrement
+     * ratée, utilisateur attribué à « system »).
+     */
     public void record(String action, String entityType, String entityId, Object oldValue, Object newValue,
                        HttpServletRequest request) {
         try {

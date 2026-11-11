@@ -70,7 +70,7 @@ Le catalogue exact des permissions et le mapping rôle → permissions sont docu
 > préfixée `PERMISSION_TAXPAYER_READ` (voir `Permissions.java`).
 >
 > `DemoDataSeeder.seedRoles()` réécrase `role_permissions` pour les 6 rôles système à chaque
-> démarrage lorsque `SEED_DEMO=true` : tout ajustement manuel en base est perdu.
+> démarrage, indépendamment de `SEED_DEMO` : tout ajustement manuel en base est perdu.
 
 ## Environnements
 

@@ -29,6 +29,7 @@ import {
   Textarea,
   Th,
 } from '../ui'
+import { ExportButton } from '../ExportButton'
 import { useToast } from '../Toast'
 
 const AUDIENCES: CommAudience[] = ['ALL', 'WITH_DEBT', 'OVERDUE', 'TAX_TYPE', 'DUE_SOON']
@@ -53,6 +54,16 @@ export default function Campaigns({ canManage }: { canManage: boolean }) {
     enabled: canManage,
   })
 
+  /** Toutes les campagnes (la liste n'a pas d'autre filtre que la pagination). */
+  const exportCampaignRows = async () => {
+    const res = await apiGet<Page<CommCampaign>>('/communication/campaigns?size=9999')
+    return res.content.map((c) => [
+      c.name, c.reference, t(`comm.campaign.audience.${c.audience}`),
+      c.channels, c.recipientCount, c.sentCount, c.failedCount, c.readCount,
+      c.status, c.createdAt,
+    ])
+  }
+
   if (!canManage) return null
 
   return (
@@ -60,9 +71,21 @@ export default function Campaigns({ canManage }: { canManage: boolean }) {
       <Card>
         <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
           <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t('comm.campaign.title')}</h3>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> {t('comm.campaign.new')}
-          </Button>
+          <div className="flex items-center gap-2">
+            <ExportButton
+              filenameBase={`campagnes_${new Date().toISOString().slice(0, 10)}`}
+              title={t('comm.campaign.title')}
+              headers={[
+                t('comm.campaign.name'), t('comm.campaign.reference'), t('comm.campaign.audience'),
+                t('comm.tracking.channels'), 'Destinataires', 'Envoyés', 'Échecs', 'Lus',
+                t('common.status'), t('common.date'),
+              ]}
+              rows={exportCampaignRows}
+            />
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> {t('comm.campaign.new')}
+            </Button>
+          </div>
         </div>
         {isLoading ? (
           <Spinner />

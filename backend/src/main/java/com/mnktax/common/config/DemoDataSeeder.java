@@ -177,7 +177,7 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final DebtDisputeRepository disputeRepository;
     private final PaymentPlanRepository planRepository;
 
-    @Value("${mnk-tax.seed-demo:true}")
+    @Value("${mnk-tax.seed-demo:false}")
     private boolean seedDemo;
 
     public DemoDataSeeder(PermissionRepository permissionRepository, RoleRepository roleRepository,
@@ -258,17 +258,25 @@ public class DemoDataSeeder implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        // Référentiel RBAC indispensable au fonctionnement : toujours synchronisé,
+        // même lorsque les données fictives sont désactivées.
+        seedSystemParameters();
+        safeSeed("permissions", this::seedPermissions);
+        safeSeed("roles", this::seedRoles);
+
         if (!seedDemo) {
-            log.info("Seed de démonstration désactivé (mnk-tax.seed-demo=false)");
+            log.info("Seed de démonstration désactivé (mnk-tax.seed-demo=false) — "
+                    + "permissions et rôles système conservés, aucune donnée fictive chargée.");
             return;
         }
-        seedSystemParameters();
         if (userRepository.count() > 0) {
+            // Référentiel fiscal complété au fil des versions : on garantit la présence
+            // des règles de démonstration manquantes sur une base déjà amorcée
+            // (createRule est idempotent et n'écrase aucune règle existante).
+            safeSeed("tax-rules", this::seedRules);
             log.info("Seed de démonstration déjà appliqué, ignoré.");
             return;
         }
-        safeSeed("permissions", this::seedPermissions);
-        safeSeed("roles", this::seedRoles);
         safeSeed("users", this::seedUsers);
         safeSeed("references", this::seedReferences);
         safeSeed("penalties", this::seedPenalties);
@@ -566,7 +574,26 @@ public class DemoDataSeeder implements ApplicationRunner {
         createRule("R-IFT-2", "IFT taux", "IFT", "PERCENTAGE_OF_BASE",
                 new BigDecimal("2"), "Règle de calcul de référence",
                 null, null, past, null, null);
+        // Replis génériques : sans règle applicable, toute émission d'imposition
+        // échoue (RULE_NOT_FOUND). Taux de DÉMONSTRATION, fictifs (is_demo = TRUE).
+        createRule("R-IRSA-15-GEN", "IRSA taux (tous contribuables)", "IRSA", "PERCENTAGE_OF_BASE",
+                new BigDecimal("15"), DEMO_FALLBACK_REF, null, null, past, null, null);
+        createRule("R-IR-20-GEN", "IR taux progressif (tous contribuables)", "IR", "PROGRESSIVE",
+                new BigDecimal("20"), DEMO_FALLBACK_REF, null, null, past, null, PROGRESSIVE_BRACKETS);
+        createRule("R-IFT-2-GEN", "IFT taux (tous contribuables)", "IFT", "PERCENTAGE_OF_BASE",
+                new BigDecimal("2"), DEMO_FALLBACK_REF, null, null, past, null, null);
+        createRule("R-DA-15-GEN", "Droit d'accises (taux de démonstration)", "DA", "PERCENTAGE_OF_BASE",
+                new BigDecimal("15"), DEMO_FALLBACK_REF, null, null, past, null, null);
+        createRule("R-DE-5-GEN", "Droit d'enregistrement (taux de démonstration)", "DE", "PERCENTAGE_OF_BASE",
+                new BigDecimal("5"), DEMO_FALLBACK_REF, null, null, past, null, null);
+        createRule("R-IPVI-20-GEN", "IPVI (taux de démonstration)", "IPVI", "PERCENTAGE_OF_BASE",
+                new BigDecimal("20"), DEMO_FALLBACK_REF, null, null, past, null, null);
+        createRule("R-IFPB-2-GEN", "IFPB (taux de démonstration)", "IFPB", "PERCENTAGE_OF_BASE",
+                new BigDecimal("2"), DEMO_FALLBACK_REF, null, null, past, null, null);
     }
+
+    private static final String DEMO_FALLBACK_REF =
+            "Taux de démonstration (fictif) — à remplacer par le barème officiel";
 
     /** Seuils marginaux : chaque taux s'applique à la portion comprise entre le seuil précédent et le sien. */
     private static final String PROGRESSIVE_BRACKETS = """

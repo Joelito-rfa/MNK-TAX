@@ -20,7 +20,10 @@ public final class ReferenceGenerator {
             prefix = prefix.substring(0, 6);
         }
         String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        String rand = String.format("%04d", ThreadLocalRandom.current().nextInt(10000));
+        // Suffixe large : la création en lot (imports, tests, campagnes) doit
+        // rester unique dans la même seconde — 4 chiffres provoquaient des
+        // collisions sur l'index unique des références.
+        String rand = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         return prefix + "-" + ts + "-" + rand;
     }
 

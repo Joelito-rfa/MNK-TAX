@@ -22,7 +22,9 @@ import {
 } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../lib/auth'
+import { useI18n } from '../lib/i18n'
 import RowActionPortal from '../components/RowActionPortal'
+import { ExportButton } from '../components/ExportButton'
 
 /* ─────────── Catégories de permissions ───────────
  * Liste alignée sur le catalogue applicatif (Permissions.java / table `permissions`).
@@ -30,29 +32,30 @@ import RowActionPortal from '../components/RowActionPortal'
  */
 
 const permCategories: Record<string, string[]> = {
-  'Contribuables': ['TAXPAYER_READ', 'TAXPAYER_WRITE', 'TAXPAYER_DELETE', 'TAXPAYER_EXPORT', 'TAXPAYER_VIEW_HISTORY', 'TAXPAYER_SUSPEND', 'TAXPAYER_CLOSE'],
-  'Déclarations': ['DECLARATION_READ', 'DECLARATION_CREATE', 'DECLARATION_UPDATE', 'DECLARATION_WRITE', 'DECLARATION_SUBMIT', 'DECLARATION_REVIEW', 'DECLARATION_VALIDATE', 'DECLARATION_REJECT', 'DECLARATION_CORRECT', 'DECLARATION_CANCEL', 'DECLARATION_EXPORT', 'DECLARATION_ATTACH'],
-  'Créances': ['DEBT_READ', 'DEBT_CREATE', 'DEBT_WRITE', 'DEBT_DELETE', 'DEBT_RECALCULATE', 'DEBT_SUSPEND', 'DEBT_CLOSE', 'DEBT_EXPORT', 'DEBT_DETECT_ARREARS', 'DEBT_ASSIGN_RECOVERY', 'DEBT_VIEW_HISTORY'],
-  'Paiements': ['PAYMENT_READ', 'PAYMENT_WRITE', 'PAYMENT_CONFIRM', 'PAYMENT_ALLOCATE', 'PAYMENT_CANCEL', 'PAYMENT_REFUND', 'PAYMENT_EXPORT', 'PAYMENT_RECONCILE', 'PAYMENT_VIEW_HISTORY'],
-  'Quittances': ['RECEIPT_READ', 'RECEIPT_GENERATE', 'RECEIPT_DOWNLOAD', 'RECEIPT_VERIFY', 'RECEIPT_CANCEL', 'RECEIPT_REPLACE', 'RECEIPT_REFUND', 'RECEIPT_EXPORT', 'RECEIPT_VIEW_HISTORY'],
-  'Recouvrement': ['COLLECTION_READ', 'COLLECTION_WRITE'],
-  'Messages': ['MESSAGE_READ', 'MESSAGE_WRITE', 'MESSAGE_MANAGE', 'MESSAGE_DELETE'],
-  'Contrôles fiscaux': ['CONTROL_READ', 'CONTROL_WRITE'],
-  'Réclamations': ['COMPLAINT_READ', 'COMPLAINT_WRITE'],
-  'Remboursements': ['REFUND_READ', 'REFUND_WRITE'],
-  'Calendrier / Obligations': ['DEADLINE_READ', 'DEADLINE_WRITE', 'OBLIGATION_READ', 'OBLIGATION_WRITE'],
-  'Règles fiscales': ['RULE_READ', 'RULE_WRITE', 'TAX_RULE_HISTORY'],
-  'Référentiels': ['TAXONOMY_READ', 'TAXONOMY_WRITE'],
-  'Impositions': ['ASSESSMENT_READ', 'ASSESSMENT_WRITE'],
-  'Rapports': ['REPORT_READ', 'REPORT_EXPORT', 'REPORT_FINANCIAL', 'REPORT_TAX', 'REPORT_RECOVERY'],
-  'Administration': ['USER_READ', 'USER_WRITE', 'USER_DISABLE', 'USER_RESET_PASSWORD', 'ROLE_READ', 'ROLE_WRITE', 'ROLE_ASSIGN', 'PERMISSION_READ', 'PARAMETER_READ', 'PARAMETER_WRITE', 'SYSTEM_SETTINGS_READ', 'SYSTEM_SETTINGS_UPDATE'],
-  'Audit': ['AUDIT_READ', 'NOTIFICATION_READ'],
+  'roles.page.cat.taxpayers': ['TAXPAYER_READ', 'TAXPAYER_WRITE', 'TAXPAYER_DELETE', 'TAXPAYER_EXPORT', 'TAXPAYER_VIEW_HISTORY', 'TAXPAYER_SUSPEND', 'TAXPAYER_CLOSE'],
+  'roles.page.cat.declarations': ['DECLARATION_READ', 'DECLARATION_CREATE', 'DECLARATION_UPDATE', 'DECLARATION_WRITE', 'DECLARATION_SUBMIT', 'DECLARATION_REVIEW', 'DECLARATION_VALIDATE', 'DECLARATION_REJECT', 'DECLARATION_CORRECT', 'DECLARATION_CANCEL', 'DECLARATION_EXPORT', 'DECLARATION_ATTACH'],
+  'roles.page.cat.debts': ['DEBT_READ', 'DEBT_CREATE', 'DEBT_WRITE', 'DEBT_DELETE', 'DEBT_RECALCULATE', 'DEBT_SUSPEND', 'DEBT_CLOSE', 'DEBT_EXPORT', 'DEBT_DETECT_ARREARS', 'DEBT_ASSIGN_RECOVERY', 'DEBT_VIEW_HISTORY'],
+  'roles.page.cat.payments': ['PAYMENT_READ', 'PAYMENT_WRITE', 'PAYMENT_CONFIRM', 'PAYMENT_ALLOCATE', 'PAYMENT_CANCEL', 'PAYMENT_REFUND', 'PAYMENT_EXPORT', 'PAYMENT_RECONCILE', 'PAYMENT_VIEW_HISTORY'],
+  'roles.page.cat.receipts': ['RECEIPT_READ', 'RECEIPT_GENERATE', 'RECEIPT_DOWNLOAD', 'RECEIPT_VERIFY', 'RECEIPT_CANCEL', 'RECEIPT_REPLACE', 'RECEIPT_REFUND', 'RECEIPT_EXPORT', 'RECEIPT_VIEW_HISTORY'],
+  'roles.page.cat.collection': ['COLLECTION_READ', 'COLLECTION_WRITE'],
+  'roles.page.cat.messages': ['MESSAGE_READ', 'MESSAGE_WRITE', 'MESSAGE_MANAGE', 'MESSAGE_DELETE'],
+  'roles.page.cat.controls': ['CONTROL_READ', 'CONTROL_WRITE'],
+  'roles.page.cat.complaints': ['COMPLAINT_READ', 'COMPLAINT_WRITE'],
+  'roles.page.cat.refunds': ['REFUND_READ', 'REFUND_WRITE'],
+  'roles.page.cat.deadlines': ['DEADLINE_READ', 'DEADLINE_WRITE', 'OBLIGATION_READ', 'OBLIGATION_WRITE'],
+  'roles.page.cat.rules': ['RULE_READ', 'RULE_WRITE', 'TAX_RULE_HISTORY'],
+  'roles.page.cat.taxonomy': ['TAXONOMY_READ', 'TAXONOMY_WRITE'],
+  'roles.page.cat.assessments': ['ASSESSMENT_READ', 'ASSESSMENT_WRITE'],
+  'roles.page.cat.reports': ['REPORT_READ', 'REPORT_EXPORT', 'REPORT_FINANCIAL', 'REPORT_TAX', 'REPORT_RECOVERY'],
+  'roles.page.cat.administration': ['USER_READ', 'USER_WRITE', 'USER_DISABLE', 'USER_RESET_PASSWORD', 'ROLE_READ', 'ROLE_WRITE', 'ROLE_ASSIGN', 'PERMISSION_READ', 'PARAMETER_READ', 'PARAMETER_WRITE', 'SYSTEM_SETTINGS_READ', 'SYSTEM_SETTINGS_UPDATE'],
+  'roles.page.cat.audit': ['AUDIT_READ', 'NOTIFICATION_READ'],
 }
 
 /* ─────────── Main component ─────────── */
 
 export default function Roles() {
   const { can } = useAuth()
+  const { t, has } = useI18n()
   const [selected, setSelected] = useState<Role | null>(null)
   const [draft, setDraft] = useState<string[]>([])
   const [permFilter, setPermFilter] = useState('')
@@ -62,6 +65,7 @@ export default function Roles() {
   const [filterType, setFilterType] = useState('')
   const queryClient = useQueryClient()
   const toast = useToast()
+  const roleName = (r: Role) => (has(`role.${r.code}`) ? t(`role.${r.code}`) : r.name)
 
   const { data: roles, isLoading } = useQuery({
     queryKey: ['roles'],
@@ -116,7 +120,7 @@ export default function Roles() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roles'] })
       setSelected(null)
-      toast.success('Permissions mises à jour')
+      toast.success(t('roles.page.saveDone'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
@@ -125,7 +129,7 @@ export default function Roles() {
     mutationFn: (id: number) => apiDelete(`/roles/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['roles'] })
-      toast.success('Rôle supprimé')
+      toast.success(t('roles.page.deleted'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
@@ -144,14 +148,38 @@ export default function Roles() {
   return (
     <div className="fx-simple space-y-6">
       <PageHeader
-        title="Rôles et permissions"
-        subtitle="Centre de gouvernance des accès"
+        title={t('roles.title')}
+        subtitle={t('roles.page.subtitle')}
         actions={
-          can('ROLE_WRITE') && can('ROLE_ASSIGN') && (
-            <Button onClick={() => { setDuplicateRole(null); setCreateOpen(true) }}>
-              <Plus className="h-4 w-4" /> Nouveau rôle
-            </Button>
-          )
+          <>
+            <ExportButton
+              filenameBase={`roles_${new Date().toISOString().slice(0, 10)}`}
+              title={t('roles.title')}
+              headers={[
+                t('common.code'),
+                t('common.name'),
+                t('common.description'),
+                t('common.type'),
+                t('roles.page.permissions'),
+                t('users.title'),
+              ]}
+              rows={() =>
+                filteredRoles.map((r) => [
+                  r.code,
+                  roleName(r),
+                  r.description || '—',
+                  r.system ? t('roles.page.system') : t('roles.page.custom'),
+                  r.permissions.length,
+                  usersByRole[r.code] ?? 0,
+                ])
+              }
+            />
+            {can('ROLE_WRITE') && can('ROLE_ASSIGN') && (
+              <Button onClick={() => { setDuplicateRole(null); setCreateOpen(true) }}>
+                <Plus className="h-4 w-4" /> {t('roles.page.new')}
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -163,7 +191,7 @@ export default function Roles() {
           </div>
           <div>
             <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.system}</p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">Rôles système</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('roles.page.systemRoles')}</p>
           </div>
         </Card>
         <Card hover style={{ animationDelay: '0.08s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
@@ -172,7 +200,7 @@ export default function Roles() {
           </div>
           <div>
             <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.custom}</p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">Rôles personnalisés</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('roles.page.customRoles')}</p>
           </div>
         </Card>
         <Card hover style={{ animationDelay: '0.16s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
@@ -181,7 +209,7 @@ export default function Roles() {
           </div>
           <div>
             <p className="text-lg font-bold text-slate-900 dark:text-white">{usersPage?.totalElements ?? '—'}</p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">Utilisateurs</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('users.title')}</p>
           </div>
         </Card>
         <Card hover style={{ animationDelay: '0.24s' }} className="group flex animate-fade-in items-center gap-3 px-4 py-3">
@@ -190,7 +218,7 @@ export default function Roles() {
           </div>
           <div>
             <p className="text-lg font-bold text-slate-900 dark:text-white">{stats.totalPerms}</p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">Permissions</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('roles.page.permissions')}</p>
           </div>
         </Card>
       </div>
@@ -198,28 +226,28 @@ export default function Roles() {
       {/* Filtres */}
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-3 dark:border-slate-700/50">
-          <SearchInput value={search} onChange={setSearch} placeholder="Rechercher un rôle..." className="w-64" />
+          <SearchInput value={search} onChange={setSearch} placeholder={t('roles.page.searchPlaceholder')} className="w-64" />
           <Select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-44">
-            <option value="">Tous les types</option>
-            <option value="system">Système</option>
-            <option value="custom">Personnalisé</option>
+            <option value="">{t('roles.page.allTypes')}</option>
+            <option value="system">{t('roles.page.system')}</option>
+            <option value="custom">{t('roles.page.custom')}</option>
           </Select>
         </div>
 
         {isLoading ? (
           <Spinner />
         ) : !filteredRoles || filteredRoles.length === 0 ? (
-          <EmptyState title="Aucun rôle" subtitle="Créez un nouveau rôle pour commencer." />
+          <EmptyState title={t('roles.page.emptyTitle')} subtitle={t('roles.page.emptySubtitle')} />
         ) : (
           <Table>
             <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
               <tr>
-                <Th>Code</Th>
-                <Th>Nom</Th>
-                <Th>Description</Th>
-                <Th>Type</Th>
-                <Th>Permissions</Th>
-                <Th>Utilisateurs</Th>
+                <Th>{t('common.code')}</Th>
+                <Th>{t('common.name')}</Th>
+                <Th>{t('common.description')}</Th>
+                <Th>{t('common.type')}</Th>
+                <Th>{t('roles.page.permissions')}</Th>
+                <Th>{t('users.title')}</Th>
                 <Th></Th>
               </tr>
             </thead>
@@ -227,9 +255,9 @@ export default function Roles() {
               {filteredRoles.map((r) => (
                 <tr key={r.id} className="transition hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <Td className="font-mono font-medium text-brand-700">{r.code}</Td>
-                  <Td>{r.name}</Td>
+                  <Td>{roleName(r)}</Td>
                   <Td className="max-w-56 truncate text-sm text-slate-500 dark:text-slate-400">{r.description || '—'}</Td>
-                  <Td>{r.system ? <Badge tone="blue">Système</Badge> : <Badge>Personnalisé</Badge>}</Td>
+                  <Td>{r.system ? <Badge tone="blue">{t('roles.page.system')}</Badge> : <Badge>{t('roles.page.custom')}</Badge>}</Td>
                   <Td className="text-sm text-slate-600 dark:text-slate-400">{r.permissions.length}</Td>
                   <Td className="text-sm text-slate-600 dark:text-slate-400">{usersByRole[r.code] ?? 0}</Td>
                   <Td>
@@ -239,7 +267,7 @@ export default function Roles() {
                                 className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                 disabled={r.system}
                               >
-                                <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {r.system ? 'Verrouillé' : 'Éditer'}
+                                <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {r.system ? t('roles.page.locked') : t('roles.page.edit')}
                               </button>
                               {!r.system && can('ROLE_WRITE') && can('ROLE_ASSIGN') && (
                                 <>
@@ -247,14 +275,14 @@ export default function Roles() {
                                     onClick={() => { openRoleForDuplication(r) }}
                                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                                   >
-                                    <Copy className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Dupliquer
+                                    <Copy className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('roles.page.duplicate')}
                                   </button>
                                   <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                                   <button
-                                    onClick={() => { if (window.confirm(`Supprimer le rôle ${r.code} ?`)) { deleteRole.mutate(r.id) } }}
+                                    onClick={() => { if (window.confirm(t('roles.page.confirmDelete', { code: r.code }))) { deleteRole.mutate(r.id) } }}
                                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-rose-600 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20"
                                   >
-                                    <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
+                                    <Trash2 className="h-4 w-4 shrink-0" /> {t('roles.page.delete')}
                                   </button>
                                 </>
                               )}
@@ -268,7 +296,7 @@ export default function Roles() {
       </Card>
 
       {/* Modal permissions groupées */}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={`Permissions — ${selected?.name ?? ''}`} wide>
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={t('roles.page.permissionsTitle', { name: selected ? roleName(selected) : '' })} wide>
         {selected && (
           <div className="space-y-4">
             {save.isError && (
@@ -278,7 +306,7 @@ export default function Roles() {
             )}
             <div className="relative">
               <Input
-                placeholder="Filtrer les permissions…"
+                placeholder={t('roles.page.filterPermissions')}
                 value={permFilter}
                 onChange={(e) => setPermFilter(e.target.value)}
               />
@@ -295,7 +323,7 @@ export default function Roles() {
                 return (
                   <PermCategoryGroup
                     key={cat}
-                    category={cat}
+                    category={t(cat)}
                     permissions={filtered}
                     draft={draft}
                     allChecked={allChecked}
@@ -313,10 +341,10 @@ export default function Roles() {
               })}
             </div>
             <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-700/50 pt-3">
-              <p className="text-sm text-slate-500 dark:text-slate-400">{draft.length} permission(s) sélectionnée(s)</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{t('roles.page.selected', { count: draft.length })}</p>
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => setSelected(null)}>Annuler</Button>
-                <Button onClick={() => save.mutate()} disabled={save.isPending}>Enregistrer</Button>
+                <Button variant="secondary" onClick={() => setSelected(null)}>{t('common.cancel')}</Button>
+                <Button onClick={() => save.mutate()} disabled={save.isPending}>{t('common.save')}</Button>
               </div>
             </div>
           </div>
@@ -327,7 +355,7 @@ export default function Roles() {
       {createOpen && (
         <CreateRoleModal
           allPermissions={allPermissions}
-          initial={duplicateRole ? { code: duplicateRole.code + '_COPY', name: duplicateRole.name + ' (copie)', description: duplicateRole.description, permissions: [...duplicateRole.permissions] } : undefined}
+          initial={duplicateRole ? { code: duplicateRole.code + '_COPY', name: duplicateRole.name + ' ' + t('roles.page.copySuffix'), description: duplicateRole.description, permissions: [...duplicateRole.permissions] } : undefined}
           onClose={() => {
             setCreateOpen(false)
             setDuplicateRole(null)
@@ -356,6 +384,7 @@ function PermCategoryGroup({
   onToggle: (p: string) => void
   onToggleAll: () => void
 }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(true)
   const checkedCount = permissions.filter((p) => draft.includes(p)).length
 
@@ -380,7 +409,7 @@ function PermCategoryGroup({
             onChange={onToggleAll}
             className="h-3.5 w-3.5 accent-brand-600"
           />
-          Tout
+          {t('roles.page.all')}
         </label>
       </button>
       {open && (
@@ -424,6 +453,7 @@ function CreateRoleModal({
   const [perms, setPerms] = useState<string[]>(initial?.permissions ?? [])
   const [filter, setFilter] = useState('')
   const [step, setStep] = useState(0)
+  const { t } = useI18n()
   const toast = useToast()
 
   const create = useMutation({
@@ -436,7 +466,7 @@ function CreateRoleModal({
       }),
     onSuccess: () => {
       onClose()
-      toast.success(initial ? 'Rôle dupliqué' : 'Rôle créé')
+      toast.success(initial ? t('roles.page.create.duplicated') : t('roles.page.create.created'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
@@ -448,9 +478,9 @@ function CreateRoleModal({
   const step0Valid = !!form.code.trim()
   const step1Valid = perms.length > 0
   const subtitles = initial
-    ? ['Informations dupliquées', 'Ajuster les permissions', 'Vérification et validation']
-    : ['Informations du rôle', 'Sélection des permissions', 'Vérification et validation']
-  const baseTitle = initial ? `Dupliquer — ${initial.name}` : 'Nouveau rôle'
+    ? [t('roles.page.create.subtitle.duplicated'), t('roles.page.create.subtitle.permissions'), t('roles.page.create.subtitle.summary')]
+    : [t('roles.page.create.subtitle.info'), t('roles.page.create.subtitle.permissions'), t('roles.page.create.subtitle.summary')]
+  const baseTitle = initial ? t('roles.page.create.duplicateTitle', { name: initial.name }) : t('roles.page.create.newTitle')
 
   function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -460,7 +490,7 @@ function CreateRoleModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — ${baseTitle}`} subtitle={subtitles[step]} size="full">
+    <Modal open onClose={onClose} title={t('roles.page.create.title', { step: step + 1, title: baseTitle })} subtitle={subtitles[step]} size="full">
       <form
         onSubmit={submit}
         className="space-y-4"
@@ -477,7 +507,7 @@ function CreateRoleModal({
             ))}
           </div>
           <div className="mt-1.5 flex justify-between text-[11px] font-medium uppercase tracking-wide">
-            {['Informations', 'Permissions', 'Récapitulatif'].map((label, i) => (
+            {[t('roles.page.create.step.info'), t('roles.page.create.step.permissions'), t('roles.page.create.step.summary')].map((label, i) => (
               <span key={label} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
             ))}
           </div>
@@ -486,22 +516,22 @@ function CreateRoleModal({
         {step === 0 && (
           <div className="space-y-4 animate-fade-in">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Code (A-Z, chiffres, _) *">
+              <Field label={t('roles.page.create.code')}>
                 <Input
                   value={form.code}
                   onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                  placeholder="ex : AUDITOR"
+                  placeholder={t('roles.page.create.codePlaceholder')}
                 />
               </Field>
-              <Field label="Nom affiché">
-                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="ex : Auditeur" />
+              <Field label={t('roles.page.create.name')}>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t('roles.page.create.namePlaceholder')} />
               </Field>
             </div>
-            <Field label="Description">
+            <Field label={t('roles.page.create.description')}>
               <Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </Field>
             {!step0Valid && (
-              <p className="text-xs text-slate-400">Le code du rôle est requis pour continuer.</p>
+              <p className="text-xs text-slate-400">{t('roles.page.create.codeRequired')}</p>
             )}
           </div>
         )}
@@ -509,15 +539,15 @@ function CreateRoleModal({
         {step === 1 && (
           <div className="space-y-3 animate-fade-in">
             <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Permissions ({perms.length}) *</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('roles.page.create.permissionsCount', { count: perms.length })}</p>
               <div className="flex items-center gap-2">
                 {perms.length > 0 && (
                   <button type="button" onClick={() => setPerms([])} className="text-xs font-medium text-slate-500 hover:text-rose-600">
-                    Tout désélectionner
+                    {t('roles.page.create.deselectAll')}
                   </button>
                 )}
                 <div className="w-48">
-                  <Input placeholder="Filtrer…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                  <Input placeholder={t('roles.page.create.filter')} value={filter} onChange={(e) => setFilter(e.target.value)} />
                 </div>
               </div>
             </div>
@@ -537,30 +567,30 @@ function CreateRoleModal({
                 )
               })}
               {filtered.length === 0 && (
-                <p className="col-span-full py-4 text-center text-sm text-slate-500">Aucune permission ne correspond.</p>
+                <p className="col-span-full py-4 text-center text-sm text-slate-500">{t('roles.page.create.noPermission')}</p>
               )}
             </div>
             {!step1Valid && (
-              <p className="text-xs text-slate-400">Sélectionnez au moins une permission pour continuer.</p>
+              <p className="text-xs text-slate-400">{t('roles.page.create.selectAtLeast')}</p>
             )}
           </div>
         )}
 
         {step === 2 && (
           <div className="space-y-4 animate-fade-in">
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('roles.page.create.summary')}</h4>
             <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
-              <div className="flex justify-between gap-4"><span className="text-slate-500">Code</span><span className="font-mono font-medium text-slate-900 dark:text-slate-100">{form.code || '—'}</span></div>
-              <div className="flex justify-between gap-4"><span className="text-slate-500">Nom</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.name || '—'}</span></div>
-              <div className="flex justify-between gap-4"><span className="text-slate-500">Description</span><span className="max-w-72 truncate font-medium text-slate-900 dark:text-slate-100">{form.description || '—'}</span></div>
-              <div className="flex justify-between gap-4"><span className="text-slate-500">Permissions</span><span className="font-semibold text-violet-600 dark:text-violet-400">{perms.length} sélectionnée(s)</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">{t('common.code')}</span><span className="font-mono font-medium text-slate-900 dark:text-slate-100">{form.code || '—'}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">{t('common.name')}</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.name || '—'}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">{t('common.description')}</span><span className="max-w-72 truncate font-medium text-slate-900 dark:text-slate-100">{form.description || '—'}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">{t('roles.page.permissions')}</span><span className="font-semibold text-violet-600 dark:text-violet-400">{t('roles.page.create.selectedCount', { count: perms.length })}</span></div>
               {perms.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {perms.slice(0, 12).map((p) => (
                     <span key={p} className="rounded-md bg-white px-2 py-0.5 font-mono text-[11px] text-slate-600 ring-1 ring-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:ring-slate-600">{p}</span>
                   ))}
                   {perms.length > 12 && (
-                    <span className="px-1 text-[11px] text-slate-400">+{perms.length - 12} autres…</span>
+                    <span className="px-1 text-[11px] text-slate-400">{t('roles.page.create.more', { count: perms.length - 12 })}</span>
                   )}
                 </div>
               )}
@@ -571,17 +601,17 @@ function CreateRoleModal({
         <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
           <div>
             {step > 0 && (
-              <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>{t('roles.page.create.back')}</Button>
             )}
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            <Button type="button" variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
             {step < 2 ? (
               <Button type="submit" disabled={(step === 0 && !step0Valid) || (step === 1 && !step1Valid)}>
-                Suivant →
+                {t('roles.page.create.next')}
               </Button>
             ) : (
-              <Button type="submit" disabled={create.isPending || !step0Valid || !step1Valid}>{initial ? 'Dupliquer' : 'Créer'}</Button>
+              <Button type="submit" disabled={create.isPending || !step0Valid || !step1Valid}>{initial ? t('roles.page.create.duplicate') : t('roles.page.create.create')}</Button>
             )}
           </div>
         </div>

@@ -254,7 +254,7 @@ Toutes les fonctions ci-dessous sont **présentes dans le code** (contrôleur/se
 
 Fichier : `backend/src/main/java/com/mnktax/common/config/DemoDataSeeder.java` (`@Component`, `ApplicationRunner`).
 
-Le seed complet n'exécute `seedRoles()` **que si** `mnk-tax.seed-demo` est `true` (défaut) **et** que la table `users` est vide (`run()`, lignes 259-272 : `if (userRepository.count() > 0) return;`). Si un rôle existe déjà, ses permissions sont **remplacées** par celles du code (`existing.setPermissions(perms)`, ligne 454).
+Les paramètres système, permissions et rôles sont **toujours synchronisés** au démarrage, indépendamment de `mnk-tax.seed-demo` : le RBAC est indispensable au fonctionnement. Les données fictives (utilisateurs, contribuables, déclarations…) ne sont chargées que si `mnk-tax.seed-demo` vaut `true` (désactivé par défaut) **et** que la table `users` est vide (`run()`, lignes 259-296 : `if (userRepository.count() > 0) return;`). Si un rôle existe déjà, ses permissions sont **remplacées** par celles du code (`existing.setPermissions(perms)`).
 
 **6 rôles** définis aux lignes 400-445 :
 
@@ -267,7 +267,7 @@ Le seed complet n'exécute `seedRoles()` **que si** `mnk-tax.seed-demo` est `tru
 | `ACCOUNTANT` | déclarations (lecture/création), paiements (write, confirm, allocate), quittances (export), rapports financiers, remboursements |
 | `TAXPAYER` | **sa propre** lecture (`TAXPAYER_READ`), déclarations (création/soumission), créances/paiements/quittances en lecture, notifications, messages, réclamations, remboursements (lecture) |
 
-6 comptes de démonstration sont créés par `seedUsers()` (`DemoDataSeeder.java:474-481`) : identifiants et mots de passe en clair dans la source — **non reproduits ici** (voir §11).
+6 comptes de démonstration sont créés par `seedUsers()` (`DemoDataSeeder.java:474-481`) **uniquement si `SEED_DEMO=true`** : identifiants et mots de passe en clair dans la source — **non reproduits ici** (voir §11).
 
 ### 6.2 Correspondance rôle → écrans (frontend)
 
@@ -496,6 +496,10 @@ Ordre automatique d'imputation : **principal → pénalité → intérêt** (lig
 
 ### 11.1 Tests backend
 
+> **Mise à jour du 28/10/2026** : la suite complète s'exécute désormais sur cette machine —
+> **202 tests, 0 échec**. Les constats ci-dessous décrivent l'état des rapports SureFire au moment
+> de l'analyse initiale et sont conservés à titre historique.
+
 - **17 classes de test** présentes dans `backend/src/test/java` :
   `AiServiceTest`, `AiTextMatcherTest`, `AuthFlowIntegrationTest`, `ProfileModuleIntegrationTest`, `CollectionModuleIntegrationTest`, `NifValidatorTest`, `PhoneUtilTest`, `CommunicationLifecycleIntegrationTest`, `ComplaintRefundModuleIntegrationTest`, `TaxControlModuleIntegrationTest`, `FiscalFlowIntegrationTest`, `PaymentPlanIntegrationTest`, `ReceiptServiceTest`, `RuleResolverTest`, `TaxCalculatorTest`, `TaxRuleRepositoryResolveTest`, `TaxpayerModuleIntegrationTest`.
 - **Rapports SureFire présents** (`backend/target/surefire-reports`, 5 classes uniquement) :
@@ -525,9 +529,9 @@ Ordre automatique d'imputation : **principal → pénalité → intérêt** (lig
 
 | # | Constat | Preuve |
 |---|---|---|
-| 1 | **Secret JWT par défaut en clair** dans le dépôt (`mnk-tax.jwt.secret: ${JWT_SECRET:…}`) : tout déploiement qui omet `JWT_SECRET` utilise une valeur publiquement connue. *Nuance : `render.yaml` fixe `JWT_SECRET: generateValue: true`, mais le fallback de `application.yml` reste actif partout ailleurs (Docker, local, autre hébergeur)* | `backend/src/main/resources/application.yml`, `render.yaml:13-14` |
-| 2 | **Comptes de démonstration avec mots de passe en clair** dans la source, et `seed-demo: ${SEED_DEMO:true}` **actif par défaut** | `DemoDataSeeder.java:474-481`, `application.yml` (`seed-demo`) |
-| 3 | `render.yaml` force `SEED_DEMO=true` | `render.yaml` |
+| 1 | ✅ **Corrigé (28/10/2026)** — `mnk-tax.jwt.secret: ${JWT_SECRET}` sans valeur de repli ; `JwtService` refuse un secret absent, vide, inférieur à 32 octets ou égal à l'ancienne valeur publiée | `backend/src/main/resources/application.yml:60`, `JwtService` |
+| 2 | ✅ **Corrigé (28/10/2026)** — `seed-demo: ${SEED_DEMO:false}` par défaut ; les comptes de démonstration ne sont créés que sur activation explicite, les permissions et rôles système restant toujours amorcés | `DemoDataSeeder.java`, `application.yml` (`seed-demo`) |
+| 3 | ✅ **Corrigé (28/10/2026)** — `render.yaml` et `deploy/render/render.yaml` fixent `SEED_DEMO="false"` | `render.yaml`, `deploy/render/render.yaml` |
 | 4 | **MFA déclaré mais inactif** : champ `mfaEnabled` toujours `false`, aucun endpoint TOTP/OTP | `DemoDataSeeder.createUser`, `Permissions`/`UserController` (aucune route MFA) |
 | 5 | **Documentation ≠ code** : `docs/DATABASE.md:54` ne liste que 5 rôles (`SUPER_ADMIN`, `TAX_AGENT`, `COLLECTION_AGENT`, `ACCOUNTANT`, `TAXPAYER`) — le rôle `ADMIN` existe pourtant dans le seed (**6 rôles**) | `docs/DATABASE.md` vs `DemoDataSeeder.seedRoles` (lignes 400-445) |
 | 6 | **Documentation ≠ code** : `docs/DATABASE.md:43` annonce « NIF : 10 chiffres, 10e = clé (algorithme mod-97, validation stricte côté API) », alors que `NifValidator` (`common/util/NifValidator.java:10`) ne vérifie que `^[0-9]{10}$` (aucun contrôle de clé) | `docs/DATABASE.md:43` vs `common/util/NifValidator.java` |
@@ -569,7 +573,7 @@ cd frontend && npm run build         # tsc -b && vite build
 - Service **API** : conteneur Docker, port **10000**, image/build backend ;
 - Service **frontend** : site statique ;
 - Base **Neon PostgreSQL** (branche gérée par le plugin Neon, `.neon/` présent) ;
-- `SEED_DEMO=true` dans le template de déploiement ;
+- `SEED_DEMO="false"` dans le template de déploiement (aucune donnée fictive par défaut) ;
 - Documentées : limites du plan gratuit, CORS (`CORS_ALLOWED_ORIGINS`), URL de quittance (`RECEIPT_BASE_URL`).
 
 ### 12.3 Profils Spring
@@ -618,7 +622,7 @@ cd frontend && npm run build         # tsc -b && vite build
 7. **Trilinguisme** (fr/mg/en) avec test de parité des clés.
 
 ### Limites
-1. **Sécurité par défaut** : secret JWT et comptes de démo en clair dans le dépôt, `SEED_DEMO=true` par défaut.
+1. **Sécurité par défaut** : les trois faiblesses critiques (secret JWT de repli, seed de démonstration forcé, mot de passe temporaire renvoyé par HTTP) ont été corrigées ; restent la persistance des fichiers, la protection de Swagger/H2 et l'absence de MFA/CI.
 2. **Couverture de tests faible** (11,8 %) et suite partiellement inexploitable sur Windows.
 3. **Documentation désynchronisée** (nombre de rôles, validation NIF, nombre de tests).
 4. **MFA absent** malgré le champ `mfaEnabled`.
@@ -627,7 +631,7 @@ cd frontend && npm run build         # tsc -b && vite build
 7. Sources Unicode partiellement corrompues (affichage des accents).
 
 ### Pistes d'évolution
-- Corriger les défauts de sécurité par défaut (secret généré, `SEED_DEMO=false` en prod) et ajouter une vérification au démarrage.
+- Poursuivre la sécurisation : protéger Swagger/H2, persister les fichiers, ajouter MFA et CI (les correctifs P1.1–P1.3 sont déjà appliqués).
 - Rendre la suite de tests exécutable (encodage UTF-8, config SureFire/Windows) et porter la couverture sur les services métier.
 - Implémenter réellement le MFA, l'export comptable et le rapprochement bancaire.
 - Aligner `docs/DATABASE.md`, `docs/API.md` et `README.md` sur le code (script de vérification).

@@ -1,0 +1,53 @@
+name: MNK-TAX CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:17-jdk-jammy
+      # image: ghcr.io/nickolasburr/eclipse-temurin:17
+
+    steps:
+      # ── Checkout ─────────────────────────────────────────────
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+      # ── Cache Maven ──────────────────────────────────────────
+    - name: Set up Maven cache
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2/repository
+        key: maven-${{ runner.os }}-${{ hashFiles('backend/pom.xml') }}
+        restore-keys: |
+          maven-${{ runner.os }}-
+
+      # ── Java / Maven ───────────────────────────────────────
+    - name: Cache Gradle/Maven dependencies (if needed)
+      uses: actions/cache@v3
+      with:
+        path: ~/.gradle/caches
+        key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*') }}
+
+    - name: Maven test
+      working-directory: ./backend
+      run: chmod +x ./mvnw && ./mvnw test -B -Dspring.sql.init.mode=never
+
+      # ── Frontend build ─────────────────────────────────────
+    - name: Frontend build
+      working-directory: ./frontend
+      run: npm ci && npm run build
+
+      # ── Summary ────────────────────────────────────────────
+    - name: Publish test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: surefire-reports
+        path: backend/target/surefire-reports
+        retention-days: 30

@@ -54,14 +54,6 @@ export function useSimulate() {
   })
 }
 
-export function useCreateOffice() {
-  const invalidate = useInvalidate()
-  return useMutation({
-    mutationFn: (body: Record<string, unknown>) => apiPost<Assessment>('/assessments/office', body),
-    onSuccess: () => invalidate(),
-  })
-}
-
 export function useAdjustAssessment(id: number | null) {
   const invalidate = useInvalidate()
   return useMutation({

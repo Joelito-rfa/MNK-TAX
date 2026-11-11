@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FileSearch, Gavel, Grid3X3, LayoutList, PlusCircle, Pencil, Trash2, Eye, CalendarClock } from 'lucide-react'
 import RowActionPortal from '../components/RowActionPortal'
-import { apiErrorMessage } from '../lib/api'
+import { apiErrorMessage, apiGet } from '../lib/api'
+import type { Page, TaxControl } from '../types'
 import { fmtDate, fmtDateTime, fmtMGA } from '../lib/format'
 import { useTaxControlDetail, useTaxControls, useTaxpayersRef, useUsersRef } from '../features/control/api/queries'
 import {
@@ -31,19 +32,21 @@ import {
   Textarea,
   Th,
 } from '../components/ui'
+import { ExportButton } from '../components/ExportButton'
+import { useI18n } from '../lib/i18n'
 
 export const controlTypeLabels: Record<string, string> = {
-  DOCUMENTARY: 'Sur pièces',
-  ON_SITE: 'Sur place',
-  MIXED: 'Mixte',
+  DOCUMENTARY: 'controls.page.type.DOCUMENTARY',
+  ON_SITE: 'controls.page.type.ON_SITE',
+  MIXED: 'controls.page.type.MIXED',
 }
 
 const controlStatusLabels: Record<string, string> = {
-  OPEN: 'Ouvert',
-  IN_PROGRESS: 'En cours',
-  ANOMALY_DETECTED: 'Anomalies détectées',
-  REDRESSEMENT: 'Redressement',
-  CLOSED: 'Clôturé',
+  OPEN: 'status.OPEN',
+  IN_PROGRESS: 'status.IN_PROGRESS',
+  ANOMALY_DETECTED: 'status.ANOMALY_DETECTED',
+  REDRESSEMENT: 'status.REDRESSEMENT',
+  CLOSED: 'status.CLOSED',
 }
 
 const allowedTransitions: Record<string, string[]> = {
@@ -55,6 +58,7 @@ const allowedTransitions: Record<string, string[]> = {
 }
 
 export default function Controls() {
+  const { t } = useI18n()
   const { can } = useAuth()
   const [page, setPage] = useState(0)
   const [size, setSize] = useState(20)
@@ -74,14 +78,45 @@ export default function Controls() {
   return (
     <div className="fx-page space-y-6">
       <PageHeader
-        title="Contrôles fiscaux"
-        subtitle="Contrôles, vérifications et redressements des contribuables"
+        title={t('controls.title')}
+        subtitle={t('controls.page.subtitle')}
         actions={
-          can('CONTROL_WRITE') && (
-            <Button onClick={() => setCreateOpen(true)}>
-              <FileSearch className="h-4 w-4" /> Nouveau contrôle
-            </Button>
-          )
+          <>
+            <ExportButton
+              filenameBase={`controles-fiscaux_${new Date().toISOString().slice(0, 10)}`}
+              title={t('controls.title')}
+              headers={[
+                t('common.reference'),
+                t('common.taxpayer'),
+                t('common.type'),
+                t('controls.page.periodAudited'),
+                t('controls.page.agent'),
+                t('common.status'),
+                t('controls.page.reassessment'),
+                t('controls.page.createdAt'),
+              ]}
+              rows={async () => {
+                const p = new URLSearchParams(params)
+                p.delete('page')
+                p.delete('size')
+                const res = await apiGet<Page<TaxControl>>(`/tax-controls?${p.toString()}&size=9999`)
+                return res.content.map((c) => [
+                  c.reference,
+                  `${c.taxpayerName} (${c.nif})`,
+                  controlTypeLabels[c.controlType] ? t(controlTypeLabels[c.controlType]) : c.controlType,
+                  `${fmtDate(c.periodStart)} → ${fmtDate(c.periodEnd)}`,
+                  c.agentName ?? '',
+                  t(controlStatusLabels[c.status] ?? c.status),
+                  c.redressement,
+                  c.createdAt,
+                ])
+              }}
+            />
+            {can('CONTROL_WRITE') && (
+              <Button onClick={() => setCreateOpen(true)}>
+                <FileSearch className="h-4 w-4" /> {t('controls.page.new')}{' '}</Button>
+            )}
+          </>
         }
       />
 
@@ -91,14 +126,14 @@ export default function Controls() {
             <SearchInput
               value={q}
               onChange={(v) => { setQ(v); setPage(0) }}
-              placeholder="Rechercher par référence, NIF, nom ou motif…"
+              placeholder={t('controls.page.searchPlaceholder')}
               className="min-w-56 flex-1"
             />
             <div className="w-48">
               <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0) }}>
-                <option value="">Tous les statuts</option>
+                <option value="">{t('tp.allStatuses')}</option>
                 {Object.entries(controlStatusLabels).map(([v, label]) => (
-                  <option key={v} value={v}>{label}</option>
+                  <option key={v} value={v}>{t(label)}</option>
                 ))}
               </Select>
             </div>
@@ -111,7 +146,7 @@ export default function Controls() {
                   ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
-              aria-label="Vue liste"
+              aria-label={t('tp.viewList')}
             >
               <LayoutList className="h-4 w-4" />
             </button>
@@ -122,7 +157,7 @@ export default function Controls() {
                   ? 'bg-white text-violet-600 shadow-sm dark:bg-slate-600 dark:text-violet-400'
                   : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
               }`}
-              aria-label="Vue cartes"
+              aria-label={t('tp.viewCards')}
             >
               <Grid3X3 className="h-4 w-4" />
             </button>
@@ -132,20 +167,20 @@ export default function Controls() {
         {isLoading ? (
           <Spinner />
         ) : !data || data.content.length === 0 ? (
-          <EmptyState title="Aucun contrôle fiscal" subtitle="Modifiez vos critères de recherche." />
+          <EmptyState title={t('controls.noResult')} subtitle={t('controls.page.emptyHint')} />
         ) : viewMode === 'list' ? (
           <>
             <Table>
               <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30">
                 <tr>
-                  <Th>Référence</Th>
-                  <Th>Contribuable</Th>
-                  <Th>Type</Th>
-                  <Th>Période contrôlée</Th>
-                  <Th>Agent</Th>
-                  <Th>Statut</Th>
-                  <Th>Redressement</Th>
-                  <Th>Créé le</Th>
+                  <Th>{t('common.reference')}</Th>
+                  <Th>{t('common.taxpayer')}</Th>
+                  <Th>{t('common.type')}</Th>
+                  <Th>{t('controls.page.periodAudited')}</Th>
+                  <Th>{t('controls.page.agent')}</Th>
+                  <Th>{t('common.status')}</Th>
+                  <Th>{t('controls.page.reassessment')}</Th>
+                  <Th>{t('controls.page.createdAt')}</Th>
                   <Th></Th>
                 </tr>
               </thead>
@@ -160,7 +195,7 @@ export default function Controls() {
                       </Link>
                     </Td>
                     <Td>
-                      <Badge tone="slate">{controlTypeLabels[c.controlType] ?? c.controlType}</Badge>
+                      <Badge tone="slate">{controlTypeLabels[c.controlType] ? t(controlTypeLabels[c.controlType]) : c.controlType}</Badge>
                     </Td>
                     <Td>{fmtDate(c.periodStart)} → {fmtDate(c.periodEnd)}</Td>
                     <Td>{c.agentName ?? '—'}</Td>
@@ -177,29 +212,25 @@ export default function Controls() {
                             onClick={() => setDetailId(c.id)}
                             className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
-                            <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
-                          </button>
+                            <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('common.seeDetails')}{' '}</button>
                           <button
                             onClick={() => setDetailId(c.id)}
                             className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
-                            <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
-                          </button>
+                            <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('common.edit')}{' '}</button>
                           <button
                             onClick={() => setDetailId(c.id)}
                             className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
-                            <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
-                          </button>
+                            <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('controls.page.changeStatus')}{' '}</button>
                           <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                           <button
                             onClick={() => {
-                              if (confirm('Supprimer ce contrôle ?')) remove.mutate(c.id)
+                              if (confirm(t('controls.page.deleteConfirm'))) remove.mutate(c.id)
                             }}
                             className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                           >
-                            <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
-                          </button>
+                            <Trash2 className="h-4 w-4 shrink-0" /> {t('common.delete')}{' '}</button>
                         </RowActionPortal>
                       </Td>
                   </tr>
@@ -236,29 +267,25 @@ export default function Controls() {
                           onClick={() => setDetailId(c.id)}
                           className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
-                          <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Voir le détail
-                        </button>
+                          <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('common.seeDetails')}{' '}</button>
                         <button
                           onClick={() => setDetailId(c.id)}
                           className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
-                          <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
-                        </button>
+                          <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('common.edit')}{' '}</button>
                         <button
                           onClick={() => setDetailId(c.id)}
                           className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
-                          <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Changer le statut
-                        </button>
+                          <CalendarClock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> {t('controls.page.changeStatus')}{' '}</button>
                         <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                         <button
                           onClick={() => {
-                            if (confirm('Supprimer ce contrôle ?')) remove.mutate(c.id)
+                            if (confirm(t('controls.page.deleteConfirm'))) remove.mutate(c.id)
                           }}
                           className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                         >
-                          <Trash2 className="h-4 w-4 shrink-0" /> Supprimer
-                        </button>
+                          <Trash2 className="h-4 w-4 shrink-0" /> {t('common.delete')}{' '}</button>
                       </RowActionPortal>
                     </div>
                   </div>
@@ -268,24 +295,24 @@ export default function Controls() {
                       <p className="font-mono text-xs text-slate-400 dark:text-slate-500">{c.nif}</p>
                     </div>
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <Badge tone="slate">{controlTypeLabels[c.controlType] ?? c.controlType}</Badge>
+                      <Badge tone="slate">{controlTypeLabels[c.controlType] ? t(controlTypeLabels[c.controlType]) : c.controlType}</Badge>
                     </div>
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Période:</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{t('controls.page.periodLabel')}</span>
                       <span>{fmtDate(c.periodStart)} → {fmtDate(c.periodEnd)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Agent:</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{t('controls.page.agentLabel')}</span>
                       <span>{c.agentName ?? '—'}</span>
                     </div>
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Redressement:</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{t('controls.page.reassessmentLabel')}</span>
                       <span className={c.redressement ? 'font-medium text-amber-700' : ''}>
                         {c.redressement != null ? fmtMGA(c.redressement) : '—'}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="text-xs text-slate-400 dark:text-slate-500">Créé le:</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{t('controls.page.createdAtLabel')}</span>
                       <span>{fmtDate(c.createdAt)}</span>
                     </div>
                   </div>
@@ -305,6 +332,7 @@ export default function Controls() {
 /* ──────────────────────── Création ──────────────────────── */
 
 export function CreateControlModal({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n()
   const { can } = useAuth()
   const [step, setStep] = useState(0)
   const [taxpayerId, setTaxpayerId] = useState('')
@@ -320,7 +348,7 @@ export function CreateControlModal({ onClose }: { onClose: () => void }) {
 
   const selectedTp = taxpayers?.content.find((t) => String(t.id) === taxpayerId) ?? null
   return (
-    <Modal open onClose={onClose} title={`Étape ${step + 1}/3 — Nouveau contrôle fiscal`} size="full">
+    <Modal open onClose={onClose} title={t('controls.page.stepTitle', { step: step + 1 })} size="full">
       <form
         onSubmit={(e) => {
           e.preventDefault()
@@ -352,9 +380,9 @@ export function CreateControlModal({ onClose }: { onClose: () => void }) {
         </div>
         {step === 0 && (
           <div className="space-y-4 animate-fade-in">
-            <Field label="Contribuable">
+            <Field label={t('common.taxpayer')}>
               <Select value={taxpayerId} onChange={(e) => setTaxpayerId(e.target.value)} required>
-                <option value="">— Sélectionner —</option>
+                <option value="">{t('controls.page.selectPlaceholder')}</option>
                 {loadingTaxpayers ? null : taxpayers?.content.map((t) => (
                   <option key={t.id} value={t.id}>{t.nif} — {t.name}</option>
                 ))}
@@ -366,17 +394,17 @@ export function CreateControlModal({ onClose }: { onClose: () => void }) {
                 <p className="text-slate-500">NIF : {selectedTp.nif}</p>
               </div>
             )}
-            <Field label="Type de contrôle">
+            <Field label={t('controls.page.controlType')}>
               <Select value={controlType} onChange={(e) => setControlType(e.target.value)}>
                 {Object.entries(controlTypeLabels).map(([v, label]) => (
-                  <option key={v} value={v}>{label}</option>
+                  <option key={v} value={v}>{t(label)}</option>
                 ))}
               </Select>
             </Field>
             {can('USER_READ') && (
-              <Field label="Agent responsable">
+              <Field label={t('controls.page.agentInCharge')}>
                 <Select value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-                  <option value="">— Non assigné —</option>
+                  <option value="">{t('controls.page.notAssigned')}</option>
                   {users?.content.map((u) => (
                     <option key={u.id} value={u.id}>{u.username}</option>
                   ))}
@@ -388,38 +416,38 @@ export function CreateControlModal({ onClose }: { onClose: () => void }) {
         {step === 1 && (
           <div className="space-y-4 animate-fade-in">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Début de période contrôlée">
+              <Field label={t('controls.page.periodStart')}>
                 <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} required />
               </Field>
-              <Field label="Fin de période contrôlée">
+              <Field label={t('controls.page.periodEnd')}>
                 <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} required />
               </Field>
             </div>
-            <Field label="Motif du contrôle">
+            <Field label={t('controls.page.reason')}>
               <Textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} required maxLength={500} />
             </Field>
           </div>
         )}
         {step === 2 && (
           <div className="space-y-4 animate-fade-in">
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('login.register.step.summary')}</h4>
             <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
-              <div className="flex justify-between"><span className="text-slate-500">Contribuable</span><span className="font-medium">{selectedTp ? `${selectedTp.name} (${selectedTp.nif})` : '—'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Type</span><span className="font-medium">{controlTypeLabels[controlType] ?? controlType}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Période</span><span className="font-medium">{periodStart || '—'} → {periodEnd || '—'}</span></div>
-              <div className="flex justify-between gap-4"><span className="text-slate-500">Motif</span><span className="text-right font-medium">{reason || '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">{t('common.taxpayer')}</span><span className="font-medium">{selectedTp ? `${selectedTp.name} (${selectedTp.nif})` : '—'}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">{t('common.type')}</span><span className="font-medium">{controlTypeLabels[controlType] ? t(controlTypeLabels[controlType]) : controlType}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">{t('common.period')}</span><span className="font-medium">{periodStart || '—'} → {periodEnd || '—'}</span></div>
+              <div className="flex justify-between gap-4"><span className="text-slate-500">{t('controls.page.reasonShort')}</span><span className="text-right font-medium">{reason || '—'}</span></div>
             </div>
           </div>
         )}
         <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
-          <div>{step > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>}</div>
+          <div>{step > 0 && <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>{t('controls.page.previous')}</Button>}</div>
           <div className="flex gap-2">
-            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            <Button type="button" variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
             {step < 2 ? (
-              <Button type="button" size="sm" className="bg-brand-600 text-white" disabled={step === 0 ? !taxpayerId : !periodStart || !periodEnd || !reason.trim()} onClick={() => setStep(step + 1)}>Suivant →</Button>
+              <Button type="button" size="sm" className="bg-brand-600 text-white" disabled={step === 0 ? !taxpayerId : !periodStart || !periodEnd || !reason.trim()} onClick={() => setStep(step + 1)}>{t('controls.page.next')}</Button>
             ) : (
               <Button type="submit" disabled={create.isPending || !taxpayerId || !periodStart || !periodEnd || !reason.trim()}>
-                {create.isPending ? 'Création…' : 'Créer'}
+                {create.isPending ? t('controls.page.creating') : t('common.create')}
               </Button>
             )}
           </div>
@@ -432,6 +460,7 @@ export function CreateControlModal({ onClose }: { onClose: () => void }) {
 /* ──────────────────────── Détail ──────────────────────── */
 
 export function ControlDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const { t } = useI18n()
   const { can } = useAuth()
 
   const [nextStatus, setNextStatus] = useState('')
@@ -447,7 +476,7 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
 
   if (isLoading || !data) {
     return (
-      <Modal open onClose={onClose} title="Détail du contrôle fiscal" wide>
+      <Modal open onClose={onClose} title={t('controls.page.detailTitle')} wide>
         <Spinner />
       </Modal>
     )
@@ -460,36 +489,36 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
     can('CONTROL_WRITE') && (c.status === 'ANOMALY_DETECTED' || c.status === 'IN_PROGRESS' || c.status === 'REDRESSEMENT')
 
   return (
-    <Modal open onClose={onClose} title="Détail du contrôle fiscal" wide>
+    <Modal open onClose={onClose} title={t('controls.page.detailTitle')} wide>
       <div className="space-y-4">
         <div className="rounded-xl border border-slate-100 dark:border-slate-700/50 bg-slate-50/60 dark:bg-slate-800/30 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-sm font-medium text-brand-700">{c.reference}</span>
             <StatusBadge value={c.status} />
-            <Badge tone="slate">{controlTypeLabels[c.controlType] ?? c.controlType}</Badge>
+            <Badge tone="slate">{controlTypeLabels[c.controlType] ? t(controlTypeLabels[c.controlType]) : c.controlType}</Badge>
             {c.agentName && <Badge tone="blue">{c.agentName}</Badge>}
           </div>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            <strong>Période contrôlée :</strong> {fmtDate(c.periodStart)} → {fmtDate(c.periodEnd)}
+            <strong>{t('controls.page.periodAuditedLabel')}</strong> {fmtDate(c.periodStart)} → {fmtDate(c.periodEnd)}
           </p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-400">
-            <strong>Motif :</strong> {c.reason}
+            <strong>{t('controls.page.reasonLabel')}</strong> {c.reason}
           </p>
           <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
             <Link to={`/taxpayers/${c.taxpayerId}`} className="text-brand-700 hover:underline">
               {c.taxpayerName} ({c.nif})
             </Link>
-            {' · '}créé le {fmtDateTime(c.createdAt)}
+            {' · '}{t('controls.page.createdOn')}{' '}{fmtDateTime(c.createdAt)}
           </p>
           {c.observations && (
             <div className="mt-3 rounded-lg border border-slate-200 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-700 dark:text-slate-300">
-              <span className="font-semibold">Observations : </span>
+              <span className="font-semibold">{t('controls.page.observationsLabel')}</span>
               {c.observations}
             </div>
           )}
           {c.anomalies && (
             <div className="mt-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-              <span className="font-semibold">Anomalies : </span>
+              <span className="font-semibold">{t('controls.page.anomaliesLabel')}</span>
               {c.anomalies}
             </div>
           )}
@@ -497,12 +526,12 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
             <div className="mt-3 flex flex-wrap gap-4 text-sm">
               {c.redressement != null && (
                 <span className="font-medium text-amber-700">
-                  Redressement : {fmtMGA(c.redressement)}
+                  {t('controls.page.reassessmentColon')}{fmtMGA(c.redressement)}
                 </span>
               )}
               {c.penaltyAmount != null && (
                 <span className="font-medium text-rose-700">
-                  Pénalités : {fmtMGA(c.penaltyAmount)}
+                  {t('controls.page.penaltiesColon')}{fmtMGA(c.penaltyAmount)}
                 </span>
               )}
             </div>
@@ -511,10 +540,10 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
 
         <div>
           <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Documents demandés ({data.documents.length})
+            {t('controls.page.documentsRequested')}{data.documents.length})
           </h4>
           {data.documents.length === 0 ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Aucun document enregistré.</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">{t('controls.page.noDocuments')}</p>
           ) : (
             <ul className="space-y-2">
               {data.documents.map((d) => (
@@ -524,7 +553,7 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
                     {d.documentType && <p className="text-xs text-slate-400 dark:text-slate-500">{d.documentType}</p>}
                   </div>
                   <Badge tone={d.received ? 'green' : 'amber'}>
-                    {d.received ? 'Reçu' : 'En attente'}
+                    {d.received ? t('controls.page.received') : t('common.pending')}
                   </Badge>
                 </li>
               ))}
@@ -535,31 +564,30 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
         {canUpdate && (
           <div className="rounded-xl border border-slate-100 dark:border-slate-700/50 p-4">
             <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Mettre à jour le contrôle
-            </h4>
+              {t('controls.page.updateTitle')}{' '}</h4>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Nouveau statut">
+              <Field label={t('controls.page.newStatus')}>
                 <Select value={nextStatus} onChange={(e) => setNextStatus(e.target.value)}>
-                  <option value="">— Sélectionner —</option>
-                  {transitions.map((t) => (
-                    <option key={t} value={t}>{controlStatusLabels[t] ?? t}</option>
+                  <option value="">{t('controls.page.selectPlaceholder')}</option>
+                  {transitions.map((code) => (
+                    <option key={code} value={code}>{controlStatusLabels[code] ? t(controlStatusLabels[code]) : code}</option>
                   ))}
                 </Select>
               </Field>
             </div>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Observations">
+              <Field label={t('collection.drawer.f.observations')}>
                 <Input value={observations} onChange={(e) => setObservations(e.target.value)} />
               </Field>
-              <Field label="Anomalies constatées">
+              <Field label={t('controls.page.anomaliesFound')}>
                 <Input value={anomalies} onChange={(e) => setAnomalies(e.target.value)} />
               </Field>
             </div>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Redressement (MGA)">
+              <Field label={t('controls.page.reassessmentAmount')}>
                 <Input type="number" min="0" step="0.01" value={redressement} onChange={(e) => setRedressement(e.target.value)} />
               </Field>
-              <Field label="Pénalités (MGA)">
+              <Field label={t('controls.page.penaltiesAmount')}>
                 <Input type="number" min="0" step="0.01" value={penaltyAmount} onChange={(e) => setPenaltyAmount(e.target.value)} />
               </Field>
             </div>
@@ -583,8 +611,7 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
                 }
                 disabled={update.isPending || (!nextStatus && observations === '' && anomalies === '' && redressement === '' && penaltyAmount === '')}
               >
-                Appliquer
-              </Button>
+                {t('common.apply')}{' '}</Button>
             </div>
           </div>
         )}
@@ -592,12 +619,11 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
         {canCloseWithRedressement && (
           <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-4">
             <h4 className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
-              <Gavel className="h-4 w-4" /> Clôturer avec redressement
-            </h4>
+              <Gavel className="h-4 w-4" /> {t('controls.page.closeWithReassessment')}{' '}</h4>
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-44 flex-1">
-                <Field label="Montant du redressement (MGA)">
-                  <Input type="number" min="0" step="0.01" value={closeRedressement} onChange={(e) => setCloseRedressement(e.target.value)} placeholder="ex : 250000" />
+                <Field label={t('controls.page.reassessmentAmountLabel')}>
+                  <Input type="number" min="0" step="0.01" value={closeRedressement} onChange={(e) => setCloseRedressement(e.target.value)} placeholder={t('controls.page.amountPlaceholder')} />
                 </Field>
               </div>
               <Button
@@ -611,8 +637,7 @@ export function ControlDetailModal({ id, onClose }: { id: number; onClose: () =>
                 }
                 disabled={closeWithRedressement.isPending || !closeRedressement || Number(closeRedressement) <= 0}
               >
-                <PlusCircle className="h-4 w-4" /> Clôturer avec redressement
-              </Button>
+                <PlusCircle className="h-4 w-4" /> {t('controls.page.closeWithReassessment')}{' '}</Button>
             </div>
           </div>
         )}

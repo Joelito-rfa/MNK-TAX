@@ -3,6 +3,7 @@ package com.mnktax.communication.service;
 import com.mnktax.audit.service.AuditService;
 import com.mnktax.auth.entity.User;
 import com.mnktax.auth.repository.UserRepository;
+import com.mnktax.common.util.PhoneUtil;
 import com.mnktax.communication.config.CommunicationProperties;
 import com.mnktax.communication.dto.CommunicationDtos.CampaignAudiencePreview;
 import com.mnktax.communication.dto.CommunicationDtos.CampaignDto;
@@ -33,7 +34,6 @@ import com.mnktax.communication.entity.MessageDelivery;
 import com.mnktax.communication.entity.MessageStatus;
 import com.mnktax.communication.entity.MessageTemplate;
 import com.mnktax.communication.entity.CommunicationEventRule;
-import com.mnktax.communication.provider.EmailAttachment;
 import com.mnktax.communication.provider.EmailProvider;
 import com.mnktax.communication.provider.ProviderResult;
 import com.mnktax.communication.provider.SmsProvider;
@@ -157,6 +157,7 @@ public class CommunicationService {
         if (override != null && !isValidEmail(override)) {
             throw new BusinessException("INVALID_EMAIL", "Adresse email destinataire invalide : " + override);
         }
+        String phoneOverride = normalizedPhone(request.phoneOverride());
         if (request.senderEmail() != null && !request.senderEmail().isBlank()
                 && !isValidEmail(request.senderEmail().trim())) {
             throw new BusinessException("INVALID_SENDER_EMAIL", "Adresse email expéditrice invalide.");
@@ -166,8 +167,9 @@ public class CommunicationService {
         int missingPhone = 0;
         for (Target target : targets) {
             String effectiveEmail = effectiveEmail(target, override, targets.size());
+            String effectivePhone = effectivePhone(target, phoneOverride, targets.size());
             if (channels.contains("EMAIL") && isBlank(effectiveEmail)) missingEmail++;
-            if (channels.contains("SMS") && isBlank(target.phoneNormalized)) missingPhone++;
+            if (channels.contains("SMS") && isBlank(effectivePhone)) missingPhone++;
         }
         List<String> warnings = new ArrayList<>();
         if (missingEmail > 0) {
@@ -179,6 +181,23 @@ public class CommunicationService {
         if (targets.size() > 100) {
             warnings.add("Diffusion importante : " + targets.size()
                     + " contribuables — une confirmation est requise avant l'envoi.");
+        }
+        if (channels.contains("EMAIL") && properties.isMailerSendTrialSender()) {
+            warnings.add("MailerSend en mode sandbox (domaine d'essai) : 2 destinataires "
+                    + "uniques maximum. Vérifiez un domaine d'envoi dans MailerSend pour "
+                    + "écrire à d'autres adresses réelles.");
+        }
+        if (channels.contains("EMAIL")) {
+            if (!emailProvider.isConfigured()) {
+                warnings.add("Canal email non configuré (SMTP ou MailerSend) : "
+                        + "les envois email échoueront.");
+            } else if (isDemoEmailProvider()) {
+                warnings.add("Mode démonstration actif : les emails sont seulement journalisés, "
+                        + "aucun email réel n'est envoyé (MAIL_HOST / MAILERSEND_API_TOKEN absent).");
+            }
+        }
+        if (channels.contains("SMS") && !smsProvider.isConfigured()) {
+            warnings.add("Canal SMS non configuré (Twilio) : les envois SMS échoueront.");
         }
         return new ComposePreview(request.audience() == null ? "SINGLE" : request.audience(),
                 targets.size(), channels, missingEmail, missingPhone, warnings);
@@ -192,21 +211,25 @@ public class CommunicationService {
         if (targets.isEmpty()) {
             throw new BusinessException("NO_RECIPIENT", "Aucun destinataire résolu pour cet envoi.");
         }
-        if (request.content() == null || request.content().isBlank()) {
+        boolean hasTemplate = request.templateCode() != null && !request.templateCode().isBlank();
+        if (!hasTemplate && (request.content() == null || request.content().isBlank())) {
             throw new BusinessException("CONTENT_REQUIRED", "Le contenu du message est requis.");
         }
         String override = normalizedEmail(request.emailOverride());
         if (override != null && !isValidEmail(override)) {
             throw new BusinessException("INVALID_EMAIL", "Adresse email destinataire invalide : " + override);
         }
+        String phoneOverride = normalizedPhone(request.phoneOverride());
         String senderEmail = request.senderEmail() == null ? null : request.senderEmail().trim();
         if (senderEmail != null && !senderEmail.isBlank() && !isValidEmail(senderEmail)) {
             throw new BusinessException("INVALID_SENDER_EMAIL", "Adresse email expéditrice invalide.");
         }
         // Mise à jour optionnelle de la fiche contribuable (case cochée côté UI).
-        if (Boolean.TRUE.equals(request.updateContact()) && override != null && request.taxpayerId() != null) {
+        if (Boolean.TRUE.equals(request.updateContact()) && request.taxpayerId() != null
+                && (override != null || phoneOverride != null)) {
             taxpayerRepository.findById(request.taxpayerId()).ifPresent(t -> {
-                t.setEmail(override);
+                if (override != null) t.setEmail(override);
+                if (phoneOverride != null) t.setPhoneNormalized(phoneOverride);
                 taxpayerRepository.save(t);
             });
             targets = resolveTargets(request);
@@ -250,29 +273,43 @@ public class CommunicationService {
                 content = renderVars(template.bodyFor(language), vars);
                 // Version SMS courte, rendue ici : le worker n'a plus à tronquer l'email.
                 smsContent = renderVars(template.smsBodyFor(language), vars);
-            }
-            String effectiveEmail = effectiveEmail(target, override, targets.size());
-            List<String> effectiveChannels = new ArrayList<>(channels);
-            if (effectiveChannels.contains("EMAIL") && isBlank(effectiveEmail)) effectiveChannels.remove("EMAIL");
-            if (effectiveChannels.contains("SMS") && isBlank(target.phoneNormalized)) effectiveChannels.remove("SMS");
-            boolean external = target.userId() == null && target.taxpayerId() == null;
-            if (external) {
-                // Externe : email uniquement, pas de IN_APP/SMS ni de fiche à mettre à jour.
-                effectiveChannels.removeIf(c -> !c.equals("EMAIL"));
-                if (effectiveChannels.isEmpty()) {
-                    throw new BusinessException("EXTERNAL_EMAIL_REQUIRED",
-                            "Un destinataire externe exige le canal EMAIL avec une adresse valide.");
+                if (isBlank(content)) {
+                    throw new BusinessException("CONTENT_REQUIRED",
+                            "Le modèle " + template.getCode() + " n'a pas de corps pour la langue "
+                                    + (language == null ? "?" : language) + ".");
                 }
             }
+            String effectiveEmail = effectiveEmail(target, override, targets.size());
+            String effectivePhone = effectivePhone(target, phoneOverride, targets.size());
+            List<String> effectiveChannels = new ArrayList<>(channels);
+            if (effectiveChannels.contains("EMAIL") && isBlank(effectiveEmail)) effectiveChannels.remove("EMAIL");
+            if (effectiveChannels.contains("SMS") && isBlank(effectivePhone)) effectiveChannels.remove("SMS");
+            // Sans compte utilisateur, la boîte IN_APP serait orpheline : on la retire.
+            if (effectiveChannels.contains("IN_APP") && target.userId() == null) effectiveChannels.remove("IN_APP");
+            boolean external = target.userId() == null && target.taxpayerId() == null;
+            if (external) {
+                // Externe : ni IN_APP (pas de compte), ni fiche à mettre à jour.
+                effectiveChannels.remove("IN_APP");
+                if (effectiveChannels.isEmpty()) {
+                    throw new BusinessException("EXTERNAL_CONTACT_REQUIRED",
+                            "Un destinataire externe exige le canal EMAIL ou SMS avec un contact valide.");
+                }
+            } else if (effectiveChannels.isEmpty()) {
+                // Rien de joignable pour ce destinataire : on passe au suivant.
+                log.warn("Destinataire {} ignoré : aucun canal joignable (compte ou coordonnées manquants).",
+                        target.taxpayerId() != null ? "contribuable#" + target.taxpayerId()
+                                : "utilisateur#" + target.userId());
+                continue;
+            }
             Target effectiveTarget = new Target(target.userId(), target.taxpayerId(),
-                    effectiveEmail, target.phoneNormalized(), target.language());
+                    effectiveEmail, effectivePhone, target.language());
 
             Long senderId = SecurityUtils.currentUserId();
             Message message = Message.builder()
                     .senderId(senderId)
                     .senderName(senderName)
                     .recipientId(external ? senderId : target.userId)
-                    .recipientEmail(external ? effectiveEmail : null)
+                    .recipientEmail(external || target.userId() == null ? effectiveEmail : null)
                     .recipientLabel(external ? blankToNull(request.externalName()) : null)
                     .subject(subject)
                     .content(content)
@@ -300,6 +337,11 @@ public class CommunicationService {
 
             createDeliveries(saved, effectiveTarget, effectiveChannels, scheduledAt);
             created++;
+        }
+
+        if (created == 0) {
+            throw new BusinessException("NO_RECIPIENT",
+                    "Aucun destinataire joignable : ni compte actif, ni adresse email/téléphone valide.");
         }
 
         auditService.record("MESSAGE_CREATED", "MESSAGE", String.valueOf(firstMessageId),
@@ -362,11 +404,13 @@ public class CommunicationService {
                 recipientName = m.getRecipientLabel() != null && !m.getRecipientLabel().isBlank()
                         ? m.getRecipientLabel() + " <" + m.getRecipientEmail() + ">"
                         : m.getRecipientEmail();
-            } else {
+            } else if (m.getRecipientId() != null) {
                 recipientName = userRepository.findById(m.getRecipientId())
                         .map(u -> (u.getFirstName() + " " + u.getLastName()).trim())
                         .filter(s -> !s.isBlank())
                         .orElse("#" + m.getRecipientId());
+            } else {
+                recipientName = taxpayerName != null ? taxpayerName : "—";
             }
             dtos.add(SentMessageDto.from(m, recipientName, taxpayerName, taxpayerNif, deliveries));
         }
@@ -444,9 +488,8 @@ public class CommunicationService {
     public ProvidersStatusDto providersStatus() {
         List<ProviderStatusDto> providers = new ArrayList<>();
         providers.add(new ProviderStatusDto("EMAIL", emailProvider.providerName(),
-                statusOf(emailProvider.isConfigured()), providerDetail(emailProvider.isConfigured(),
-                        emailProvider.providerName(), "SMTP configuré via MAIL_HOST.",
-                        "Configuration incomplète : MAIL_HOST absent.")));
+                statusOf(emailProvider.isConfigured() && !isDemoEmailProvider()),
+                emailProviderDetail()));
         providers.add(new ProviderStatusDto("SMS", smsProvider.providerName(),
                 statusOf(smsProvider.isConfigured()), providerDetail(smsProvider.isConfigured(),
                         smsProvider.providerName(), "Fournisseur SMS connecté.",
@@ -456,7 +499,37 @@ public class CommunicationService {
         int pending = (int) deliveryRepository.countByStatus(DeliveryStatus.PENDING);
         int failed = (int) deliveryRepository.countByStatus(DeliveryStatus.FAILED);
         return new ProvidersStatusDto(providers, pending, failed,
-                properties.getQueue().getMaxAttempts(), properties.getQueue().getRetryBackoffMinutes());
+                properties.getQueue().getMaxAttempts(), properties.getQueue().getRetryBackoffMinutes(),
+                properties.getQueue().isAutoRetryEnabled(),
+                properties.getQueue().getAutoRetryMaxCycles(),
+                properties.getQueue().getAutoRetryBackoffMinutes(),
+                properties.getQueue().getAutoRetryMaxAgeHours());
+    }
+
+    /** Détail du fournisseur email — signale le domaine d'essai MailerSend (sandbox). */
+    private String emailProviderDetail() {
+        if (!emailProvider.isConfigured()) {
+            return "Configuration incomplète : aucun fournisseur email réel (SMTP ou API).";
+        }
+        if (properties.isMailerSendTrialSender()) {
+            return "Compte MailerSend en mode sandbox : le domaine d'essai est limité à 2 "
+                    + "destinataires uniques. Vérifiez un domaine d'envoi (Email → Domains) "
+                    + "puis mettez MAIL_FROM_ADDRESS à jour pour écrire à de vrais destinataires.";
+        }
+        if (isDemoEmailProvider()) {
+            return "Mode démonstration : log uniquement — aucun email réel n'est envoyé. "
+                    + "Configurez MAIL_HOST (SMTP) ou MAILERSEND_API_TOKEN pour de vrais envois.";
+        }
+        return "Fournisseur email configuré (" + emailProvider.providerName() + ").";
+    }
+
+    /**
+     * true si le canal email ne fait que journaliser (fournisseur de démonstration) :
+     * les livraisons sont alors marquées envoyées sans qu'aucun email ne parte.
+     */
+    private boolean isDemoEmailProvider() {
+        String name = emailProvider.providerName();
+        return name != null && name.startsWith("DEMO");
     }
 
     private String statusOf(boolean configured) {
@@ -493,7 +566,8 @@ public class CommunicationService {
                 result = ProviderResult.failure("Aucune adresse de test configurée (COMM_TEST_EMAIL).", false);
             } else {
                 String html = emailRenderer.render(subject, content, null, null, null);
-                result = emailProvider.send(to, subject, html, null, List.<EmailAttachment>of());
+                String text = emailRenderer.renderText(subject, content, null, null, null);
+                result = emailProvider.send(to, subject, html, text, emailRenderer.inlineAssets());
             }
         } else if (channel == DeliveryChannel.SMS) {
             String to = properties.getTest().getSmsRecipient();
@@ -749,11 +823,12 @@ public class CommunicationService {
                     taxpayer == null ? "FR" : taxpayer.getLanguage()));
         }
         String externalEmail = normalizedEmail(request.emailOverride());
-        if (externalEmail != null) {
-            if (!isValidEmail(externalEmail)) {
+        String externalPhone = normalizedPhone(request.phoneOverride());
+        if (externalEmail != null || externalPhone != null) {
+            if (externalEmail != null && !isValidEmail(externalEmail)) {
                 throw new BusinessException("INVALID_EMAIL", "Adresse email destinataire invalide : " + externalEmail);
             }
-            return List.of(new Target(null, null, externalEmail, null, "FR"));
+            return List.of(new Target(null, null, externalEmail, externalPhone, "FR"));
         }
         throw new BusinessException("NO_RECIPIENT", "Aucun destinataire spécifié.");
     }
@@ -773,7 +848,6 @@ public class CommunicationService {
             for (Long taxpayerId : ids) {
                 taxpayerRepository.findById(taxpayerId).ifPresent(t -> targets.add(toTarget(t)));
             }
-            targets.removeIf(t -> t.userId == null);
             return new ArrayList<>(targets);
         }
         String audienceKey = audience == null ? "ALL" : audience.toUpperCase();
@@ -800,14 +874,20 @@ public class CommunicationService {
             }
             default -> throw new BusinessException("AUDIENCE_UNKNOWN", "Audience inconnue : " + audience);
         }
-        // Un contribuable sans compte utilisateur ne peut rien recevoir.
-        targets.removeIf(t -> t.userId == null);
+        // Un contribuable sans compte reste joignable par EMAIL/SMS : la
+        // disponibilité réelle de chaque canal est décidée dans compose().
         return new ArrayList<>(targets);
     }
 
     private Target toTarget(Taxpayer taxpayer) {
+        String email = taxpayer.getEmail();
+        // Repli sur l'email du compte lié : la fiche peut être vide alors que
+        // l'utilisateur dispose d'une adresse (ou inversement).
+        if (isBlank(email) && taxpayer.getUserId() != null) {
+            email = userRepository.findById(taxpayer.getUserId()).map(User::getEmail).orElse(null);
+        }
         return new Target(taxpayer.getUserId(), taxpayer.getId(),
-                taxpayer.getEmail(), taxpayer.getPhoneNormalized(), taxpayer.getLanguage());
+                email, taxpayer.getPhoneNormalized(), taxpayer.getLanguage());
     }
 
     // ═══ Helpers ══════════════════════════════════════════════════
@@ -857,11 +937,21 @@ public class CommunicationService {
 
     private String resolveSenderName() {
         Long senderId = SecurityUtils.currentUserId();
-        if (senderId == null) return SecurityUtils.currentUsername();
-        return userRepository.findById(senderId)
+        String name = senderId == null ? null : userRepository.findById(senderId)
                 .map(u -> (u.getFirstName() + " " + u.getLastName()).trim())
                 .filter(s -> !s.isBlank())
-                .orElse(SecurityUtils.currentUsername());
+                .orElse(null);
+        if (name != null) {
+            return name;
+        }
+        // Exécution automatique (scheduler) : aucun utilisateur authentifié —
+        // on affiche l'application plutôt que "system".
+        String username = SecurityUtils.currentUsername();
+        if (username == null || username.isBlank()
+                || "system".equals(username) || "anonymousUser".equals(username)) {
+            return "MNK-TAX";
+        }
+        return username;
     }
 
     private Map<String, String> baseVariables(Target target) {
@@ -880,6 +970,23 @@ public class CommunicationService {
     private static String effectiveEmail(Target target, String override, int targetCount) {
         if (override != null && targetCount == 1) return override;
         return target.email();
+    }
+
+    /** Numéro effectif : saisie manuelle prioritaire pour un envoi unique. */
+    private static String effectivePhone(Target target, String override, int targetCount) {
+        if (override != null && targetCount == 1) return override;
+        return target.phoneNormalized();
+    }
+
+    /** Normalise un numéro saisi manuellement ; null si vide, erreur si invalide. */
+    private static String normalizedPhone(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = PhoneUtil.normalize(value);
+        if (normalized == null) {
+            throw new BusinessException("INVALID_PHONE",
+                    "Numéro de téléphone destinataire invalide : " + value);
+        }
+        return normalized;
     }
 
     private static String normalizedEmail(String value) {

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useI18n } from '../lib/i18n'
 import { apiGet, apiPost, apiErrorMessage } from '../lib/api'
+import { defaultApproveRole, REGISTER_ROLES, normalizeRole, type RegisterRole } from '../lib/registration'
 import { useToast } from '../components/Toast'
 import { useDropdown } from '../lib/useDropdown'
 import {
@@ -28,6 +29,7 @@ import {
   Spinner,
   Textarea,
 } from '../components/ui'
+import { ExportButton } from '../components/ExportButton'
 
 /* ── Types ── */
 
@@ -76,71 +78,90 @@ interface Stats {
 /* ── Config ── */
 
 const STATUS_TABS = [
-  { key: '', label: 'Toutes', icon: Inbox },
-  { key: 'PENDING', label: 'En attente', icon: Clock },
-  { key: 'UNDER_REVIEW', label: 'En vérification', icon: ShieldCheck },
-  { key: 'APPROVED', label: 'Approuvées', icon: CheckCircle2 },
-  { key: 'REJECTED', label: 'Rejetées', icon: XCircle },
+  { key: '', labelKey: 'regRequests.page.status.all', icon: Inbox },
+  { key: 'PENDING', labelKey: 'regRequests.page.status.PENDING', icon: Clock },
+  { key: 'UNDER_REVIEW', labelKey: 'regRequests.page.status.UNDER_REVIEW', icon: ShieldCheck },
+  { key: 'APPROVED', labelKey: 'regRequests.page.status.APPROVED', icon: CheckCircle2 },
+  { key: 'REJECTED', labelKey: 'regRequests.page.status.REJECTED', icon: XCircle },
 ]
 
 const TYPE_OPTIONS = [
-  { value: '', label: 'Tous les types' },
-  { value: 'INDIVIDUAL', label: 'Particulier' },
-  { value: 'COMPANY', label: 'Entreprise' },
-  { value: 'TAX_AGENT', label: 'Agent fiscal' },
-  { value: 'ACCOUNTANT', label: 'Comptable' },
-  { value: 'COLLECTION_AGENT', label: 'Agent recouvrement' },
-  { value: 'OTHER', label: 'Autre' },
+  { value: '', labelKey: 'regRequests.page.type.all' },
+  { value: 'INDIVIDUAL', labelKey: 'regRequests.page.type.INDIVIDUAL' },
+  { value: 'COMPANY', labelKey: 'regRequests.page.type.COMPANY' },
+  { value: 'TAX_AGENT', labelKey: 'regRequests.page.type.TAX_AGENT' },
+  { value: 'ACCOUNTANT', labelKey: 'regRequests.page.type.ACCOUNTANT' },
+  { value: 'COLLECTION_AGENT', labelKey: 'regRequests.page.type.COLLECTION_AGENT' },
+  { value: 'OTHER', labelKey: 'regRequests.page.type.OTHER' },
 ]
 
-const typeLabels: Record<string, string> = {
-  INDIVIDUAL: 'Particulier',
-  COMPANY: 'Entreprise',
-  TAX_AGENT: 'Agent fiscal',
-  ACCOUNTANT: 'Comptable',
-  COLLECTION_AGENT: 'Agent recouvrement',
-  OTHER: 'Autre',
+const typeLabelKeys: Record<string, string> = {
+  INDIVIDUAL: 'regRequests.page.type.INDIVIDUAL',
+  COMPANY: 'regRequests.page.type.COMPANY',
+  TAX_AGENT: 'regRequests.page.type.TAX_AGENT',
+  ACCOUNTANT: 'regRequests.page.type.ACCOUNTANT',
+  COLLECTION_AGENT: 'regRequests.page.type.COLLECTION_AGENT',
+  OTHER: 'regRequests.page.type.OTHER',
 }
+
+function roleText(raw: string | null | undefined, t: (key: string) => string): string {
+  if (!raw || !raw.trim()) return '—'
+  const code = normalizeRole(raw)
+  return code ? t(`regRequests.page.role.${code}`) : raw
+}
+
+/* Rôles réellement attribuables à l'approbation (jamais ADMIN/SUPER_ADMIN) :
+   on propose les codes attendus par le backend, pas les libellés affichés. */
+const APPROVE_ROLE_OPTIONS = REGISTER_ROLES.filter((code) => code !== 'OTHER').map((code) => ({
+  value: code,
+  labelKey: `regRequests.page.role.${code}`,
+}))
 
 function statusConfig(status: string) {
   switch (status) {
-    case 'PENDING': return { label: 'En attente', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', icon: <Clock className="h-3.5 w-3.5" /> }
-    case 'UNDER_REVIEW': return { label: 'En vérification', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', icon: <ShieldCheck className="h-3.5 w-3.5" /> }
-    case 'APPROVED': return { label: 'Approuvée', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', icon: <CheckCircle2 className="h-3.5 w-3.5" /> }
-    case 'REJECTED': return { label: 'Rejetée', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/20', border: 'border-rose-200 dark:border-rose-800', icon: <XCircle className="h-3.5 w-3.5" /> }
-    default: return { label: status, color: 'text-slate-500', bg: 'bg-slate-100', border: 'border-slate-200', icon: null }
+    case 'PENDING': return { labelKey: 'regRequests.page.status.PENDING', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', icon: <Clock className="h-3.5 w-3.5" /> }
+    case 'UNDER_REVIEW': return { labelKey: 'regRequests.page.status.UNDER_REVIEW', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', icon: <ShieldCheck className="h-3.5 w-3.5" /> }
+    case 'APPROVED': return { labelKey: 'regRequests.page.status.APPROVED', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800', icon: <CheckCircle2 className="h-3.5 w-3.5" /> }
+    case 'REJECTED': return { labelKey: 'regRequests.page.status.REJECTED', color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/20', border: 'border-rose-200 dark:border-rose-800', icon: <XCircle className="h-3.5 w-3.5" /> }
+    default: return { labelKey: '', color: 'text-slate-500', bg: 'bg-slate-100', border: 'border-slate-200', icon: null }
   }
 }
 
-function fmtDate(iso: string | null | undefined): string {
+function statusLabel(status: string, t: (key: string) => string): string {
+  const key = statusConfig(status).labelKey
+  return key ? t(key) : status
+}
+
+function fmtDate(iso: string | null | undefined, locale: string): string {
   if (!iso) return '—'
   try {
-    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(iso).toLocaleDateString(locale === 'en' ? 'en-GB' : 'fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch { return '—' }
 }
 
 /* ── Stats Cards ── */
 
 function StatsCards({ stats }: { stats: Stats | undefined }) {
+  const { t } = useI18n()
   if (!stats) return null
   const cards = [
-    { label: 'Total', value: stats.total, iconBg: 'bg-slate-100', iconColor: 'text-slate-500', icon: <Inbox className="h-5 w-5" /> },
-    { label: 'En attente', value: stats.PENDING, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', icon: <Clock className="h-5 w-5" /> },
-    { label: 'En vérification', value: stats.UNDER_REVIEW, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', icon: <Eye className="h-5 w-5" /> },
-    { label: 'Approuvées', value: stats.APPROVED, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', icon: <UserCheck className="h-5 w-5" /> },
-    { label: 'Rejetées', value: stats.REJECTED, iconBg: 'bg-rose-50', iconColor: 'text-rose-600', icon: <XCircle className="h-5 w-5" /> },
+    { labelKey: 'regRequests.page.stats.total', value: stats.total, iconBg: 'bg-slate-100', iconColor: 'text-slate-500', icon: <Inbox className="h-5 w-5" /> },
+    { labelKey: 'regRequests.page.stats.pending', value: stats.PENDING, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', icon: <Clock className="h-5 w-5" /> },
+    { labelKey: 'regRequests.page.stats.review', value: stats.UNDER_REVIEW, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', icon: <Eye className="h-5 w-5" /> },
+    { labelKey: 'regRequests.page.stats.approved', value: stats.APPROVED, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', icon: <UserCheck className="h-5 w-5" /> },
+    { labelKey: 'regRequests.page.stats.rejected', value: stats.REJECTED, iconBg: 'bg-rose-50', iconColor: 'text-rose-600', icon: <XCircle className="h-5 w-5" /> },
   ]
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
       {cards.map((c, i) => (
-        <div key={c.label} style={{ animationDelay: `${i * 0.08}s` }} className="card fx-spot group relative animate-fade-in overflow-hidden p-5">
+        <div key={c.labelKey} style={{ animationDelay: `${i * 0.08}s` }} className="card fx-spot group relative animate-fade-in overflow-hidden p-5">
           <span
             aria-hidden="true"
             className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-violet-500/10 blur-2xl transition-opacity duration-300 group-hover:opacity-100 dark:bg-violet-400/10"
           />
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{c.label}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t(c.labelKey)}</p>
               <p className="mt-2 truncate text-[26px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-100">{c.value}</p>
             </div>
             <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${c.iconBg} ${c.iconColor}`}>{c.icon}</span>
@@ -161,6 +182,7 @@ function RequestRow({ request, onView, onAssign, onApprove, onReject, isMutating
   onReject: () => void
   isMutating: boolean
 }) {
+  const { t, locale } = useI18n()
   const { isOpen, close, triggerProps, dropdownProps } = useDropdown()
   const sc = statusConfig(request.status)
   const isActive = request.status === 'PENDING' || request.status === 'UNDER_REVIEW'
@@ -179,7 +201,9 @@ function RequestRow({ request, onView, onAssign, onApprove, onReject, isMutating
           <Mail className="h-3 w-3" />
           <span>{request.email}</span>
           <span>·</span>
-          <span>{typeLabels[request.requestType] ?? request.requestType}</span>
+          <span>{typeLabelKeys[request.requestType] ? t(typeLabelKeys[request.requestType]) : request.requestType}</span>
+          <span>·</span>
+          <span>{roleText(request.role, t)}</span>
           <span>·</span>
           <span>{request.organization}</span>
         </div>
@@ -189,11 +213,11 @@ function RequestRow({ request, onView, onAssign, onApprove, onReject, isMutating
       </div>
       <div className="hidden sm:flex shrink-0 items-center min-w-[130px] justify-end">
         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${sc.bg} ${sc.color}`}>
-          {sc.icon} {sc.label}
+          {sc.icon} {statusLabel(request.status, t)}
         </span>
       </div>
       <div className="hidden lg:block text-right min-w-[100px]">
-        <p className="text-xs text-slate-500 dark:text-slate-400">{fmtDate(request.createdAt)}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{fmtDate(request.createdAt, locale)}</p>
         {request.assignedTo && (
           <p className="mt-0.5 text-[10px] text-slate-400">→ {request.assignedTo}</p>
         )}
@@ -201,7 +225,7 @@ function RequestRow({ request, onView, onAssign, onApprove, onReject, isMutating
       <div className="flex shrink-0 items-center gap-1">
         <button onClick={onView}
           className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-violet-400"
-          title="Voir les détails">
+          title={t('regRequests.page.viewDetails')}>
           <Eye className="h-4 w-4" />
         </button>
         {isActive && (
@@ -216,16 +240,16 @@ function RequestRow({ request, onView, onAssign, onApprove, onReject, isMutating
                   {request.status === 'PENDING' && !request.assignedTo && (
                     <button onClick={() => { onAssign(); close() }} disabled={isMutating}
                       className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 disabled:opacity-50">
-                      <UserCheck className="h-4 w-4 shrink-0" /> Prendre en charge
+                      <UserCheck className="h-4 w-4 shrink-0" /> {t('regRequests.page.assign')}
                     </button>
                   )}
                   <button onClick={() => { onApprove(); close() }} disabled={isMutating}
                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20 disabled:opacity-50">
-                    <CheckCircle2 className="h-4 w-4 shrink-0" /> Approuver
+                    <CheckCircle2 className="h-4 w-4 shrink-0" /> {t('regRequests.page.approve')}
                   </button>
                   <button onClick={() => { onReject(); close() }} disabled={isMutating}
                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-rose-600 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20 disabled:opacity-50">
-                    <XCircle className="h-4 w-4 shrink-0" /> Rejeter
+                    <XCircle className="h-4 w-4 shrink-0" /> {t('regRequests.page.reject')}
                   </button>
                 </div>
               </div>
@@ -247,9 +271,10 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
   onReject: (reason: string) => void
   isMutating: boolean
 }) {
+  const { t, locale } = useI18n()
   const [rejectReason, setRejectReason] = useState('')
   const [showReject, setShowReject] = useState(false)
-  const [approveRole, setApproveRole] = useState(request.role)
+  const [approveRole, setApproveRole] = useState(defaultApproveRole(request.role))
   const sc = statusConfig(request.status)
   const isActive = request.status === 'PENDING' || request.status === 'UNDER_REVIEW'
 
@@ -259,7 +284,7 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
       <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-800">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
           <div>
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Détail de la demande</h3>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{t('regRequests.page.detail.title')}</h3>
             <p className="mt-0.5 text-xs text-slate-400">{request.reference}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700">
@@ -277,7 +302,7 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
               <p className="text-lg font-semibold text-slate-900 dark:text-white">{request.name}</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">{request.email}</p>
               <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${sc.bg} ${sc.color}`}>
-                {sc.icon} {sc.label}
+                {sc.icon} {statusLabel(request.status, t)}
               </span>
             </div>
           </div>
@@ -287,21 +312,21 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800">
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-1/3">Champ</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Valeur</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-1/3">{t('regRequests.page.detail.field')}</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.value')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
                 <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 w-1/3">Type</td>
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{typeLabels[request.requestType] ?? request.requestType}</td>
+                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400 w-1/3">{t('regRequests.page.detail.type')}</td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{typeLabelKeys[request.requestType] ? t(typeLabelKeys[request.requestType]) : request.requestType}</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Organisation</td>
+                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.organization')}</td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.organization}</td>
                 </tr>
                 <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Téléphone</td>
+                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.phone')}</td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.phone ?? '—'}</td>
                 </tr>
                 <tr>
@@ -309,34 +334,34 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.nif ?? '—'}</td>
                 </tr>
                 <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Adresse</td>
+                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.address')}</td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.address ?? '—'}</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Fonction</td>
+                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.position')}</td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.position ?? '—'}</td>
                 </tr>
                 <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Rôle souhaité</td>
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.role}</td>
+                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.role')}</td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{roleText(request.role, t)}</td>
                 </tr>
                 <tr>
-                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Centre fiscal</td>
+                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.taxCenter')}</td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.taxCenter ?? '—'}</td>
                 </tr>
                 <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Demandé le</td>
-                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{fmtDate(request.createdAt)}</td>
+                  <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.requestedAt')}</td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{fmtDate(request.createdAt, locale)}</td>
                 </tr>
                 {request.assignedTo && (
                   <tr>
-                    <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Agent responsable</td>
+                    <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.assignedAgent')}</td>
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.assignedTo}</td>
                   </tr>
                 )}
                 {request.reviewedBy && (
                   <tr className="bg-slate-50 dark:bg-slate-800/50">
-                    <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">Traité par</td>
+                    <td className="px-4 py-3 font-medium text-slate-500 dark:text-slate-400">{t('regRequests.page.detail.reviewedBy')}</td>
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{request.reviewedBy}</td>
                   </tr>
                 )}
@@ -346,14 +371,14 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
 
           {request.message && (
             <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800/50">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Message</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{t('regRequests.page.detail.message')}</p>
               <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{request.message}</p>
             </div>
           )}
 
           {request.rejectionReason && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-800 dark:bg-rose-900/20">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-500">Motif du rejet</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-rose-500">{t('regRequests.page.detail.rejectionReason')}</p>
               <p className="mt-1 text-sm text-rose-700 dark:text-rose-400">{request.rejectionReason}</p>
             </div>
           )}
@@ -365,15 +390,15 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
                 <div className="space-y-3">
                   <Textarea
                     rows={3}
-                    placeholder="Motif du rejet (obligatoire)..."
+                    placeholder={t('regRequests.page.rejectPlaceholder')}
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
                   />
                   <div className="flex justify-end gap-2">
-                    <Button variant="secondary" onClick={() => setShowReject(false)}>Annuler</Button>
+                    <Button variant="secondary" onClick={() => setShowReject(false)}>{t('common.cancel')}</Button>
                     <Button variant="danger" disabled={!rejectReason.trim() || isMutating} loading={isMutating}
                       onClick={() => { onReject(rejectReason); onClose() }}>
-                      Confirmer le rejet
+                      {t('regRequests.page.confirmReject')}
                     </Button>
                   </div>
                 </div>
@@ -381,21 +406,21 @@ function DetailModal({ request, onClose, onAssign, onApprove, onReject, isMutati
                 <div className="flex flex-wrap gap-2">
                   {request.status === 'PENDING' && !request.assignedTo && (
                     <Button variant="secondary" onClick={() => { onAssign(); onClose() }} disabled={isMutating}>
-                      <UserCheck className="h-4 w-4" /> Prendre en charge
+                      <UserCheck className="h-4 w-4" /> {t('regRequests.page.assign')}
                     </Button>
                   )}
                   <div className="flex items-center gap-2">
-                    <Select value={approveRole} onChange={(e) => setApproveRole(e.target.value)} className="w-48">
-                      {TYPE_OPTIONS.filter((o) => o.value).map((o) => (
-                        <option key={o.value} value={o.value}>{o.label}</option>
+                    <Select value={approveRole} onChange={(e) => setApproveRole(e.target.value as RegisterRole)} className="w-56">
+                      {APPROVE_ROLE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
                       ))}
                     </Select>
                     <Button onClick={() => { onApprove(approveRole); onClose() }} disabled={isMutating} loading={isMutating}>
-                      <CheckCircle2 className="h-4 w-4" /> Approuver
+                      <CheckCircle2 className="h-4 w-4" /> {t('regRequests.page.approve')}
                     </Button>
                   </div>
                   <Button variant="danger" onClick={() => setShowReject(true)} disabled={isMutating}>
-                    <XCircle className="h-4 w-4" /> Rejeter
+                    <XCircle className="h-4 w-4" /> {t('regRequests.page.reject')}
                   </Button>
                 </div>
               )}
@@ -449,7 +474,7 @@ export default function RegistrationRequests() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-registrations'] })
       queryClient.invalidateQueries({ queryKey: ['reg-stats'] })
-      toast.success('Demande prise en charge')
+      toast.success(t('regRequests.page.toast.assigned'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
@@ -461,7 +486,7 @@ export default function RegistrationRequests() {
       queryClient.invalidateQueries({ queryKey: ['admin-registrations'] })
       queryClient.invalidateQueries({ queryKey: ['reg-stats'] })
       queryClient.invalidateQueries({ queryKey: ['reg-detail'] })
-      toast.success('Demande approuvée. Le compte a été créé.')
+      toast.success(t('regRequests.page.toast.approved'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
@@ -473,14 +498,14 @@ export default function RegistrationRequests() {
       queryClient.invalidateQueries({ queryKey: ['admin-registrations'] })
       queryClient.invalidateQueries({ queryKey: ['reg-stats'] })
       queryClient.invalidateQueries({ queryKey: ['reg-detail'] })
-      toast.success('Demande rejetée.')
+      toast.success(t('regRequests.page.toast.rejected'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
   const isMutating = assignMutation.isPending || approveMutation.isPending || rejectMutation.isPending
 
-  if (isLoading) return <Spinner label="Chargement des demandes..." />
+  if (isLoading) return <Spinner label={t('regRequests.page.loading')} />
 
   return (
     <div className="fx-simple space-y-6">
@@ -498,11 +523,48 @@ export default function RegistrationRequests() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">
-            Demandes d'inscription
+            {t('regRequests.page.title')}
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Gérez les demandes d'accès des nouveaux utilisateurs.
+            {t('regRequests.page.subtitle')}
           </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <ExportButton
+            filenameBase={`demandes-inscription_${new Date().toISOString().slice(0, 10)}`}
+            title={t('regRequests.page.title')}
+            headers={[
+              t('common.reference'),
+              t('common.name'),
+              t('reports.page.col.email'),
+              t('regRequests.page.detail.type'),
+              t('regRequests.page.detail.role'),
+              t('regRequests.page.detail.organization'),
+              t('common.status'),
+              t('regRequests.page.detail.requestedAt'),
+              t('regRequests.page.detail.assignedAgent'),
+            ]}
+            rows={async () => {
+              const params = new URLSearchParams({ page: String(page), size: String(size) })
+              if (statusFilter) params.set('status', statusFilter)
+              if (typeFilter) params.set('type', typeFilter)
+              if (search) params.set('q', search)
+              params.delete('page')
+              params.set('size', '9999')
+              const res = await apiGet<PageResponse<RegistrationRequest>>(`/auth/admin/registrations?${params.toString()}`)
+              return res.content.map((r) => [
+                r.reference,
+                r.name,
+                r.email,
+                typeLabelKeys[r.requestType] ? t(typeLabelKeys[r.requestType]) : r.requestType,
+                roleText(r.role, t),
+                r.organization,
+                statusLabel(r.status, t),
+                r.createdAt,
+                r.assignedTo ?? '',
+              ])
+            }}
+          />
         </div>
       </div>
 
@@ -518,21 +580,21 @@ export default function RegistrationRequests() {
               type="text"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(0) }}
-              placeholder="Rechercher par référence, nom, email, NIF..."
+              placeholder={t('regRequests.page.searchPlaceholder')}
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
             />
           </div>
           <div className="w-44">
             <Select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(0) }}>
               {TYPE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
+                <option key={o.value} value={o.value}>{t(o.labelKey)}</option>
               ))}
             </Select>
           </div>
           {(search || typeFilter) && (
             <button onClick={() => { setSearch(''); setTypeFilter(''); setPage(0) }}
               className="text-xs font-medium text-violet-600 hover:text-violet-700 dark:text-violet-400">
-              Réinitialiser
+              {t('regRequests.page.reset')}
             </button>
           )}
         </div>
@@ -547,7 +609,7 @@ export default function RegistrationRequests() {
                   : 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700'
               }`}>
               <tab.icon className="h-4 w-4" />
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           ))}
         </div>
@@ -555,8 +617,8 @@ export default function RegistrationRequests() {
         {/* Content */}
         {!data || data.content.length === 0 ? (
           <div className="py-16">
-            <EmptyState icon={<Inbox className="h-10 w-10" />} title="Aucune demande"
-              subtitle="Aucune demande d'inscription ne correspond aux critères." />
+            <EmptyState icon={<Inbox className="h-10 w-10" />} title={t('regRequests.page.emptyTitle')}
+              subtitle={t('regRequests.page.emptySubtitle')} />
           </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -580,6 +642,7 @@ export default function RegistrationRequests() {
       {/* Detail Modal */}
       {detailId != null && detailData && (
         <DetailModal
+          key={detailId}
           request={detailData}
           onClose={() => setDetailId(null)}
           onAssign={() => assignMutation.mutate(detailId)}

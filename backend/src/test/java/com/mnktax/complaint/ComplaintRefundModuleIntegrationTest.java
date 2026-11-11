@@ -208,7 +208,7 @@ class ComplaintRefundModuleIntegrationTest {
         assertTrue(byAmount.getContent().stream()
                 .allMatch(r -> r.amount().compareTo(new BigDecimal("800000")) >= 0));
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
         var todayOnly = refundService.search(null, null, taxpayerId, null,
                 today.atStartOfDay(ZoneOffset.UTC).toInstant(),
                 today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),

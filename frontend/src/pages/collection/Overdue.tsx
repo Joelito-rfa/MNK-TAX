@@ -4,14 +4,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, AlertCircle, Inbox, Plus, RefreshCw, X } from 'lucide-react'
 import { useI18n } from '../../lib/i18n'
 import { useLocaleFormatters } from '../../lib/format'
-import { apiErrorMessage, apiPost } from '../../lib/api'
-import type { CollectionDebtRow } from '../../types'
+import { apiErrorMessage, apiGet, apiPost } from '../../lib/api'
+import type { CollectionDebtRow, Page } from '../../types'
 import { Button, Card, EmptyState, Pagination, Spinner } from '../../components/ui'
 import { useToast } from '../../components/Toast'
 import { CollectionSkeleton } from '../../components/collection/CollectionSkeleton'
 import { DetailDrawer } from '../../components/collection/DetailDrawer'
 import { CollectionFilters } from '../../components/collection/CollectionFilters'
-import { TERMINAL_STATUSES } from '../../components/collection/constants'
+import { TERMINAL_STATUSES, ACTION_KEYS, PRIORITY_CONFIG } from '../../components/collection/constants'
+import { ExportButton } from '../../components/ExportButton'
+import { useAuth } from '../../lib/auth'
+import { invalidateCollectionData } from '../../features/collection/api/keys'
 import { useCollectionFilters } from '../../features/collection/hooks/useCollectionFilters'
 import { useCollectionDebts, useCollectionStats, useOverdueSummary, useTaxTypesRef, useCollectionPeriods, useActionDebts } from '../../features/collection/api/queries'
 import { KpiStrip } from '../../features/collection/components/KpiStrip'
@@ -30,7 +33,7 @@ export default function CollectionOverdue() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [selectedDebt, setSelectedDebt] = useState<CollectionDebtRow | null>(null)
   const [actionOpen, setActionOpen] = useState(false)
-  const [actionType, setActionType] = useState<'call' | 'reminder'>('call')
+  const [actionType, setActionType] = useState<string>('call')
   const [reminderOpen, setReminderOpen] = useState(false)
   const [reminderDebt, setReminderDebt] = useState<CollectionDebtRow | null>(null)
   const [reminderForm, setReminderForm] = useState<ReminderForm>(emptyReminderForm())
@@ -39,8 +42,30 @@ export default function CollectionOverdue() {
   const toast = useToast()
   const { t } = useI18n()
   const { fmtMGA, fmtDate } = useLocaleFormatters()
+  const { can } = useAuth()
+  const canWrite = can('COLLECTION_WRITE')
 
   const { data, isLoading, isError, error } = useCollectionDebts('overdue', f.buildParams)
+
+  /** Toutes les créances en retard correspondant aux filtres actifs (hors pagination). */
+  const exportDebtRows = async () => {
+    const p = new URLSearchParams(f.buildParams)
+    p.delete('page')
+    p.delete('size')
+    const rows = await apiGet<Page<CollectionDebtRow>>(`/collection/debts?${p.toString()}&size=9999`)
+    return rows.content.map((d) => [
+      d.reference,
+      d.nif,
+      d.taxpayerName,
+      d.taxTypeCode,
+      d.balance,
+      d.dueDate,
+      PRIORITY_CONFIG[d.collectionPriority] ? t(PRIORITY_CONFIG[d.collectionPriority].key) : d.collectionPriority,
+      d.lastAction
+        ? `${t(ACTION_KEYS[d.lastActionType ?? ''] ?? 'common.unknown')}${d.lastActionDate ? ` — ${d.lastActionDate}` : ''}`
+        : '',
+    ])
+  }
   const { data: taxTypes } = useTaxTypesRef()
   const { data: periods } = useCollectionPeriods()
   const { data: stats } = useCollectionStats()
@@ -61,7 +86,7 @@ export default function CollectionOverdue() {
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
 
-  function invalidateQueries() { queryClient.invalidateQueries({ queryKey: ['collection-debts'] }); queryClient.invalidateQueries({ queryKey: ['collection-stats'] }); queryClient.invalidateQueries({ queryKey: ['collection-overdue-summary'] }); queryClient.invalidateQueries({ queryKey: ['debt-stats'] }) }
+  function invalidateQueries() { invalidateCollectionData(queryClient) }
   function resetActionForm() { setActionForm({ debtId: '', type: 'PHONE_CONTACT', description: '', actionDate: new Date().toISOString().slice(0, 10), outcome: '', nextAction: '', nextActionDate: '' }) }
   function openReminder(debtId?: string, debt?: CollectionDebtRow | null) { setReminderDebt(debt ?? null); setReminderForm(emptyReminderForm(debtId ?? '')); setReminderOpen(true) }
   function submitReminder() {
@@ -74,7 +99,15 @@ export default function CollectionOverdue() {
       nextActionDate: reminderForm.nextActionDate || undefined,
     }, { onSuccess: () => { setReminderOpen(false); setReminderDebt(null); setReminderForm(emptyReminderForm()) } })
   }
-  function openActionWithType(type: 'call' | 'reminder', debtId?: string) { if (type === 'reminder') { openReminder(debtId); return } setActionType(type); const typeMap: Record<string, string> = { call: 'PHONE_CONTACT', reminder: 'REMINDER' }; setActionForm((f) => ({ ...f, type: typeMap[type], debtId: debtId ?? f.debtId, description: '' })); setActionOpen(true) }
+  function openActionWithType(type: 'call' | 'reminder' | 'commandment' | 'atd' | 'payment_plan' | 'suspension' | 'notice', debtId?: string) {
+    if (type === 'reminder') { openReminder(debtId); return }
+    setActionType(type)
+    // Slug du bouton → constante d'action réelle (ACTION_KEYS) : sans cela le
+    // wizard envoyait type: undefined et le backend répondait 400.
+    const typeMap: Record<string, string> = { call: 'PHONE_CONTACT', reminder: 'REMINDER', commandment: 'COMMANDMENT', atd: 'ATD', payment_plan: 'PAYMENT_PLAN', suspension: 'SUSPENSION_REQUEST', notice: 'NOTICE' }
+    setActionForm((f) => ({ ...f, type: typeMap[type] ?? 'PHONE_CONTACT', debtId: debtId ?? f.debtId, description: '' }))
+    setActionOpen(true)
+  }
 
   const totalResults = data?.totalElements ?? 0
 
@@ -92,10 +125,18 @@ export default function CollectionOverdue() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('collection.subtitle')}</p>
         </div>
         <div className="flex flex-wrap shrink-0 items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
-          <button onClick={() => openActionWithType('call')} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:bg-brand-500">
-            <Plus className="h-4 w-4" /> {t('collection.newAction')}
-          </button>
+          <ExportButton
+            filenameBase={`creances_en_retard_${new Date().toISOString().slice(0, 10)}`}
+            title={t('collection.overdue')}
+            headers={[t('common.reference'), 'NIF', t('collection.table.taxpayer'), t('collection.table.tax'), t('collection.table.remaining'), t('collection.table.dueDate'), t('collection.table.priority'), t('collection.table.lastAction')]}
+            rows={exportDebtRows}
+          />
+          <Button variant="ghost" size="sm" onClick={() => invalidateCollectionData(queryClient)}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
+          {canWrite && (
+            <button onClick={() => openActionWithType('call')} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:bg-brand-500">
+              <Plus className="h-4 w-4" /> {t('collection.newAction')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -148,7 +189,7 @@ export default function CollectionOverdue() {
           <div className="animate-fade-in">
             {isLoading ? <Spinner /> : (
               <>
-                <DebtTable stage="overdue" debts={data.content} onView={(d)=>{setDrawerDebtId(d.id);setDrawerOpen(true)}} onPayment={(d)=>{setSelectedDebt(d);setPaymentOpen(true)}} onAction={(_d,type)=>openActionWithType(type as any, String(_d.id))} onNotice={()=>{}} onPlan={(d)=>navigate(`/collection/plans?debt=${d.id}`)} onHistory={()=>{}} fmtMGA={fmtMGA} fmtDate={fmtDate} />
+                <DebtTable stage="overdue" debts={data.content} onView={(d)=>{setDrawerDebtId(d.id);setDrawerOpen(true)}} onPayment={canWrite?(d)=>{setSelectedDebt(d);setPaymentOpen(true)}:undefined} onAction={canWrite?(_d,type)=>openActionWithType(type, String(_d.id)):undefined} onNotice={canWrite?(d)=>openActionWithType('notice', String(d.id)):undefined} onPlan={(d)=>navigate(`/collection/plans?debt=${d.id}`)} fmtMGA={fmtMGA} fmtDate={fmtDate} />
                 <Pagination page={data.number} totalPages={data.totalPages} totalElements={data.totalElements} pageSize={f.size} onPageSizeChange={(n) => { f.setSize(n); f.setPage(0) }} onChange={f.setPage} />
               </>
             )}
@@ -160,7 +201,7 @@ export default function CollectionOverdue() {
       <PaymentModal open={paymentOpen} onClose={()=>setPaymentOpen(false)} debt={selectedDebt} form={payForm} setForm={setPayForm} onSubmit={()=>registerPayment.mutate()} pending={registerPayment.isPending} error={registerPayment.isError} fmtMGA={fmtMGA} />
       <ReminderModal open={reminderOpen} onClose={()=>{ setReminderOpen(false); setReminderDebt(null) }} form={reminderForm} setForm={setReminderForm} debts={actionDebts?.content ?? data?.content ?? []} debt={reminderDebt} onSubmit={submitReminder} pending={createReminder.isPending} error={createReminder.isError ? createReminder.error : null} fmtMGA={fmtMGA} />
 
-      <DetailDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setDrawerDebtId(null) }} debtId={drawerDebtId} onPayment={(debt) => { setSelectedDebt(debt); setPaymentOpen(true) }} onReminder={(debt) => openReminder(String(debt.id), debt)} onNotice={() => {}} onPlan={(debt) => navigate(`/collection/plans?debt=${debt.id}`)} onAction={(debt, type) => openActionWithType(type as 'call' | 'reminder', String(debt.id))} />
+      <DetailDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setDrawerDebtId(null) }} debtId={drawerDebtId} onPayment={(debt) => { setSelectedDebt(debt); setPaymentOpen(true) }} onReminder={(debt) => openReminder(String(debt.id), debt)} onNotice={(debt) => openActionWithType('notice', String(debt.id))} onPlan={(debt) => navigate(`/collection/plans?debt=${debt.id}`)} onAction={(debt, type) => openActionWithType(type, String(debt.id))} />
     </div>
   )
 }

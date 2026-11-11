@@ -25,6 +25,9 @@ mnk-tax:
     enabled: false
   receipt:
     base-url: ${RECEIPT_BASE_URL:https://mnk-tax.onrender.com}
+  # Aucune donnée de démonstration en production, même si le blueprint oublie
+  # de définir SEED_DEMO.
+  seed-demo: ${SEED_DEMO:false}
 
 logging:
   level:

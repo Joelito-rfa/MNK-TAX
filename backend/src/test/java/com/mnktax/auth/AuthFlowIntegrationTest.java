@@ -131,9 +131,29 @@ class AuthFlowIntegrationTest {
     @Test
     @DisplayName("Sans la permission TAXPAYER_READ → 403")
     void missingPermissionRejected() throws Exception {
+        // Les rôles système sont désormais toujours synchronisés au démarrage :
+        // on crée un rôle métier dédié, sans TAXPAYER_READ, pour tester le refus.
+        Permission userRead = permissionRepository.findByCode("USER_READ").orElseGet(() ->
+                permissionRepository.save(Permission.builder().code("USER_READ")
+                        .name("Lire utilisateurs").build()));
+        Role limited = roleRepository.findByCode("LIMITED_TEST").orElseGet(() ->
+                roleRepository.save(Role.builder().code("LIMITED_TEST").name("Rôle limité")
+                        .description("Rôle test sans TAXPAYER_READ").system(false)
+                        .permissions(new HashSet<>(Set.of(userRead))).build()));
+        if (userRepository.findByUsername("limiteduser").isEmpty()) {
+            userRepository.save(User.builder()
+                    .username("limiteduser").email("limiteduser@demo.mg")
+                    .password(passwordEncoder.encode("Limited@123"))
+                    .firstName("Limited").lastName("User")
+                    .enabled(true).mustChangePassword(false).mfaEnabled(false)
+                    .createdAt(Instant.now()).updatedAt(Instant.now())
+                    .roles(new HashSet<>(Set.of(limited)))
+                    .build());
+        }
+
         String body = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"testadmin\",\"password\":\"Admin@123\"}"))
+                        .content("{\"username\":\"limiteduser\",\"password\":\"Limited@123\"}"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         String token = objectMapper.readTree(body).get("accessToken").asText();

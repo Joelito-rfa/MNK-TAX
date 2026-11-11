@@ -43,7 +43,16 @@ public final class DebtDtos {
         public record TaxTypeCount(String taxType, long count) {}
     }
 
-    public record MarkOverdueResult(int updated, List<String> details) {}
+    /** Résultat de la détection des impayés : créances traitées et frais ajoutés. */
+    public record MarkOverdueResult(int updated, int marked, int alreadyOverdue,
+                                    BigDecimal totalPenalties, BigDecimal totalInterest, BigDecimal totalBalance,
+                                    List<OverdueMark> debts, List<String> details) {
+
+        /** Créance touchée par la détection (nouvellement mise en retard ou frais complétés). */
+        public record OverdueMark(Long id, String reference, String nif, String taxpayerName,
+                                  BigDecimal balance, BigDecimal penalty, BigDecimal interest,
+                                  long daysOverdue, boolean newlyMarked) {}
+    }
 
     public record TaxDebtDto(Long id, String reference, Long taxpayerId, String nif, String taxpayerName,
                              Long assessmentId, String assessmentReference, Long taxTypeId, String taxTypeCode,

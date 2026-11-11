@@ -17,11 +17,14 @@ import {
 } from '../../../../components/ui'
 import { useToast } from '../../../../components/Toast'
 import { ACTION_KEYS, ACTION_ICONS, TERMINAL_STATUSES } from '../../../../components/collection/constants'
+import { invalidateCollectionData } from '../../api/keys'
 
 interface ActionWizardProps {
   open: boolean
   onClose: () => void
   presetDebtId?: string
+  /** Type d'action pré-sélectionné (constante ACTION_KEYS, ex. 'COMMANDMENT'). */
+  presetType?: string
   debts?: CollectionDebtRow[]
 }
 
@@ -47,16 +50,16 @@ function emptyForm(): ActionFormData {
   }
 }
 
-export function ActionWizard({ open, onClose, presetDebtId, debts: externalDebts }: ActionWizardProps) {
+export function ActionWizard({ open, onClose, presetDebtId, presetType, debts: externalDebts }: ActionWizardProps) {
   const queryClient = useQueryClient()
   const toast = useToast()
   const { t } = useI18n()
   const today = new Date().toISOString().slice(0, 10)
 
   const [step, setStep] = useState(0)
-  const [form, setForm] = useState<ActionFormData>(emptyForm())
+  const [form, setForm] = useState<ActionFormData>(() => ({ ...emptyForm(), type: presetType || 'PHONE_CONTACT' }))
   const [debtId, setDebtId] = useState(presetDebtId || '')
-  const [type, setType] = useState('PHONE_CONTACT')
+  const [type, setType] = useState(presetType || 'PHONE_CONTACT')
 
   const { data: debtsData } = useQuery({
     queryKey: ['collection-action-debts'],
@@ -74,10 +77,10 @@ export function ActionWizard({ open, onClose, presetDebtId, debts: externalDebts
   useEffect(() => {
     if (!open) return
     setStep(0)
-    setForm(emptyForm())
+    setForm({ ...emptyForm(), type: presetType || 'PHONE_CONTACT' })
     setDebtId(presetDebtId || '')
-    setType('PHONE_CONTACT')
-  }, [open, presetDebtId])
+    setType(presetType || 'PHONE_CONTACT')
+  }, [open, presetDebtId, presetType])
 
   const createAction = useMutation({
     mutationFn: () =>
@@ -91,10 +94,7 @@ export function ActionWizard({ open, onClose, presetDebtId, debts: externalDebts
         nextActionDate: form.nextActionDate || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['collection-debts'] })
-      queryClient.invalidateQueries({ queryKey: ['collection-stats'] })
-      queryClient.invalidateQueries({ queryKey: ['collection-history'] })
-      queryClient.invalidateQueries({ queryKey: ['collection-action-debts'] })
+      invalidateCollectionData(queryClient)
       toast.success(t('collection.actionSaved'))
       onClose()
     },

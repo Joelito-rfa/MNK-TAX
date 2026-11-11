@@ -13,9 +13,9 @@ public interface CollectionNoticeRepository extends JpaRepository<CollectionNoti
 
     List<CollectionNotice> findByDebtIdOrderByNoticeDateDesc(Long debtId);
 
-    @Query("""
+    @Query(value = """
             SELECT n FROM CollectionNotice n
-            LEFT JOIN n.debt d
+            JOIN FETCH n.debt d
             LEFT JOIN d.taxpayer t
             WHERE (:debtId IS NULL OR n.debt.id = :debtId)
               AND (:noticeType IS NULL OR UPPER(n.noticeType) = UPPER(:noticeType))
@@ -23,9 +23,26 @@ public interface CollectionNoticeRepository extends JpaRepository<CollectionNoti
                     OR LOWER(d.reference) LIKE LOWER(CONCAT('%', :q, '%'))
                     OR LOWER(t.nif) LIKE LOWER(CONCAT('%', :q, '%'))
                     OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%')))
+            """, countQuery = """
+            SELECT COUNT(n) FROM CollectionNotice n
+            WHERE (:debtId IS NULL OR n.debt.id = :debtId)
+              AND (:noticeType IS NULL OR UPPER(n.noticeType) = UPPER(:noticeType))
+              AND (:q IS NULL OR LOWER(n.noticeNumber) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(n.debt.reference) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(n.debt.taxpayer.nif) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(n.debt.taxpayer.name) LIKE LOWER(CONCAT('%', :q, '%')))
             """)
     Page<CollectionNotice> search(@Param("debtId") Long debtId,
                                   @Param("noticeType") String noticeType,
                                   @Param("q") String q,
                                   Pageable pageable);
+
+    /** Notices d'une créance avec créance chargée (anti N+1 des DTO). */
+    @Query("""
+            SELECT n FROM CollectionNotice n
+            JOIN FETCH n.debt d
+            WHERE n.debt.id = :debtId
+            ORDER BY n.noticeDate DESC
+            """)
+    List<CollectionNotice> findByDebtIdWithDebt(@Param("debtId") Long debtId);
 }

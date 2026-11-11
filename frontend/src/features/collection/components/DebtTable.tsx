@@ -13,11 +13,12 @@ export function DebtTable({ stage, debts, onView, onPayment, onAction, onNotice,
   stage: Stage
   debts: CollectionDebtRow[]
   onView:(d:CollectionDebtRow)=>void
-  onPayment:(d:CollectionDebtRow)=>void
-  onAction:(d:CollectionDebtRow,type:'call'|'reminder'|'commandment'|'atd'|'payment_plan'|'suspension')=>void
-  onNotice:(d:CollectionDebtRow)=>void
+  /** Absent = boutons d'écriture masqués (permission ou flux absent de la page). */
+  onPayment?:(d:CollectionDebtRow)=>void
+  onAction?:(d:CollectionDebtRow,type:'call'|'reminder'|'commandment'|'atd'|'payment_plan'|'suspension')=>void
+  onNotice?:(d:CollectionDebtRow)=>void
   onPlan:(d:CollectionDebtRow)=>void
-  onHistory:(d:CollectionDebtRow)=>void
+  onHistory?:(d:CollectionDebtRow)=>void
   fmtMGA:(n:number)=>string
   fmtDate:(s:string)=>string
 }) {
@@ -66,7 +67,7 @@ export function DebtTable({ stage, debts, onView, onPayment, onAction, onNotice,
                   </div>
                 </Td>
                 {cols==='full' && <Td><span className="text-xs text-slate-500">{d.lastResponsible??'—'}</span></Td>}
-                <Td><div onClick={e=>e.stopPropagation()}><RowActions debt={d} onView={()=>onView(d)} onPayment={()=>onPayment(d)} onCall={()=>onAction(d,'call')} onReminder={()=>onAction(d,'reminder')} onNotice={()=>onNotice(d)} onCommandment={()=>onAction(d,'commandment')} onAtd={()=>onAction(d,'atd')} onPaymentPlan={()=>onPlan(d)} onHistory={()=>onHistory(d)} /></div></Td>
+                <Td><div onClick={e=>e.stopPropagation()}><RowActions debt={d} onView={()=>onView(d)} onPayment={onPayment?()=>onPayment(d):undefined} onCall={onAction?()=>onAction(d,'call'):undefined} onReminder={onAction?()=>onAction(d,'reminder'):undefined} onNotice={onNotice?()=>onNotice(d):undefined} onCommandment={onAction?()=>onAction(d,'commandment'):undefined} onAtd={onAction?()=>onAction(d,'atd'):undefined} onPaymentPlan={()=>onPlan(d)} onHistory={onHistory?()=>onHistory(d):undefined} /></div></Td>
               </tr>
             )
           })}

@@ -1,10 +1,10 @@
 # MNK-TAX — Documentation des Données Fictives (Demo Data Seeder)
 
 > **Source** : `backend/src/main/java/com/mnktax/common/config/DemoDataSeeder.java` (2016 lignes)
-> **Activation** : `mnk-tax.seed-demo=true` (défaut dev) — désactivable via `SEED_DEMO=false` ou profil `test`.
-> **Production** : désactivé par défaut (`application-prod.yml` → `SEED_DEMO:false`) — activer explicitement `SEED_DEMO=true` pour charger la démo.
+> **Activation** : `mnk-tax.seed-demo=true` (désactivé par défaut ; activé explicitement dans `application-dev.yml`). Les permissions et rôles système sont toujours amorcés, indépendamment de ce drapeau.
+> **Production** : désactivé par défaut (`application.yml`, `application-prod.yml`, `application-render.yml` → `SEED_DEMO=false`) — activer explicitement `SEED_DEMO=true` pour charger la démo.
 > **Compagnon JSON** : `docs/fake-data-seed.json` (mêmes données, format programmatique).
-> **Idempotence** : le seeder s'ignore si des utilisateurs existent déjà (`userRepository.count() > 0`).
+> **Idempotence** : les données fictives sont ignorées si des utilisateurs existent déjà (`userRepository.count() > 0`) ; la synchronisation des permissions/rôles reste séparée.
 
 ---
 
@@ -408,12 +408,17 @@ Voir fichier companion : `docs/fake-data-seed.json`
 ## 23. Désactivation / Configuration
 
 ```yaml
-# application.yml ou variable d'env
+# application.yml (défaut) — ou SEED_DEMO=false
 mnk-tax:
-  seed-demo: false  # ou SEED_DEMO=false
+  seed-demo: ${SEED_DEMO:false}
 
-# Profil test (auto-désactivé)
-# application-test.yml: seed-demo: false
+# application-dev.yml — activation explicite pour le développement local
+mnk-tax:
+  seed-demo: ${SEED_DEMO:true}
+
+# application-test.yml / application-prod.yml / application-render.yml
+mnk-tax:
+  seed-demo: false
 ```
 
 ---

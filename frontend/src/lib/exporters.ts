@@ -3,7 +3,7 @@ import { downloadCsv } from './csv'
 /** Formats proposés par le générateur de rapports. */
 export type ReportFormat = 'CSV' | 'Excel' | 'PDF'
 
-export type ExportCell = string | number | null | undefined
+export type ExportCell = string | number | boolean | null | undefined | Date
 
 function escapeHtml(v: ExportCell): string {
   return String(v ?? '')
@@ -11,6 +11,28 @@ function escapeHtml(v: ExportCell): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+function xmlEscape(v: string | number): string {
+  return String(v)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function textOf(value: ExportCell): string {
+  if (value === null || value === undefined) return ''
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10)
+  }
+  if (typeof value === 'boolean') return value ? 'Oui' : 'Non'
+  return String(value)
+}
+
+function isNumeric(value: ExportCell): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
 }
 
 function tableHtml(headers: string[], rows: ExportCell[][]): string {
@@ -22,26 +44,77 @@ function tableHtml(headers: string[], rows: ExportCell[][]): string {
 }
 
 /**
- * Fichier Excel (.xls) généré côté client : tableau HTML avec le MIME d'Excel,
- * ouvert nativement par Microsoft Excel et LibreOffice Calc.
+ * Vrai fichier Excel (SpreadsheetML 2003, extension .xls).
+ * Colonnes alignées, largeurs automatiques, nombres au format français.
+ * Aucune dépendance externe : Excel et LibreOffice ouvrent ce format nativement.
  */
-function downloadExcel(baseName: string, title: string, headers: string[], rows: ExportCell[][]) {
-  const html =
-    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
-    '<head><meta charset="utf-8">' +
-    '<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>' +
-    `<x:Name>${escapeHtml(title)}</x:Name>` +
-    '<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>' +
-    '</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->' +
-    '</head><body>' +
-    `<h3>${escapeHtml(title)}</h3>` +
-    tableHtml(headers, rows) +
-    '</body></html>'
-  const blob = new Blob(['\ufeff' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+export function downloadExcel(
+  filenameBase: string,
+  title: string,
+  headers: string[],
+  rows: ExportCell[][],
+) {
+  const safeName = (title || filenameBase || 'Export')
+    .replace(/[\\[\]:*?/]/g, '-')
+    .slice(0, 31) || 'Export'
+
+  // Largeur de colonne : environ 7 points par caractère, bornée pour rester lisible.
+  const widths = headers.map((header, index) => {
+    let max = textOf(header).length
+    for (const row of rows) {
+      const len = textOf(row[index] ?? '').length
+      if (len > max) max = len
+    }
+    return Math.max(50, Math.min(500, max * 7 + 5))
+  })
+
+  const headerCells = headers
+    .map((h) => `<Cell ss:StyleID="Header"><Data ss:Type="String">${xmlEscape(textOf(h))}</Data></Cell>`)
+    .join('')
+
+  const bodyRows = rows
+    .map((row) => {
+      const cells: string[] = []
+      for (let i = 0; i < headers.length; i++) {
+        const value = row[i]
+        if (isNumeric(value)) {
+          const style = Number.isInteger(value) ? 'Int' : 'Decimal'
+          cells.push(`<Cell ss:StyleID="${style}"><Data ss:Type="Number">${value}</Data></Cell>`)
+        } else {
+          cells.push(`<Cell><Data ss:Type="String">${xmlEscape(textOf(value))}</Data></Cell>`)
+        }
+      }
+      return `<Row>${cells.join('')}</Row>`
+    })
+    .join('\r\n')
+
+  const xml =
+    '<?xml version="1.0" encoding="UTF-8"?>\r\n' +
+    '<?mso-application progid="Excel.Sheet"?>\r\n' +
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\r\n' +
+    ' xmlns:o="urn:schemas-microsoft-com:office:office"\r\n' +
+    ' xmlns:x="urn:schemas-microsoft-com:office:excel"\r\n' +
+    ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\r\n' +
+    ' <Styles>\r\n' +
+    '  <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Top"/></Style>\r\n' +
+    '  <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D9E1F2" ss:Pattern="Solid"/></Style>\r\n' +
+    '  <Style ss:ID="Int"><NumberFormat ss:Format="#,##0"/></Style>\r\n' +
+    '  <Style ss:ID="Decimal"><NumberFormat ss:Format="#,##0.00"/></Style>\r\n' +
+    ' </Styles>\r\n' +
+    ` <Worksheet ss:Name="${xmlEscape(safeName)}">\r\n` +
+    '  <Table>\r\n' +
+    widths.map((w) => `   <Column ss:Width="${w}"/>`).join('\r\n') +
+    '\r\n   <Row>' + headerCells + '</Row>\r\n' +
+    bodyRows +
+    '\r\n  </Table>\r\n' +
+    ' </Worksheet>\r\n' +
+    '</Workbook>\r\n'
+
+  const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${baseName}.xls`
+  a.download = `${filenameBase}.xls`
   a.click()
   URL.revokeObjectURL(url)
 }

@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Download,
   FileText,
   Filter,
   List,
@@ -21,7 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import { apiDelete, apiErrorMessage, apiGet, apiPost, apiPut } from '../lib/api'
-import { downloadCsv } from '../lib/csv'
+import { ExportButton } from '../components/ExportButton'
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { useLocaleFormatters } from '../lib/format'
@@ -272,26 +271,18 @@ export default function Deadlines() {
     setFilterMode('today')
   }
 
-  const handleExport = () => {
+  /** Lignes d'export : les échéances filtrées (filtres actifs, pas la page seule). */
+  const exportDeadlineRows = () => {
     const rows = filteredDeadlines.length > 0 ? filteredDeadlines : deadlines
-    if (rows.length === 0) {
-      toast.info(t("deadlines.noExport"))
-      return
-    }
-    downloadCsv(
-      `calendrier_echeances_${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Impot', 'Code', 'Periode', 'Declaration', 'Paiement', 'Jours restants', 'Statut'],
-      rows.map((d) => {
-        const days = daysUntil(d.declarationDeadline)
-        const status = getDeadlineStatus(d)
-        return [
-          d.taxTypeName, d.taxTypeCode, d.period,
-          d.declarationDeadline, d.paymentDeadline,
-          String(days), statusLabel(status),
-        ]
-      }),
-    )
-    toast.success(t('toast.exportDone'))
+    return rows.map((d) => {
+      const days = daysUntil(d.declarationDeadline)
+      const status = getDeadlineStatus(d)
+      return [
+        d.taxTypeName, d.taxTypeCode, d.period,
+        d.declarationDeadline, d.paymentDeadline,
+        String(days), statusLabel(status),
+      ]
+    })
   }
 
   /* ── Calendar grid ── */
@@ -367,13 +358,12 @@ export default function Deadlines() {
             <CalendarDays className="h-4 w-4 text-slate-400" />
             Aujourd'hui
           </button>
-          <button
-            onClick={handleExport}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-          >
-            <Download className="h-4 w-4 text-slate-400" />
-            Exporter
-          </button>
+          <ExportButton
+            filenameBase={`calendrier_echeances_${new Date().toISOString().slice(0, 10)}`}
+            title="Échéances"
+            headers={['Impôt', 'Code', 'Période', 'Déclaration', 'Paiement', 'Jours restants', 'Statut']}
+            rows={exportDeadlineRows}
+          />
           {canWrite && (
           <button
             onClick={() => setCreateOpen(true)}
@@ -753,9 +743,6 @@ export default function Deadlines() {
                               <Pencil className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" /> Modifier
                             </button>
                             )}
-                            <button onClick={() => { toast.success('Echeance marquee comme terminee') }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
-                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" /> Marquer terminee
-                            </button>
                             <button onClick={() => { navigate(`/declarations?taxType=${encodeURIComponent(d.taxTypeCode)}&period=${encodeURIComponent(d.period)}`) }} className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700">
                               <FileText className="h-4 w-4 shrink-0 text-blue-500" /> Creer la declaration
                             </button>

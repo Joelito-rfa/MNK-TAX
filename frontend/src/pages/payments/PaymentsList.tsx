@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Filter, PlusCircle, Search } from 'lucide-react'
 import { apiGet } from '../../lib/api'
-import type { Payment, TaxType } from '../../types'
+import type { Page, Payment, TaxType } from '../../types'
 import { Button, Card, EmptyState, Field, Input, Modal, PageHeader, Pagination, Select, Spinner } from '../../components/ui'
+import { ExportButton } from '../../components/ExportButton'
 import { useAuth } from '../../lib/auth'
 import { useI18n } from '../../lib/i18n'
 import { usePaymentFilters } from '../../features/payment/hooks/usePaymentFilters'
@@ -37,17 +38,41 @@ export function PaymentsList({ initialStatus = '', pendingMode = false }: Paymen
   const { data, isLoading } = usePayments(buildParams)
   const { data: taxTypes } = useQuery({ queryKey: ['tax-types-ref'], queryFn: () => apiGet<TaxType[]>('/tax-types') })
 
+  /** Tous les paiements correspondant aux filtres actifs (hors pagination). */
+  const exportPaymentRows = async () => {
+    const p = new URLSearchParams(buildParams)
+    p.delete('page')
+    p.delete('size')
+    const rows = await apiGet<Page<Payment>>(`/payments?${p.toString()}&size=9999`)
+    return rows.content.map((x) => [
+      x.reference, x.nif, x.taxpayerName, x.paymentDate, x.amount,
+      methodLabel(x.method, t), x.allocatedAmount, x.unpaidAmount, x.status, x.receiptReference ?? '',
+    ])
+  }
+
   return (
     <div className="fx-page space-y-6">
       <PageHeader
         title={t('payments.title')}
         subtitle={t('payments.subtitleLong')}
         actions={
-          can('PAYMENT_WRITE') ? (
-            <Button onClick={() => setCreateOpen(true)}>
-              <PlusCircle className="h-4 w-4" /> {t('payments.new')}
-            </Button>
-          ) : undefined
+          <div className="flex items-center gap-2">
+            <ExportButton
+              filenameBase={`paiements_${new Date().toISOString().slice(0, 10)}`}
+              title={t('payments.title')}
+              headers={[
+                t('payments.table.reference'), 'NIF', t('payments.table.taxpayer'), t('payments.table.date'),
+                t('payments.table.amount'), t('payments.table.mode'), t('payments.table.allocated'),
+                t('payments.table.remaining'), t('payments.table.status'), t('payments.table.receipt'),
+              ]}
+              rows={exportPaymentRows}
+            />
+            {can('PAYMENT_WRITE') && (
+              <Button onClick={() => setCreateOpen(true)}>
+                <PlusCircle className="h-4 w-4" /> {t('payments.new')}
+              </Button>
+            )}
+          </div>
         }
       />
       <Card>

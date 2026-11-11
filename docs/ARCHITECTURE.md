@@ -91,6 +91,9 @@ Trois `@Scheduled` partagent un pool commun (`spring.task.scheduling.pool.size`,
 
 La file d'envoi (`DeliveryQueueService`) utilise un délai entre deux passages de
 `COMM_QUEUE_POLL_DELAY_MS` (`mnk-tax.communication.queue.poll-delay-ms`).
+Un second balayage (`COMM_QUEUE_SWEEP_DELAY_MS`, `retryLateDeliveries`) relance
+automatiquement les emails en échec temporaire et récupère les livraisons
+restées bloquées en `SENDING` (voir « Relance automatique des emails »).
 
 - **Communication** : un message est composé (audience, canaux), mis en file, envoyé par le
   fournisseur (SMTP/Twilio) et suivi (livraisons, relances, échecs).
@@ -105,7 +108,30 @@ La file d'envoi (`DeliveryQueueService`) utilise un délai entre deux passages d
 - Un module à plusieurs vues vit dans son propre dossier `src/pages/<module>/` : `Layout.tsx` porte
   l'en-tête et la navigation entre sous-modules (onglets), chaque sous-module étant une route
   distincte avec sa permission (ex. `/payments`, `/payments/pending`, `/payments/new`).
-- La page publique `/verify/receipt/:reference` vérifie une quittance sans authentification.## Centre de communication multicanal
+- La page publique `/verify/receipt/:reference` vérifie une quittance sans authentification.
+
+### Exports (Excel / CSV)
+
+Toutes les listes s'exportent via un composant unique `src/components/ExportButton.tsx`,
+qui propose deux formats au choix :
+
+- **Excel (.xls)** — fichier SpreadsheetML généré côté client par
+  `src/lib/exporters.ts` (`downloadExcel`) : en-têtes en gras, largeurs de colonnes
+  calculées depuis le contenu, nombres au format `#,##0` (décimales `#,##0.00`) donc
+  directement triables/agrégables, dates en valeur ISO. Aucune dépendance externe :
+  Excel et LibreOffice ouvrent ce format nativement.
+- **CSV** — `src/lib/csv.ts` (`downloadCsv`) : UTF-8 **avec BOM**, séparateur `;`
+  (attendu par Excel en locale française), échappement correct des guillemets,
+  virgules et retours à la ligne, fins de ligne CRLF.
+
+Le bouton accepte soit un tableau de lignes déjà en mémoire, soit une fonction
+asynchrone qui re-fetch **toutes les lignes correspondant aux filtres actifs**
+(même query sans `page`, avec `size=9999`) : l'export n'est jamais limité à la
+page affichée. Les en-têtes et les cellules partagent le même ordre de colonnes.
+
+Le générateur de rapports (`src/pages/Reports.tsx`) réutilise le même socle via
+`exportTable(format, ...)` et ajoute l'export PDF (vue imprimable).
+## Centre de communication multicanal
 
 Le centre de communication (`com.mnktax.communication`) assure la composition, la mise en file et la
 livraison d'emails et de SMS, avec traçabilité (messages → livraisons).
@@ -125,6 +151,30 @@ livraison d'emails et de SMS, avec traçabilité (messages → livraisons).
    `preferredChannels` du contribuable (fallback `IN_APP`).
 3. La file d'envoi (`DeliveryQueueService`, `poll-delay-ms`) livre vers `IN_APP` (base)
    / `EMAIL` (SMTP) / `SMS` (Twilio) : les envois sont tracés dans `message_deliveries`.
+
+### Relance automatique des emails
+
+En plus des tentatives immédiates (`COMM_QUEUE_MAX_ATTEMPTS`,
+`COMM_QUEUE_RETRY_BACKOFF_MINUTES`), un balayage périodique
+(`retryLateDeliveries`, `COMM_QUEUE_SWEEP_DELAY_MS`) :
+
+- remet en file les emails `FAILED` dont la dernière erreur est temporaire
+  (réseau, 429/5xx, fournisseur non configuré) ;
+- respecte un délai progressif entre deux cycles
+  (`COMM_QUEUE_AUTO_RETRY_BACKOFF_MINUTES × (cycle + 1)`), un nombre maximal de
+  cycles (`COMM_QUEUE_AUTO_RETRY_MAX_CYCLES`) et un âge maximal d'échec
+  (`COMM_QUEUE_AUTO_RETRY_MAX_AGE_HOURS`) ;
+- ne relance pas les erreurs définitives (adresse invalide, HTTP 422) : la
+  relance manuelle « Relancer » reste disponible dans le suivi des envois ;
+- récupère les livraisons bloquées en `SENDING` depuis plus de
+  `COMM_QUEUE_STALE_SENDING_MINUTES` (arrêt brutal du serveur) tout en les
+  plafonnant elles aussi ;
+- n'agit que si le fournisseur email est réellement configuré, afin de ne pas
+  consommer de cycles tant que la configuration n'est pas réparée.
+
+Chaque relance automatique est auditée (`MESSAGE_AUTO_RETRIED`,
+`MESSAGE_DELIVERY_RECOVERED`, `MESSAGE_AUTO_RETRY_EXHAUSTED`) et n'écrit jamais
+`SENT` sans confirmation du fournisseur.
 
 ### Fournisseurs
 
@@ -156,7 +206,12 @@ champs ; le SMS est seulement émis si `phoneNormalized` est renseigné.
 
 ### Statut des fournisseurs
 
-`GET /api/communication/providers` renvoie l'état effectif (configuré / démo / non configuré).
+`GET /api/communication/providers` renvoie l'état effectif (configuré / démo / non configuré)
+ainsi que la politique de relance automatique (cycles, délai, âge maximal).
+
+La relance manuelle reste disponible via
+`POST /api/communication/messages/{id}/retry` ; elle réinitialise le budget de
+relances automatiques de la livraison concernée.
 
 ## Moteur de règles
 

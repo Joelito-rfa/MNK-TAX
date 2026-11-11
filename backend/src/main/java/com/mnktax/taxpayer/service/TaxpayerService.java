@@ -34,7 +34,9 @@ import com.mnktax.taxpayer.repository.TaxpayerRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +61,8 @@ public class TaxpayerService {
     private final UserRepository userRepository;
 
     private static final Set<String> SUPPORTED_LANGUAGES = Set.of("FR", "MG", "EN");
+    /** Plafond de sécurité : nombre maximal de contributeables renvoyés en une liste. */
+    private static final int CONTACTS_MAX = 5000;
 
     public TaxpayerService(TaxpayerRepository taxpayerRepository, TaxCenterRepository taxCenterRepository,
                            TaxRegimeRepository taxRegimeRepository, TaxObligationRepository obligationRepository,
@@ -173,6 +177,23 @@ public class TaxpayerService {
         }
         return taxpayerRepository.search(blankToNull(q), null, null, null, null, null, null, pageable)
                 .map(TaxpayerDtos.TaxpayerContactDto::from);
+    }
+
+    /**
+     * Tous les contribuables enregistrés, en une seule liste : la sélection
+     * dans le composeur affiche l'intégralité du registre (tri par nom).
+     */
+    @Transactional(readOnly = true)
+    public List<TaxpayerDtos.TaxpayerContactDto> allContacts() {
+        if (dataScope.isSelfService()) {
+            return ownTaxpayerEntities(PageRequest.of(0, CONTACTS_MAX))
+                    .map(TaxpayerDtos.TaxpayerContactDto::from)
+                    .getContent();
+        }
+        return taxpayerRepository.findAllOrderedByName(PageRequest.of(0, CONTACTS_MAX))
+                .stream()
+                .map(TaxpayerDtos.TaxpayerContactDto::from)
+                .toList();
     }
 
     @Transactional

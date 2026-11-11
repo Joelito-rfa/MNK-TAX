@@ -94,7 +94,7 @@ export default function Navbar({ onLogin, onRequestAccess }: { onLogin: () => vo
           <img src="/logo.webp" alt="MNK-TAX" className="h-9 w-9 rounded-xl object-contain shadow-lg shadow-brand-800/20 transition-transform duration-200 group-hover:scale-105" />
           <div>
             <p className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">MNK-TAX</p>
-            <p className="text-[10px] uppercase tracking-widest text-slate-500">Gestion des impôts</p>
+            <p className="text-[10px] uppercase tracking-widest text-slate-500">{t('landing.nav.tagline')}</p>
           </div>
         </Link>
 

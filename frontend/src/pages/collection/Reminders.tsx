@@ -15,7 +15,10 @@ import { PriorityBadge } from '../../components/collection/PriorityBadge'
 import { RowActions } from '../../components/collection/RowActions'
 import { DetailDrawer } from '../../components/collection/DetailDrawer'
 import { CollectionFilters, EMPTY_ADV, type AdvancedFilters } from '../../components/collection/CollectionFilters'
-import { TERMINAL_STATUSES, ACTION_KEYS, ACTION_ICONS } from '../../components/collection/constants'
+import { TERMINAL_STATUSES, ACTION_KEYS, ACTION_ICONS, STATUS_CONFIG, PRIORITY_CONFIG } from '../../components/collection/constants'
+import { ExportButton } from '../../components/ExportButton'
+import { useAuth } from '../../lib/auth'
+import { invalidateCollectionData } from '../../features/collection/api/keys'
 import { useCreateReminder } from '../../features/collection/api/mutations'
 import { ReminderModal, emptyReminderForm, type ReminderForm } from '../../features/collection/components/modals/ReminderModal'
 
@@ -42,6 +45,8 @@ export default function CollectionReminders() {
   const toast = useToast()
   const { t } = useI18n()
   const { fmtMGA, fmtDate } = useLocaleFormatters()
+  const { can } = useAuth()
+  const canWrite = can('COLLECTION_WRITE')
 
   const buildParams = () => {
     const p = new URLSearchParams({ page: String(page), size: String(size), hasReminder: 'true' })
@@ -56,6 +61,33 @@ export default function CollectionReminders() {
     queryKey: ['collection-debts', 'reminders', page, size, searchQ, taxTypeFilter, periodFilter, advApplied],
     queryFn: () => apiGet<Page<CollectionDebtRow>>(`/collection/debts?${buildParams()}`),
   })
+
+  /** Toutes les créances avec relance correspondant aux filtres actifs (hors pagination). */
+  const exportDebtRows = async () => {
+    const p = new URLSearchParams(buildParams())
+    p.delete('page')
+    p.delete('size')
+    const rows = await apiGet<Page<CollectionDebtRow>>(`/collection/debts?${p.toString()}&size=9999`)
+    return rows.content.map((d) => [
+      d.reference,
+      d.nif,
+      d.taxpayerName,
+      d.taxTypeCode,
+      d.balance,
+      STATUS_CONFIG[d.debtStatus] ? t(STATUS_CONFIG[d.debtStatus].key) : d.debtStatus,
+      PRIORITY_CONFIG[d.collectionPriority] ? t(PRIORITY_CONFIG[d.collectionPriority].key) : d.collectionPriority,
+      d.lastAction
+        ? `${t(ACTION_KEYS[d.lastActionType ?? ''] ?? 'common.unknown')}${d.lastActionDate ? ` — ${d.lastActionDate}` : ''}`
+        : '',
+      d.nextReminderOverdue
+        ? t('collection.reminder.overdue', { days: d.daysLateNextReminder })
+        : d.nextReminderDate
+          ? t('collection.table.plannedReminder', { date: fmtDate(d.nextReminderDate) })
+          : d.lastReminderDate
+            ? `${t('collection.table.on')} ${fmtDate(d.lastReminderDate)}`
+            : '',
+    ])
+  }
   const { data: taxTypes } = useQuery({ queryKey: ['tax-types-ref'], queryFn: () => apiGet<TaxType[]>('/tax-types') })
   const { data: periods } = useQuery({ queryKey: ['collection-periods'], queryFn: () => apiGet<string[]>('/collection/periods') })
   const { data: stats } = useQuery({ queryKey: ['collection-stats'], queryFn: () => apiGet<CollectionStats>('/collection/stats') })
@@ -79,7 +111,7 @@ export default function CollectionReminders() {
     onError: (err) => toast.error(apiErrorMessage(err)),
   })
 
-  function invalidateQueries() { queryClient.invalidateQueries({ queryKey: ['collection-debts'] }); queryClient.invalidateQueries({ queryKey: ['collection-stats'] }); queryClient.invalidateQueries({ queryKey: ['debt-stats'] }) }
+  function invalidateQueries() { invalidateCollectionData(queryClient) }
   function resetActionForm() { setActionForm({ debtId: '', type: 'PHONE_CONTACT', description: '', actionDate: new Date().toISOString().slice(0, 10), outcome: '', nextAction: '', nextActionDate: '' }) }
   function openAction(type: string, debtId?: string) { setActionForm((f) => ({ ...f, type, debtId: debtId ?? f.debtId, description: '' })); setActionOpen(true) }
   function openReminder(debtId?: string, debt?: CollectionDebtRow | null) { setReminderDebt(debt ?? null); setReminderForm(emptyReminderForm(debtId ?? '')); setReminderOpen(true) }
@@ -115,10 +147,18 @@ export default function CollectionReminders() {
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('collection.subtitle')}</p>
         </div>
         <div className="flex flex-wrap shrink-0 items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ['collection-debts'] })}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
-          <button onClick={() => openReminder()} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:bg-brand-500">
-            <Plus className="h-4 w-4" /> {t('collection.modal.reminder.new')}
-          </button>
+          <ExportButton
+            filenameBase={`relances_${new Date().toISOString().slice(0, 10)}`}
+            title={t('collection.reminders')}
+            headers={[t('common.reference'), 'NIF', t('collection.table.taxpayer'), t('collection.table.tax'), t('collection.table.remaining'), t('collection.table.status'), t('collection.table.priority'), t('collection.table.lastAction'), t('collection.table.reminderTracking')]}
+            rows={exportDebtRows}
+          />
+          <Button variant="ghost" size="sm" onClick={() => invalidateCollectionData(queryClient)}><RefreshCw className="h-4 w-4" />{t('common.refresh')}</Button>
+          {canWrite && (
+            <button onClick={() => openReminder()} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all hover:bg-brand-500">
+              <Plus className="h-4 w-4" /> {t('collection.modal.reminder.new')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -213,7 +253,7 @@ export default function CollectionReminders() {
                               ) : null}
                             </div>
                           </Td>
-                          <Td><RowActions debt={d} onView={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }} onPayment={() => { setSelectedDebt(d); setPaymentOpen(true) }} onCall={() => openAction('PHONE_CONTACT', String(d.id))} onReminder={() => openReminder(String(d.id), d)} onNotice={() => {}} onCommandment={() => {}} onAtd={() => {}} onPaymentPlan={() => navigate(`/collection/plans?debt=${d.id}`)} onHistory={() => {}} /></Td>
+                          <Td><RowActions debt={d} onView={() => { setDrawerDebtId(d.id); setDrawerOpen(true) }} onPayment={canWrite ? () => { setSelectedDebt(d); setPaymentOpen(true) } : undefined} onCall={canWrite ? () => openAction('PHONE_CONTACT', String(d.id)) : undefined} onReminder={canWrite ? () => openReminder(String(d.id), d) : undefined} onNotice={canWrite ? () => openAction('NOTICE', String(d.id)) : undefined} onCommandment={canWrite ? () => openAction('COMMANDMENT', String(d.id)) : undefined} onAtd={canWrite ? () => openAction('ATD', String(d.id)) : undefined} onPaymentPlan={() => navigate(`/collection/plans?debt=${d.id}`)} /></Td>
                         </tr>
                       ))}
                     </tbody>
@@ -274,7 +314,7 @@ export default function CollectionReminders() {
 
       <ReminderModal open={reminderOpen} onClose={() => { setReminderOpen(false); setReminderDebt(null) }} form={reminderForm} setForm={setReminderForm} debts={actionDebts?.content ?? data?.content ?? []} debt={reminderDebt} onSubmit={submitReminder} pending={createReminder.isPending} error={createReminder.isError ? createReminder.error : null} fmtMGA={fmtMGA} />
 
-      <DetailDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setDrawerDebtId(null) }} debtId={drawerDebtId} onPayment={(debt) => { setSelectedDebt(debt); setPaymentOpen(true) }} onReminder={(debt) => openReminder(String(debt.id), debt)} onNotice={() => {}} onPlan={(debt) => navigate(`/collection/plans?debt=${debt.id}`)} onAction={(debt, type) => openAction(type === 'commandment' ? 'COMMANDMENT' : 'ATD', String(debt.id))} />
+      <DetailDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setDrawerDebtId(null) }} debtId={drawerDebtId} onPayment={(debt) => { setSelectedDebt(debt); setPaymentOpen(true) }} onReminder={(debt) => openReminder(String(debt.id), debt)} onNotice={(debt) => openAction('NOTICE', String(debt.id))} onPlan={(debt) => navigate(`/collection/plans?debt=${debt.id}`)} onAction={(debt, type) => openAction(type === 'commandment' ? 'COMMANDMENT' : 'ATD', String(debt.id))} />
     </div>
   )
 }

@@ -19,7 +19,8 @@ import {
 import { useAuth } from '../lib/auth'
 import { useI18n } from '../lib/i18n'
 import { fmtDateTime } from '../lib/format'
-import type { Message, MessageContextType, MessagePriority, MessageProcessingStatus } from '../types'
+import { apiGet } from '../lib/api'
+import type { Message, MessageContextType, MessagePriority, MessageProcessingStatus, Page } from '../types'
 import {
   Badge,
   Button,
@@ -40,6 +41,7 @@ import ComposeDialog from '../components/communication/ComposeDialog'
 import SentTracking from '../components/communication/SentTracking'
 import Campaigns from '../components/communication/Campaigns'
 import AdminPanel from '../components/communication/AdminPanel'
+import { ExportButton } from '../components/ExportButton'
 import { useCommStats, useMessageFolder, useMessageStats, useMessageThread } from '../features/message/api/queries'
 import {
   useArchiveMessage,
@@ -108,6 +110,12 @@ const emptyKey: Record<MessageFolder, string> = {
   inbox: 'messages.emptyInbox',
   sent: 'messages.emptySent',
   archived: 'messages.emptyArchived',
+}
+
+const folderPath: Record<MessageFolder, string> = {
+  inbox: '/messages',
+  sent: '/messages/sent',
+  archived: '/messages/archived',
 }
 
 export default function Messages() {
@@ -301,6 +309,33 @@ function MailboxView({ folder, canWrite }: { folder: MessageFolder; canWrite: bo
 
   const hasActiveFilters = !isArchived && Boolean(search || filterRead || filterPriority || filterContext)
 
+  const exportHeaders = [
+    isInbox ? t('messages.sender') : t('messages.recipient'),
+    t('comm.compose.subject'),
+    t('common.type'),
+    t('comm.compose.priority'),
+    t('common.date'),
+    t('common.status'),
+  ]
+
+  /** Tous les messages du dossier correspondant aux filtres actifs (hors pagination). */
+  const exportMessageRows = async () => {
+    const p = new URLSearchParams(params)
+    p.delete('page')
+    p.delete('size')
+    const rows = await apiGet<Page<Message>>(`${folderPath[folder]}?${p.toString()}&size=9999`)
+    return rows.content.map((m) => [
+      isInbox ? m.senderName : (m.recipientName ?? '—'),
+      m.subject || '—',
+      m.contextType === 'GENERAL' ? '—' : contextLabels[m.contextType],
+      m.priority === 'URGENT' ? t('comm.priority.URGENT') : m.priority === 'IMPORTANT' ? t('comm.priority.HIGH') : t('comm.priority.NORMAL'),
+      m.createdAt,
+      isInbox
+        ? (m.read ? t('messages.read') : t('messages.unread'))
+        : t(`messages.processing.${m.processingStatus}`),
+    ])
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -340,6 +375,12 @@ function MailboxView({ folder, canWrite }: { folder: MessageFolder; canWrite: bo
             <CheckCheck className="h-4 w-4" /> {t('header.markAllRead')}
           </Button>
         )}
+        <ExportButton
+          filenameBase={`messages_${folder}_${new Date().toISOString().slice(0, 10)}`}
+          title={t(emptyKey[folder])}
+          headers={exportHeaders}
+          rows={exportMessageRows}
+        />
       </div>
 
       {error ? (

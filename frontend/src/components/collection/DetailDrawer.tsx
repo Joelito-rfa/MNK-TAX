@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiGetBlob, apiPatch, apiPost } from '../../lib/api'
+import { invalidateCollectionData } from '../../features/collection/api/keys'
 import { useI18n } from '../../lib/i18n'
 import { useLocaleFormatters } from '../../lib/format'
 import type { CollectionDebtRow, CollectionDetail, DebtStatus } from '../../types'
@@ -168,10 +169,10 @@ export function DetailDrawer({
   })
 
   function invalidate() {
+    // Clé plus spécifique (la créance ouverte) conservée ; le reste est délégué
+    // au helper qui couvre collection / collection-* / debts / dashboard.
     queryClient.invalidateQueries({ queryKey: ['collection-detail', debtId] })
-    queryClient.invalidateQueries({ queryKey: ['collection-debts'] })
-    queryClient.invalidateQueries({ queryKey: ['collection-stats'] })
-    queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
+    invalidateCollectionData(queryClient)
   }
 
   async function downloadDocument(kind: 'mise-en-demeure' | 'relance') {

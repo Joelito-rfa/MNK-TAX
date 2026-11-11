@@ -25,6 +25,7 @@ import {
   Td,
   Th,
 } from '../ui'
+import { ExportButton } from '../ExportButton'
 import { useToast } from '../Toast'
 
 const PROVIDER_TONES: Record<string, string> = {
@@ -94,6 +95,13 @@ function ProvidersCard() {
             {t('comm.admin.queue.pending', { count: data.queuePending })} ·{' '}
             {t('comm.admin.queue.failed', { count: data.queueFailed })} ·{' '}
             {t('comm.admin.queue.retryInfo', { max: data.maxAttempts, backoff: data.retryBackoffMinutes })}
+            {data.autoRetryEnabled && (
+              <> · {t('comm.admin.queue.autoRetryInfo', {
+                cycles: data.autoRetryMaxCycles,
+                backoff: data.autoRetryBackoffMinutes,
+                hours: data.autoRetryMaxAgeHours,
+              })}</>
+            )}
           </div>
         </div>
       )}
@@ -172,8 +180,28 @@ function TemplatesCard() {
   return (
     <Card>
       <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
-        <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t('comm.admin.templates')}</h3>
-        {data && <Badge tone="slate">{data.length}</Badge>}
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t('comm.admin.templates')}</h3>
+          {data && <Badge tone="slate">{data.length}</Badge>}
+        </div>
+        <ExportButton
+          filenameBase={`modeles-emails_${new Date().toISOString().slice(0, 10)}`}
+          title={t('comm.admin.templates')}
+          headers={[
+            'Code', t('common.type'), t('comm.tracking.channels'),
+            t('comm.admin.templates.language'), t('common.status'),
+          ]}
+          rows={() =>
+            (data ?? []).map((tpl) => [
+              tpl.code, tpl.category, tpl.channels,
+              (['Fr', 'Mg', 'En'] as const)
+                .filter((l) => tpl[`body${l}` as 'bodyFr' | 'bodyMg' | 'bodyEn'])
+                .map((l) => l.toUpperCase())
+                .join(' / '),
+              tpl.enabled ? t('comm.admin.templates.enabled') : t('comm.admin.templates.disabled'),
+            ])
+          }
+        />
       </div>
       {isLoading ? (
         <Spinner />
@@ -343,8 +371,25 @@ function EventRulesCard() {
   return (
     <Card>
       <div className="flex items-center justify-between border-b border-slate-200/70 px-5 py-4 dark:border-slate-700/50">
-        <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t('comm.admin.rules')}</h3>
-        {data && <Badge tone="slate">{data.length}</Badge>}
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold text-slate-700 dark:text-slate-200">{t('comm.admin.rules')}</h3>
+          {data && <Badge tone="slate">{data.length}</Badge>}
+        </div>
+        <ExportButton
+          filenameBase={`regles-evenements_${new Date().toISOString().slice(0, 10)}`}
+          title={t('comm.admin.rules')}
+          headers={[
+            t('comm.admin.rules.event'), t('comm.admin.rules.template'), t('comm.admin.rules.dayOffset'),
+            t('comm.admin.rules.channels'), t('comm.compose.priority'), t('comm.admin.rules.enabled'),
+          ]}
+          rows={() =>
+            (data ?? []).map((rule) => [
+              rule.eventType, rule.templateCode,
+              rule.dayOffset != null ? `J${rule.dayOffset}` : '',
+              rule.channels, rule.priority, rule.enabled ? 'Oui' : 'Non',
+            ])
+          }
+        />
       </div>
       {isLoading ? (
         <Spinner />

@@ -15,7 +15,7 @@ Prototype académique (non officiel) d'un système de gestion fiscale malgache :
 | Cache / rate-limit | Redis (prod), cache simple (dev) |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, TanStack Query, React Router, recharts |
 | Documents | QR code (ZXing), PDF (OpenPDF), stockage fichiers |
-| Tests | JUnit 5, Spring Boot Test, AssertJ (35 tests) |
+| Tests | JUnit 5, Spring Boot Test, AssertJ (202 tests) |
 | Livraison | Docker Compose, nginx |
 
 ## Structure du dépôt
@@ -33,7 +33,7 @@ docker-compose.yml  Orchestration (postgres, redis, backend, frontend)
 ### Option 1 — Docker (recommandé)
 
 ```bash
-cp .env.example .env   # ajuster JWT_SECRET
+cp .env.example .env   # renseigner JWT_SECRET et POSTGRES_PASSWORD
 docker compose up --build
 ```
 
@@ -44,12 +44,18 @@ docker compose up --build
 
 ### Option 2 — Développement local
 
-Backend (profil `dev`, H2 en mémoire, `SEED_DEMO=true`) :
+Backend (profil `dev`, H2 en mémoire, `SEED_DEMO=true` explicite) :
 
 ```bash
 cd backend
 ./mvnw spring-boot:run        # ou mvnw.cmd sous Windows
 ```
+
+Le profil `dev` charge automatiquement les fichiers `.env` et `.env.local`
+(UTF-8) situés à la racine du projet ou dans `backend/`. `.env.local` est
+prioritaire sur `.env` ; les variables d'environnement du système restent
+prioritaires sur les deux. C'est donc l'endroit recommandé pour les
+identifiants SMTP réels (`MAIL_HOST`, `MAIL_USERNAME`, `MAIL_PASSWORD`…).
 
 Frontend (proxy `/api` vers http://localhost:8080) :
 
@@ -70,7 +76,7 @@ npm run dev                   # http://localhost:5177
 | Comptable (`ACCOUNTANT`) | `accountant` | `Agent@123` |
 | Contribuable (`TAXPAYER`) | `taxpayer.demo` | `Taxpayer@123` |
 
-Seed activé par `SEED_DEMO=true` (défaut en développement, `false` en production).
+Seed désactivé par défaut ; activé explicitement en profil `dev` (`SEED_DEMO=true`). Les permissions et rôles système sont toujours créés au démarrage, même sans données fictives.
 
 Matrice complète des accès : [`docs/ACCESS_MATRIX.md`](docs/ACCESS_MATRIX.md).
 

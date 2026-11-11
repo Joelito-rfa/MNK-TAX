@@ -1,7 +1,16 @@
 import { ArrowRight, CheckCircle2, TrendingUp } from 'lucide-react'
 import { Button } from '../ui'
+import { useI18n } from '../../lib/i18n'
 
 export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void; onRequestAccess: () => void }) {
+  const { t } = useI18n()
+  const kpis = [
+    { label: t('landing.hero.kpi.taxpayers'), value: '12 500+', color: 'text-brand-400' },
+    { label: t('landing.hero.kpi.declarations'), value: '3 200+', color: 'text-emerald-400' },
+    { label: t('landing.hero.kpi.revenue'), value: '45 M Ar', color: 'text-violet-400' },
+    { label: t('landing.hero.kpi.collection'), value: '87%', color: 'text-sky-400' },
+  ]
+
   return (
     <section id="hero" className="relative min-h-screen flex items-center pt-24 pb-20">
       {/* Grid overlay */}
@@ -15,44 +24,44 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
             {/* Badge */}
             <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-brand-600/20 bg-brand-600/10 px-4 py-1.5 text-xs font-semibold tracking-wide text-brand-700 backdrop-blur-sm dark:border-brand-400/20 dark:bg-brand-500/10 dark:text-brand-300">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" />
-              Gestion fiscale nouvelle génération
+              {t('landing.hero.badge')}
             </div>
 
             {/* Title */}
             <h1 className="text-4xl font-bold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl lg:text-6xl dark:text-white">
-              La gestion fiscale,
+              {t('landing.hero.titleLine1')}
               <span className="mt-2 block text-brand-700 dark:text-brand-300">
-                simplifiée et connectée.
+                {t('landing.hero.titleLine2')}
               </span>
             </h1>
 
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-slate-600 dark:text-slate-400">
-              Pilotez vos impôts avec précision. Centralisez contribuables, déclarations, paiements et recouvrements dans une seule plateforme sécurisée.
+              {t('landing.hero.description')}
             </p>
 
             {/* CTAs */}
             <div className="mt-10 flex flex-wrap gap-4">
               <Button onClick={onLogin} size="lg"
                 className="group rounded-2xl bg-brand-600 px-8 text-white shadow-xl shadow-brand-600/25 transition-all duration-200 hover:shadow-2xl hover:shadow-brand-600/30 hover:scale-[1.02] active:scale-[0.98]">
-                Commencer
+                {t('landing.hero.ctaStart')}
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </Button>
               <Button onClick={onRequestAccess} variant="secondary" size="lg"
                 className="rounded-2xl border-slate-300 bg-white text-slate-900 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10">
-                Demander un accès
+                {t('landing.hero.ctaRequestAccess')}
               </Button>
             </div>
 
             {/* Trust */}
             <div className="mt-10 flex items-center gap-6 text-sm text-slate-500">
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Sécurisé
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> {t('landing.hero.trust.secure')}
               </span>
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Traçable
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> {t('landing.hero.trust.traceable')}
               </span>
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Responsive
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" /> {t('landing.hero.trust.responsive')}
               </span>
             </div>
           </div>
@@ -69,17 +78,12 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
                   <img src="/logo.webp" alt="" className="h-6 w-6 rounded-lg" />
                   <span className="text-sm font-semibold text-white">MNK-TAX</span>
                 </div>
-                <span className="text-[10px] font-medium text-slate-500">Dashboard</span>
+                <span className="text-[10px] font-medium text-slate-500">{t('landing.hero.dashboardLabel')}</span>
               </div>
 
               {/* KPI cards */}
               <div className="hero-kpi-grid grid grid-cols-2 gap-3 mb-4">
-                {[
-                  { label: 'Contribuables', value: '12 500+', color: 'text-brand-400' },
-                  { label: 'Déclarations', value: '3 200+', color: 'text-emerald-400' },
-                  { label: 'Recettes', value: '45 M Ar', color: 'text-violet-400' },
-                  { label: 'Recouvrement', value: '87%', color: 'text-sky-400' },
-                ].map((kpi) => (
+                {kpis.map((kpi) => (
                   <div key={kpi.label} className="rounded-xl border border-white/[0.06] bg-white/[0.04] p-3">
                     <p className="text-[10px] font-medium text-slate-500">{kpi.label}</p>
                     <p className={`mt-1 text-lg font-bold ${kpi.color}`}>{kpi.value}</p>
@@ -90,7 +94,7 @@ export default function Hero({ onLogin, onRequestAccess }: { onLogin: () => void
               {/* Chart area */}
               <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-medium text-slate-400">Recettes mensuelles</p>
+                  <p className="text-xs font-medium text-slate-400">{t('landing.hero.monthlyRevenue')}</p>
                   <div className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
                     <TrendingUp className="h-3 w-3" /> +12%
                   </div>

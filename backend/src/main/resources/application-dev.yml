@@ -20,7 +20,14 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
 
 mnk-tax:
+  jwt:
+    # Valeur locale uniquement, jamais utilisée en production : le profil dev
+    # reste utilisable sans variable d'environnement, mais tout autre profil
+    # exige JWT_SECRET (voir application.yml).
+    secret: ${JWT_SECRET:ZGV2LW9ubHktbW5rLXRheC1qd3Qtc2VjcmV0LTAwMS1uZS1wYXMtdXRpbGlzZXItZW4tcHJvZA==}
   rate-limit:
     enabled: false
   receipt:
     base-url: http://localhost:5177
+  # Données fictives activées explicitement en développement local.
+  seed-demo: ${SEED_DEMO:true}

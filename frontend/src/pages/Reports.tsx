@@ -59,8 +59,8 @@ import { useTheme } from '../lib/theme'
 
 interface ReportCardDef {
   id: string
-  title: string
-  description: string
+  titleKey: string
+  descriptionKey: string
   icon: React.ReactNode
   iconBg: string
   iconColor: string
@@ -86,35 +86,35 @@ interface RecentReport {
 /* ═══════════════════════════ Constantes ═══════════════════════════ */
 
 const PERIOD_OPTIONS = [
-  { id: 'year', label: 'Annee en cours' },
-  { id: 'quarter', label: 'Dernier trimestre' },
-  { id: 'month', label: 'Dernier mois' },
-  { id: '6months', label: '6 derniers mois' },
-  { id: 'all', label: "Tout l'historique" },
+  { id: 'year', labelKey: 'reports.page.period.year' },
+  { id: 'quarter', labelKey: 'reports.page.period.quarter' },
+  { id: 'month', labelKey: 'reports.page.period.month' },
+  { id: '6months', labelKey: 'reports.page.period.6months' },
+  { id: 'all', labelKey: 'reports.page.period.all' },
 ]
 
 const REPORT_CATEGORIES = [
-  { id: 'all', label: 'Tous', icon: <BarChart3 className="h-4 w-4" /> },
-  { id: 'recouvrement', label: 'Recouvrement', icon: <Wallet className="h-4 w-4" /> },
-  { id: 'paiements', label: 'Paiements', icon: <CreditCard className="h-4 w-4" /> },
-  { id: 'quittances', label: 'Quittances', icon: <FileText className="h-4 w-4" /> },
-  { id: 'declarations', label: 'Declarations', icon: <FileText className="h-4 w-4" /> },
-  { id: 'contribuables', label: 'Contribuables', icon: <Users className="h-4 w-4" /> },
-  { id: 'activite', label: 'Activite', icon: <Activity className="h-4 w-4" /> },
+  { id: 'all', labelKey: 'reports.page.cat.all', icon: <BarChart3 className="h-4 w-4" /> },
+  { id: 'recouvrement', labelKey: 'reports.page.cat.collection', icon: <Wallet className="h-4 w-4" /> },
+  { id: 'paiements', labelKey: 'reports.page.cat.payments', icon: <CreditCard className="h-4 w-4" /> },
+  { id: 'quittances', labelKey: 'reports.page.cat.receipts', icon: <FileText className="h-4 w-4" /> },
+  { id: 'declarations', labelKey: 'reports.page.cat.declarations', icon: <FileText className="h-4 w-4" /> },
+  { id: 'contribuables', labelKey: 'reports.page.cat.taxpayers', icon: <Users className="h-4 w-4" /> },
+  { id: 'activite', labelKey: 'reports.page.cat.activity', icon: <Activity className="h-4 w-4" /> },
 ]
 
 const FORMAT_FILTERS = [
-  { id: 'all', label: 'Tous les formats' },
-  { id: 'PDF', label: 'PDF' },
-  { id: 'Excel', label: 'Excel' },
-  { id: 'CSV', label: 'CSV' },
+  { id: 'all', labelKey: 'reports.page.format.all' },
+  { id: 'PDF', labelKey: 'PDF' },
+  { id: 'Excel', labelKey: 'Excel' },
+  { id: 'CSV', labelKey: 'CSV' },
 ]
 
 const methodLabels: Record<string, string> = {
-  CASH: 'Especes',
-  BANK_TRANSFER: 'Virement',
-  CHECK: 'Cheque',
-  MOBILE_MONEY: 'Mobile Money',
+  CASH: 'reports.page.method.CASH',
+  BANK_TRANSFER: 'reports.page.method.BANK_TRANSFER',
+  CHECK: 'reports.page.method.CHECK',
+  MOBILE_MONEY: 'reports.page.method.MOBILE_MONEY',
 }
 
 /* ═══════════════════════════ Palette & Chart Colors ═══════════════════════════ */
@@ -171,8 +171,8 @@ function getReportCards(): ReportCardDef[] {
   return [
     {
       id: 'recouvrement',
-      title: 'Rapport de recouvrement',
-      description: 'Analyse des creances, montants recouvrés, retards et taux de recouvrement.',
+      titleKey: 'reports.page.card.recouvrement.title',
+      descriptionKey: 'reports.page.card.recouvrement.desc',
       icon: <Wallet className="h-6 w-6" />,
       iconBg: 'bg-violet-50',
       iconColor: 'text-violet-600',
@@ -182,8 +182,8 @@ function getReportCards(): ReportCardDef[] {
     },
     {
       id: 'paiements',
-      title: 'Rapport des paiements',
-      description: 'Historique et analyse des paiements effectués sur la periode selectionnee.',
+      titleKey: 'reports.page.card.paiements.title',
+      descriptionKey: 'reports.page.card.paiements.desc',
       icon: <CreditCard className="h-6 w-6" />,
       iconBg: 'bg-emerald-50',
       iconColor: 'text-emerald-600',
@@ -193,8 +193,8 @@ function getReportCards(): ReportCardDef[] {
     },
     {
       id: 'quittances',
-      title: 'Rapport des quittances',
-      description: 'Registre des quittances émises, vérifiées, annulées et remboursées.',
+      titleKey: 'reports.page.card.quittances.title',
+      descriptionKey: 'reports.page.card.quittances.desc',
       icon: <FileText className="h-6 w-6" />,
       iconBg: 'bg-pink-50',
       iconColor: 'text-pink-600',
@@ -204,8 +204,8 @@ function getReportCards(): ReportCardDef[] {
     },
     {
       id: 'declarations',
-      title: 'Rapport des declarations',
-      description: 'Statistiques des declarations validees, en attente et rejetees.',
+      titleKey: 'reports.page.card.declarations.title',
+      descriptionKey: 'reports.page.card.declarations.desc',
       icon: <ClipboardList className="h-6 w-6" />,
       iconBg: 'bg-blue-50',
       iconColor: 'text-blue-600',
@@ -215,8 +215,8 @@ function getReportCards(): ReportCardDef[] {
     },
     {
       id: 'contribuables',
-      title: 'Rapport des contribuables',
-      description: 'Liste et statistiques des contribuables actifs, nouveaux et inactifs.',
+      titleKey: 'reports.page.card.contribuables.title',
+      descriptionKey: 'reports.page.card.contribuables.desc',
       icon: <Users className="h-6 w-6" />,
       iconBg: 'bg-amber-50',
       iconColor: 'text-amber-600',
@@ -226,8 +226,8 @@ function getReportCards(): ReportCardDef[] {
     },
     {
       id: 'creances',
-      title: 'Rapport des creances fiscales',
-      description: 'Analyse des creances restantes, echues et recouvrées.',
+      titleKey: 'reports.page.card.creances.title',
+      descriptionKey: 'reports.page.card.creances.desc',
       icon: <TrendingUp className="h-6 w-6" />,
       iconBg: 'bg-rose-50',
       iconColor: 'text-rose-600',
@@ -237,8 +237,8 @@ function getReportCards(): ReportCardDef[] {
     },
     {
       id: 'activite',
-      title: "Rapport d'activite",
-      description: 'Journal des activites administratives et operations realisees dans le systeme.',
+      titleKey: 'reports.page.card.activite.title',
+      descriptionKey: 'reports.page.card.activite.desc',
       icon: <Activity className="h-6 w-6" />,
       iconBg: 'bg-sky-50',
       iconColor: 'text-sky-600',
@@ -291,8 +291,11 @@ export default function Reports() {
   const cc = useChartColors()
 
   const currentPeriod = PERIOD_OPTIONS.find((p) => p.id === selectedPeriod) ?? PERIOD_OPTIONS[0]
-  const genPeriodLabel = PERIOD_OPTIONS.find((p) => p.id === genPeriod)?.label ?? genPeriod
+  const currentPeriodLabel = t(currentPeriod.labelKey)
+  const genPeriodLabel = t(PERIOD_OPTIONS.find((p) => p.id === genPeriod)?.labelKey ?? 'reports.page.period.year')
   const selectedReport = useMemo(() => getReportCards().find((r) => r.id === genReportType) ?? null, [genReportType])
+  const genStatusKeyPrefix = genReportType === 'declarations' ? 'declStatus' : genReportType === 'contribuables' ? 'taxpayerStatus' : 'debtStatus'
+  const genStatusLabel = genStatusFilter ? t(`reports.page.${genStatusKeyPrefix}.${genStatusFilter}`) : ''
 
   /* -- Fermer period dropdown au clic exterieur -- */
   useEffect(() => {
@@ -464,11 +467,11 @@ export default function Reports() {
     if (search.trim()) {
       const q = search.toLowerCase()
       cards = cards.filter(
-        (c) => c.title.toLowerCase().includes(q) || c.description.toLowerCase().includes(q),
+        (c) => t(c.titleKey).toLowerCase().includes(q) || t(c.descriptionKey).toLowerCase().includes(q),
       )
     }
     return cards
-  }, [activeCategory, search, debts, payments, receipts, declarations, taxpayers, activity])
+  }, [activeCategory, search, debts, payments, receipts, declarations, taxpayers, activity, t])
 
   /* -- Rapports recents (donnees reelles) -- */
   const recentReports = useMemo(() => {
@@ -477,13 +480,13 @@ export default function Reports() {
     if (debts?.content) {
       reports.push({
         id: 'debts',
-        name: `Rapport de recouvrement -- ${debts.totalElements} creances`,
+        name: t('reports.page.recent.debtsName', { count: debts.totalElements }),
         type: 'recouvrement',
         format: 'CSV',
-        period: 'Toutes les periodes',
+        period: t('reports.page.period.allPeriods'),
         generatedAt: new Date().toISOString(),
-        generatedBy: 'Admin Fiscal',
-        size: `${debts.totalElements} lignes`,
+        generatedBy: t('reports.page.generatedBy'),
+        size: t('reports.page.lines', { count: debts.totalElements }),
         status: 'available',
       })
     }
@@ -491,13 +494,13 @@ export default function Reports() {
     if (payments?.content) {
       reports.push({
         id: 'payments',
-        name: `Rapport des paiements -- ${payments.totalElements} paiements`,
+        name: t('reports.page.recent.paymentsName', { count: payments.totalElements }),
         type: 'paiements',
         format: 'CSV',
-        period: 'Toutes les periodes',
+        period: t('reports.page.period.allPeriods'),
         generatedAt: new Date().toISOString(),
-        generatedBy: 'Admin Fiscal',
-        size: `${payments.totalElements} lignes`,
+        generatedBy: t('reports.page.generatedBy'),
+        size: t('reports.page.lines', { count: payments.totalElements }),
         status: 'available',
       })
     }
@@ -505,13 +508,13 @@ export default function Reports() {
     if (declarations?.content) {
       reports.push({
         id: 'declarations',
-        name: `Rapport des declarations -- ${declarations.totalElements} declarations`,
+        name: t('reports.page.recent.declarationsName', { count: declarations.totalElements }),
         type: 'declarations',
         format: 'CSV',
-        period: 'Toutes les periodes',
+        period: t('reports.page.period.allPeriods'),
         generatedAt: new Date().toISOString(),
-        generatedBy: 'Admin Fiscal',
-        size: `${declarations.totalElements} lignes`,
+        generatedBy: t('reports.page.generatedBy'),
+        size: t('reports.page.lines', { count: declarations.totalElements }),
         status: 'available',
       })
     }
@@ -519,13 +522,13 @@ export default function Reports() {
     if (taxpayers?.content) {
       reports.push({
         id: 'taxpayers',
-        name: `Rapport des contribuables -- ${taxpayers.totalElements} contribuables`,
+        name: t('reports.page.recent.taxpayersName', { count: taxpayers.totalElements }),
         type: 'contribuables',
         format: 'Excel',
-        period: 'Toutes les periodes',
+        period: t('reports.page.period.allPeriods'),
         generatedAt: new Date().toISOString(),
-        generatedBy: 'Admin Fiscal',
-        size: `${taxpayers.totalElements} lignes`,
+        generatedBy: t('reports.page.generatedBy'),
+        size: t('reports.page.lines', { count: taxpayers.totalElements }),
         status: 'available',
       })
     }
@@ -533,13 +536,13 @@ export default function Reports() {
     if (receipts?.content) {
       reports.push({
         id: 'receipts',
-        name: `Rapport des quittances -- ${receipts.totalElements} quittances`,
+        name: t('reports.page.recent.receiptsName', { count: receipts.totalElements }),
         type: 'quittances',
         format: 'CSV',
-        period: 'Toutes les periodes',
+        period: t('reports.page.period.allPeriods'),
         generatedAt: new Date().toISOString(),
-        generatedBy: 'Admin Fiscal',
-        size: `${receipts.totalElements} lignes`,
+        generatedBy: t('reports.page.generatedBy'),
+        size: t('reports.page.lines', { count: receipts.totalElements }),
         status: 'available',
       })
     }
@@ -555,7 +558,7 @@ export default function Reports() {
       )
     }
     return filtered.filter((r) => !deletedIds.has(r.id))
-  }, [debts, payments, declarations, taxpayers, receipts, formatFilter, search, deletedIds])
+  }, [debts, payments, declarations, taxpayers, receipts, formatFilter, search, deletedIds, t])
 
   /* -- Mutations export -- */
   const exportDebts = useMutation({
@@ -566,8 +569,13 @@ export default function Reports() {
       exportTable(
         opts?.format ?? 'CSV',
         `rapport_recouvrement_${new Date().toISOString().slice(0, 10)}`,
-        'Rapport de recouvrement',
-        ['Reference', 'NIF', 'Contribuable', 'Impot', 'Periode', 'Total', 'Paye', 'Solde', 'Echeance', 'Statut'],
+        t('reports.page.card.recouvrement.title'),
+        [
+          t('reports.page.col.reference'), t('reports.page.col.nif'), t('reports.page.col.taxpayer'),
+          t('reports.page.col.tax'), t('reports.page.col.period'), t('reports.page.col.total'),
+          t('reports.page.col.paid'), t('reports.page.col.balance'), t('reports.page.col.dueDate'),
+          t('reports.page.col.status'),
+        ],
         rows.content.map((d) => [
           d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period,
           d.totalAmount, d.paidAmount, d.balance, d.dueDate, d.status,
@@ -587,11 +595,15 @@ export default function Reports() {
       exportTable(
         opts?.format ?? 'CSV',
         `rapport_paiements_${new Date().toISOString().slice(0, 10)}`,
-        'Rapport des paiements',
-        ['Reference', 'NIF', 'Contribuable', 'Date', 'Montant', 'Mode', 'Alloue', 'Quittance'],
+        t('reports.page.card.paiements.title'),
+        [
+          t('reports.page.col.reference'), t('reports.page.col.nif'), t('reports.page.col.taxpayer'),
+          t('reports.page.col.date'), t('reports.page.col.amount'), t('reports.page.col.method'),
+          t('reports.page.col.allocated'), t('reports.page.col.receipt'),
+        ],
         rows.content.map((p) => [
           p.reference, p.nif, p.taxpayerName, p.paymentDate, p.amount,
-          methodLabels[p.method] ?? p.method, p.allocatedAmount, p.receiptReference ?? '',
+          methodLabels[p.method] ? t(methodLabels[p.method]) : p.method, p.allocatedAmount, p.receiptReference ?? '',
         ]),
       )
     },
@@ -607,8 +619,13 @@ export default function Reports() {
       exportTable(
         opts?.format ?? 'CSV',
         `rapport_declarations_${new Date().toISOString().slice(0, 10)}`,
-        'Rapport des déclarations',
-        ['Reference', 'NIF', 'Contribuable', 'Impot', 'Periode', 'Montant declare', 'Impot calcule', 'Paye', 'Reste', 'Statut'],
+        t('reports.page.card.declarations.title'),
+        [
+          t('reports.page.col.reference'), t('reports.page.col.nif'), t('reports.page.col.taxpayer'),
+          t('reports.page.col.tax'), t('reports.page.col.period'), t('reports.page.money.declared'),
+          t('reports.page.col.calculated'), t('reports.page.col.paid'), t('reports.page.col.remaining'),
+          t('reports.page.col.status'),
+        ],
         rows.content.map((d) => [
           d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period,
           d.declaredAmount, d.calculatedTax, d.montantPaye ?? 0, d.resteAPayer ?? 0, d.status,
@@ -627,8 +644,13 @@ export default function Reports() {
       exportTable(
         opts?.format ?? 'CSV',
         `rapport_contribuables_${new Date().toISOString().slice(0, 10)}`,
-        'Rapport des contribuables',
-        ['NIF', 'Nom', 'Raison sociale', 'Type', 'Telephone', 'Email', 'Statut', 'Centre fiscal', 'Regime', 'Date creation'],
+        t('reports.page.card.contribuables.title'),
+        [
+          t('reports.page.col.nif'), t('reports.page.col.name'), t('reports.page.col.businessName'),
+          t('reports.page.col.type'), t('reports.page.col.phone'), t('reports.page.col.email'),
+          t('reports.page.col.status'), t('reports.page.col.taxCenter'), t('reports.page.col.regime'),
+          t('reports.page.col.createdAt'),
+        ],
         rows.content.map((t) => [
           t.nif, t.name, t.businessName ?? '', t.type, t.phone ?? '', t.email ?? '',
           t.status, t.taxCenterCode ?? '', t.taxRegimeCode ?? '', t.createdAt,
@@ -645,8 +667,11 @@ export default function Reports() {
       exportTable(
         opts?.format ?? 'CSV',
         `rapport_activite_${new Date().toISOString().slice(0, 10)}`,
-        "Rapport d'activité",
-        ['Date', 'Utilisateur', 'Action', 'Type', 'Identifiant', 'Adresse IP'],
+        t('reports.page.card.activite.title'),
+        [
+          t('reports.page.col.date'), t('reports.page.col.user'), t('reports.page.col.action'),
+          t('reports.page.col.entityType'), t('reports.page.col.id'), t('reports.page.col.ip'),
+        ],
         rows.content.map((a) => [
           a.createdAt, a.username, a.action, a.entityType, a.entityId ?? '', a.ipAddress ?? '',
         ]),
@@ -662,8 +687,13 @@ export default function Reports() {
       exportTable(
         opts?.format ?? 'CSV',
         `rapport_quittances_${new Date().toISOString().slice(0, 10)}`,
-        'Rapport des quittances',
-        ['N\u00b0', 'Reference', 'Contribuable', 'NIF', 'Impot', 'Periode', 'Montant', 'Mode', 'Statut', 'Emise le'],
+        t('reports.page.card.quittances.title'),
+        [
+          t('reports.page.col.number'), t('reports.page.col.reference'), t('reports.page.col.taxpayer'),
+          t('reports.page.col.nif'), t('reports.page.col.tax'), t('reports.page.col.period'),
+          t('reports.page.col.amount'), t('reports.page.col.method'), t('reports.page.col.status'),
+          t('reports.page.col.issuedAt'),
+        ],
         rows.content.map((r) => [
           r.receiptNumber, r.reference, r.taxpayerName, r.nif, r.taxTypeCode,
           r.period, r.amount, r.method, r.status, r.issuedAt,
@@ -694,16 +724,16 @@ export default function Reports() {
       case 'contribuables': exportTaxpayers.mutate({ status: filters?.status, format: fmt }); break
       case 'creances': exportDebts.mutate({ status: filters?.status, format: fmt }); break
       case 'activite': exportActivity.mutate({ format: fmt }); break
-      default: toast.error('Export indisponible pour ce rapport')
+      default: toast.error(t('reports.page.toast.exportUnavailable'))
     }
-  }, [exportDebts, exportPayments, exportReceipts, exportDeclarations, exportTaxpayers, exportActivity, toast])
+  }, [exportDebts, exportPayments, exportReceipts, exportDeclarations, exportTaxpayers, exportActivity, toast, t])
 
   const handleGenerate = useCallback((reportId: string) => {
-    toast.success(`Generation du rapport en cours...`)
+    toast.success(t('reports.page.toast.generating'))
     setTimeout(() => {
       handleExport(reportId)
     }, 500)
-  }, [handleExport, toast])
+  }, [handleExport, toast, t])
 
   /* -- Wizard handlers -- */
   const resetWizard = useCallback(() => {
@@ -751,8 +781,12 @@ export default function Reports() {
       case 'creances': {
         const data = debts?.content ?? []
         setPreviewData({
-          title: 'Rapport de recouvrement',
-          headers: ['Reference', 'NIF', 'Contribuable', 'Impot', 'Periode', 'Total', 'Paye', 'Solde', 'Statut'],
+          title: t('reports.page.card.recouvrement.title'),
+          headers: [
+            t('reports.page.col.reference'), t('reports.page.col.nif'), t('reports.page.col.taxpayer'),
+            t('reports.page.col.tax'), t('reports.page.col.period'), t('reports.page.col.total'),
+            t('reports.page.col.paid'), t('reports.page.col.balance'), t('reports.page.col.status'),
+          ],
           rows: data.slice(0, 50).map((d) => [d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period, d.totalAmount, d.paidAmount, d.balance, d.status]),
         })
         break
@@ -760,17 +794,25 @@ export default function Reports() {
       case 'paiements': {
         const data = payments?.content ?? []
         setPreviewData({
-          title: 'Rapport des paiements',
-          headers: ['Reference', 'NIF', 'Contribuable', 'Date', 'Montant', 'Mode', 'Statut'],
-          rows: data.slice(0, 50).map((p) => [p.reference, p.nif, p.taxpayerName, p.paymentDate, p.amount, p.method, p.status]),
+          title: t('reports.page.card.paiements.title'),
+          headers: [
+            t('reports.page.col.reference'), t('reports.page.col.nif'), t('reports.page.col.taxpayer'),
+            t('reports.page.col.date'), t('reports.page.col.amount'), t('reports.page.col.method'),
+            t('reports.page.col.status'),
+          ],
+          rows: data.slice(0, 50).map((p) => [p.reference, p.nif, p.taxpayerName, p.paymentDate, p.amount, methodLabels[p.method] ? t(methodLabels[p.method]) : p.method, p.status]),
         })
         break
       }
       case 'quittances': {
         const data = receipts?.content ?? []
         setPreviewData({
-          title: 'Rapport des quittances',
-          headers: ['N°', 'Reference', 'Contribuable', 'NIF', 'Impot', 'Periode', 'Montant', 'Statut'],
+          title: t('reports.page.card.quittances.title'),
+          headers: [
+            t('reports.page.col.number'), t('reports.page.col.reference'), t('reports.page.col.taxpayer'),
+            t('reports.page.col.nif'), t('reports.page.col.tax'), t('reports.page.col.period'),
+            t('reports.page.col.amount'), t('reports.page.col.status'),
+          ],
           rows: data.slice(0, 50).map((r) => [r.receiptNumber, r.reference, r.taxpayerName, r.nif, r.taxTypeCode, r.period, r.amount, r.status]),
         })
         break
@@ -778,8 +820,12 @@ export default function Reports() {
       case 'declarations': {
         const data = declarations?.content ?? []
         setPreviewData({
-          title: 'Rapport des declarations',
-          headers: ['Reference', 'NIF', 'Contribuable', 'Impot', 'Periode', 'Declare', 'Calcule', 'Statut'],
+          title: t('reports.page.card.declarations.title'),
+          headers: [
+            t('reports.page.col.reference'), t('reports.page.col.nif'), t('reports.page.col.taxpayer'),
+            t('reports.page.col.tax'), t('reports.page.col.period'), t('reports.page.col.declared'),
+            t('reports.page.col.calculated'), t('reports.page.col.status'),
+          ],
           rows: data.slice(0, 50).map((d) => [d.reference, d.nif, d.taxpayerName, d.taxTypeCode, d.period, d.declaredAmount, d.calculatedTax ?? 0, d.status]),
         })
         break
@@ -787,8 +833,11 @@ export default function Reports() {
       case 'contribuables': {
         const data = taxpayers?.content ?? []
         setPreviewData({
-          title: 'Rapport des contribuables',
-          headers: ['NIF', 'Nom', 'Type', 'Telephone', 'Email', 'Statut'],
+          title: t('reports.page.card.contribuables.title'),
+          headers: [
+            t('reports.page.col.nif'), t('reports.page.col.name'), t('reports.page.col.type'),
+            t('reports.page.col.phone'), t('reports.page.col.email'), t('reports.page.col.status'),
+          ],
           rows: data.slice(0, 50).map((t) => [t.nif, t.name, t.type, t.phone ?? '', t.email ?? '', t.status]),
         })
         break
@@ -796,16 +845,19 @@ export default function Reports() {
       case 'activite': {
         const data = activity?.content ?? []
         setPreviewData({
-          title: "Rapport d'activite",
-          headers: ['Date', 'Utilisateur', 'Action', 'Type', 'Identifiant'],
+          title: t('reports.page.card.activite.title'),
+          headers: [
+            t('reports.page.col.date'), t('reports.page.col.user'), t('reports.page.col.action'),
+            t('reports.page.col.entityType'), t('reports.page.col.id'),
+          ],
           rows: data.slice(0, 50).map((a) => [a.createdAt, a.username, a.action, a.entityType, a.entityId ?? '']),
         })
         break
       }
       default:
-        toast.info('Apercu non disponible pour ce type')
+        toast.info(t('reports.page.toast.previewUnavailable'))
     }
-  }, [debts, payments, declarations, taxpayers, receipts, activity, toast])
+  }, [debts, payments, declarations, taxpayers, receipts, activity, toast, t])
 
   const handleRegenerate = useCallback((reportId: string) => {
     queryClient.invalidateQueries({ queryKey: ['report-collection'] })
@@ -813,9 +865,9 @@ export default function Reports() {
     queryClient.invalidateQueries({ queryKey: ['report-declarations'] })
     queryClient.invalidateQueries({ queryKey: ['report-taxpayers'] })
     queryClient.invalidateQueries({ queryKey: ['report-receipts'] })
-    toast.success('Rapport regenere avec succes')
+    toast.success(t('reports.page.toast.regenerated'))
     setTimeout(() => handleExport(reportId), 300)
-  }, [queryClient, handleExport, toast])
+  }, [queryClient, handleExport, toast, t])
 
   const handleDelete = useCallback((reportId: string) => {
     setDeletedIds((prev) => {
@@ -826,8 +878,8 @@ export default function Reports() {
       return next
     })
     setDeleteConfirm(null)
-    toast.success('Rapport supprime')
-  }, [toast])
+    toast.success(t('reports.page.toast.deleted'))
+  }, [toast, t])
 
   /* -- Skeleton -- */
   if (isLoading) {
@@ -840,10 +892,10 @@ export default function Reports() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">
-            Rapports et analyses
+            {t('reports.title')}
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Consultez, analysez et exportez les donnees fiscales et financieres.
+            {t('reports.subtitle')}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -859,7 +911,7 @@ export default function Reports() {
                     : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
                 }`}
               >
-                {opt.label}
+                {t(opt.labelKey)}
               </button>
             ))}
           </div>
@@ -871,7 +923,7 @@ export default function Reports() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             >
               <CalendarDays className="h-4 w-4 text-slate-400" />
-              {currentPeriod.label}
+              {currentPeriodLabel}
               <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${periodOpen ? 'rotate-180' : ''}`} />
             </button>
             {periodOpen && (
@@ -888,7 +940,7 @@ export default function Reports() {
                       }`}
                     >
                       <span className={`flex h-2 w-2 shrink-0 rounded-full ${selectedPeriod === opt.id ? 'bg-violet-500' : 'bg-slate-300'}`} />
-                      {opt.label}
+                      {t(opt.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -899,7 +951,7 @@ export default function Reports() {
           {/* Actualiser */}
           <Button variant="secondary" size="md" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4" />
-            Actualiser
+            {t('common.refresh')}
           </Button>
 
           {/* Generer un rapport */}
@@ -909,7 +961,7 @@ export default function Reports() {
           >
             <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
             <Plus className="relative h-4 w-4" />
-            <span className="relative">Generer un rapport</span>
+            <span className="relative">{t('reports.generate')}</span>
           </button>
         </div>
       </div>
@@ -920,9 +972,9 @@ export default function Reports() {
           icon={<BarChart3 className="h-5 w-5" />}
           iconBg="bg-violet-50"
           iconColor="text-violet-600"
-          label="RAPPORTS DISPONIBLES"
+          label={t('reports.page.kpi.reports')}
           value={stats.totalReports}
-          sub="Types de rapports"
+          sub={t('reports.page.kpi.reportsSub')}
           sparkline={[3, 5, 4, 7, 6, 8, 7]}
           sparkColor={C.violet}
         />
@@ -930,10 +982,10 @@ export default function Reports() {
           icon={<FileText className="h-5 w-5" />}
           iconBg="bg-emerald-50"
           iconColor="text-emerald-600"
-          label="CREANCES TOTALES"
+          label={t('reports.page.kpi.debts')}
           value={fmtNumber(stats.totalDebts)}
-          sub={`${fmtNumber(stats.totalPayments)} paiements enregistres`}
-          delta={stats.totalCollected > 0 ? `${fmtMGA(stats.totalCollected)} recouvre` : undefined}
+          sub={t('reports.page.kpi.debtsSub', { payments: fmtNumber(stats.totalPayments) })}
+          delta={stats.totalCollected > 0 ? t('reports.page.kpi.collected', { amount: fmtMGA(stats.totalCollected) }) : undefined}
           deltaTone="up"
           sparkline={debtSparkline}
           sparkColor={C.emerald}
@@ -942,9 +994,9 @@ export default function Reports() {
           icon={<Users className="h-5 w-5" />}
           iconBg="bg-blue-50"
           iconColor="text-blue-600"
-          label="CONTRIBUABLES"
+          label={t('reports.page.kpi.taxpayers')}
           value={fmtNumber(stats.totalTaxpayers)}
-          sub={`${fmtNumber(stats.totalDeclarations)} declarations`}
+          sub={t('reports.page.kpi.taxpayersSub', { declarations: fmtNumber(stats.totalDeclarations) })}
           sparkline={declSparkline}
           sparkColor={C.blue}
         />
@@ -952,10 +1004,10 @@ export default function Reports() {
           icon={<BarChart3 className="h-5 w-5" />}
           iconBg="bg-pink-50"
           iconColor="text-pink-600"
-          label="QUITTANCES"
+          label={t('reports.page.kpi.receipts')}
           value={fmtNumber(stats.totalReceipts)}
-          sub={`${fmtNumber(stats.validReceipts)} valides`}
-          delta={stats.receiptTotalAmount > 0 ? `${fmtMGA(stats.receiptTotalAmount)} total` : undefined}
+          sub={t('reports.page.kpi.receiptsSub', { count: fmtNumber(stats.validReceipts) })}
+          delta={stats.receiptTotalAmount > 0 ? t('reports.page.kpi.receiptsTotal', { amount: fmtMGA(stats.receiptTotalAmount) }) : undefined}
           deltaTone="up"
           sparkline={[2, 4, 3, 5, 4, 6, 5]}
           sparkColor={C.pink}
@@ -964,9 +1016,9 @@ export default function Reports() {
           icon={<Download className="h-5 w-5" />}
           iconBg="bg-amber-50"
           iconColor="text-amber-600"
-          label="DONNEES DISPONIBLES"
+          label={t('reports.page.kpi.data')}
           value={fmtNumber((debts?.totalElements ?? 0) + (payments?.totalElements ?? 0) + (receipts?.totalElements ?? 0))}
-          sub="Lignes exportables"
+          sub={t('reports.page.kpi.dataSub')}
           delta="+ CSV / Excel"
           deltaTone="up"
           sparkline={paymentSparkline}
@@ -978,7 +1030,7 @@ export default function Reports() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 animate-fade-in" style={{ animationDelay: '0.12s' }}>
         {/* Donut Créances par statut */}
         <Card className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Creances par statut</h3>
+          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('reports.page.chart.debtsByStatus')}</h3>
           {debtByStatus.length > 0 ? (
             <div className="flex items-center gap-4">
               <div className="h-40 w-40 shrink-0">
@@ -1000,7 +1052,7 @@ export default function Reports() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ ...cc.tooltip, fontSize: 12 }}
-                      formatter={(v) => [fmtNumber(Number(v ?? 0)), 'Creances']}
+                      formatter={(v) => [fmtNumber(Number(v ?? 0)), t('reports.page.chart.debts')]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -1016,13 +1068,13 @@ export default function Reports() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-slate-400">Aucune donnee</p>
+            <p className="text-sm text-slate-400">{t('common.noData')}</p>
           )}
         </Card>
 
         {/* Donut Declarations par statut */}
         <Card className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Declarations par statut</h3>
+          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('reports.page.chart.declarationsByStatus')}</h3>
           {declByStatus.length > 0 ? (
             <div className="flex items-center gap-4">
               <div className="h-40 w-40 shrink-0">
@@ -1044,7 +1096,7 @@ export default function Reports() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ ...cc.tooltip, fontSize: 12 }}
-                      formatter={(v) => [fmtNumber(Number(v ?? 0)), 'Declarations']}
+                      formatter={(v) => [fmtNumber(Number(v ?? 0)), t('reports.page.chart.declarations')]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -1060,13 +1112,13 @@ export default function Reports() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-slate-400">Aucune donnee</p>
+            <p className="text-sm text-slate-400">{t('common.noData')}</p>
           )}
         </Card>
 
         {/* Area Chart Paiements mensuels */}
         <Card className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Paiements mensuels</h3>
+          <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('reports.page.chart.monthlyPayments')}</h3>
           {paymentMonthly.length > 0 ? (
             <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
@@ -1082,14 +1134,14 @@ export default function Reports() {
                   <YAxis tick={{ fontSize: 10, fill: cc.tick }} axisLine={false} tickLine={false} width={40} tickFormatter={(v: number) => v >= 1_000_000 ? `${(v / 1_000_000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
                   <Tooltip
                     contentStyle={{ ...cc.tooltip, fontSize: 12 }}
-                    formatter={(v) => [fmtMGA(Number(v ?? 0)), 'Montant']}
+                    formatter={(v) => [fmtMGA(Number(v ?? 0)), t('reports.page.chart.amount')]}
                   />
                   <Area type="monotone" dataKey="amount" stroke={C.violet} strokeWidth={2} fill="url(#payGrad)" dot={false} activeDot={{ r: 5, fill: C.violet, stroke: '#fff', strokeWidth: 2 }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <p className="text-sm text-slate-400">Aucune donnee</p>
+            <p className="text-sm text-slate-400">{t('common.noData')}</p>
           )}
         </Card>
       </div>
@@ -1102,23 +1154,23 @@ export default function Reports() {
               <ClipboardList className="h-4.5 w-4.5" />
             </span>
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rapport des declarations</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Repartition par statut et montants declares</p>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('reports.page.card.declarations.title')}</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('reports.page.synth.declSub')}</p>
             </div>
           </div>
           {!declarationReport ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Chargement...</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">{t('common.loading')}</p>
           ) : (
             <div className="space-y-3">
               {/* Barres horizontales animees par statut */}
               <div className="space-y-2.5">
                 {[
-                  { label: 'Validées', count: declarationReport.validated, color: 'bg-emerald-500' },
-                  { label: 'Soumises', count: declarationReport.submitted, color: 'bg-blue-500' },
-                  { label: 'En contrôle', count: declarationReport.underReview, color: 'bg-amber-500' },
-                  { label: 'Rejetées', count: declarationReport.rejected, color: 'bg-rose-500' },
-                  { label: 'Brouillons', count: declarationReport.draft, color: 'bg-slate-400' },
-                  { label: 'À corriger', count: declarationReport.aCorriger, color: 'bg-orange-500' },
+                  { label: t('reports.page.status.validated'), count: declarationReport.validated, color: 'bg-emerald-500' },
+                  { label: t('reports.page.status.submitted'), count: declarationReport.submitted, color: 'bg-blue-500' },
+                  { label: t('reports.page.status.underReview'), count: declarationReport.underReview, color: 'bg-amber-500' },
+                  { label: t('reports.page.status.rejected'), count: declarationReport.rejected, color: 'bg-rose-500' },
+                  { label: t('reports.page.status.draft'), count: declarationReport.draft, color: 'bg-slate-400' },
+                  { label: t('reports.page.status.toCorrect'), count: declarationReport.aCorriger, color: 'bg-orange-500' },
                 ].filter((s) => s.count > 0).map((s) => (
                   <div key={s.label}>
                     <div className="flex items-center justify-between text-xs">
@@ -1135,12 +1187,12 @@ export default function Reports() {
                 ))}
               </div>
               <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700/50">
-                <MoneyRow label="Montant declare" value={fmtMGA(declarationReport.declaredAmount)} />
-                <MoneyRow label="Montant paye" value={fmtMGA(declarationReport.paidAmount)} tone="text-emerald-600" />
-                <MoneyRow label="Reste a payer" value={fmtMGA(declarationReport.remaining)} tone="text-rose-600" />
+                <MoneyRow label={t('reports.page.money.declared')} value={fmtMGA(declarationReport.declaredAmount)} />
+                <MoneyRow label={t('reports.page.money.paid')} value={fmtMGA(declarationReport.paidAmount)} tone="text-emerald-600" />
+                <MoneyRow label={t('reports.page.money.remaining')} value={fmtMGA(declarationReport.remaining)} tone="text-rose-600" />
               </div>
               <RateBar
-                label="Taux de paiement"
+                label={t('reports.page.rate.payment')}
                 percent={
                   declarationReport.declaredAmount > 0
                     ? (declarationReport.paidAmount / declarationReport.declaredAmount) * 100
@@ -1158,20 +1210,20 @@ export default function Reports() {
               <TrendingUp className="h-4.5 w-4.5" />
             </span>
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Rapport des creances</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Encours, retards et taux de recouvrement</p>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('reports.page.card.creances.title')}</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('reports.page.synth.debtSub')}</p>
             </div>
           </div>
           {!debtReport ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Chargement...</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">{t('common.loading')}</p>
           ) : (
             <div className="space-y-3">
               {/* Barres horizontales animees par statut */}
               <div className="space-y-2.5">
                 {[
-                  { label: 'Payées', count: debtReport.paid, color: 'bg-emerald-500' },
-                  { label: 'En recouvrement', count: debtReport.inCollection, color: 'bg-violet-500' },
-                  { label: 'En retard', count: debtReport.overdue, color: 'bg-rose-500' },
+                  { label: t('reports.page.status.paid'), count: debtReport.paid, color: 'bg-emerald-500' },
+                  { label: t('reports.page.status.inCollection'), count: debtReport.inCollection, color: 'bg-violet-500' },
+                  { label: t('reports.page.status.overdue'), count: debtReport.overdue, color: 'bg-rose-500' },
                 ].filter((s) => s.count > 0).map((s) => (
                   <div key={s.label}>
                     <div className="flex items-center justify-between text-xs">
@@ -1188,12 +1240,12 @@ export default function Reports() {
                 ))}
               </div>
               <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700/50">
-                <MoneyRow label="Montant total" value={fmtMGA(debtReport.totalAmount)} />
-                <MoneyRow label="Recouvre" value={fmtMGA(debtReport.collected)} tone="text-emerald-600" />
-                <MoneyRow label="Encours" value={fmtMGA(debtReport.outstanding)} tone="text-rose-600" />
+                <MoneyRow label={t('reports.page.money.total')} value={fmtMGA(debtReport.totalAmount)} />
+                <MoneyRow label={t('reports.page.money.collected')} value={fmtMGA(debtReport.collected)} tone="text-emerald-600" />
+                <MoneyRow label={t('reports.page.money.outstanding')} value={fmtMGA(debtReport.outstanding)} tone="text-rose-600" />
               </div>
               <RateBar
-                label="Taux de recouvrement"
+                label={t('reports.page.rate.collection')}
                 percent={debtReport.collectionRate}
                 color="bg-brand-500"
               />
@@ -1207,10 +1259,10 @@ export default function Reports() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Rapports disponibles
+              {t('reports.available')}
             </h2>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              {reportCards.length} rapport{reportCards.length > 1 ? 's' : ''} disponible{reportCards.length > 1 ? 's' : ''}
+              {t('reports.page.availableCount', { count: reportCards.length })}
             </p>
           </div>
           {/* Filtres categorie */}
@@ -1226,7 +1278,7 @@ export default function Reports() {
                 }`}
               >
                 {cat.icon}
-                {cat.label}
+                {t(cat.labelKey)}
               </button>
             ))}
           </div>
@@ -1235,8 +1287,8 @@ export default function Reports() {
         {reportCards.length === 0 ? (
           <EmptyState
             icon={<FolderOpen className="h-10 w-10" />}
-            title="Aucun rapport trouve"
-            subtitle={search ? `Aucun resultat pour "${search}"` : 'Aucun rapport disponible dans cette categorie'}
+            title={t('reports.page.empty.title')}
+            subtitle={search ? t('reports.page.empty.search', { q: search }) : t('reports.page.empty.category')}
           />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -1259,10 +1311,10 @@ export default function Reports() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Rapports recemment generes
+              {t('reports.recent')}
             </h2>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              {recentReports.length} rapport{recentReports.length > 1 ? 's' : ''} disponible{recentReports.length > 1 ? 's' : ''} au telechargement
+              {t('reports.page.recent.count', { count: recentReports.length })}
             </p>
           </div>
         </div>
@@ -1296,7 +1348,7 @@ export default function Reports() {
                 className="bg-transparent text-sm text-slate-700 outline-none dark:text-slate-300"
               >
                 {FORMAT_FILTERS.map((f) => (
-                  <option key={f.id} value={f.id}>{f.label}</option>
+                  <option key={f.id} value={f.id}>{f.labelKey.startsWith('reports.') ? t(f.labelKey) : f.labelKey}</option>
                 ))}
               </select>
             </div>
@@ -1307,13 +1359,13 @@ export default function Reports() {
             <div className="py-16">
               <EmptyState
                 icon={<FolderOpen className="h-10 w-10" />}
-                title="Aucun rapport disponible"
-                subtitle="Aucun rapport n'a encore ete genere pour cette periode."
+                title={t('reports.page.emptyRecent.title')}
+                subtitle={t('reports.page.emptyRecent.subtitle')}
               />
               <div className="mt-4 flex justify-center">
                 <Button variant="primary" onClick={() => setGenerateModalOpen(true)}>
                   <Plus className="h-4 w-4" />
-                  Generer un rapport
+                  {t('reports.generate')}
                 </Button>
               </div>
             </div>
@@ -1335,8 +1387,8 @@ export default function Reports() {
           {recentReports.length > 0 && (
             <div className="border-t border-slate-200/70 px-5 py-3 dark:border-slate-700/50">
               <p className="text-xs text-slate-400 dark:text-slate-500">
-                {recentReports.length} rapport{recentReports.length > 1 ? 's' : ''} affiche{recentReports.length > 1 ? 's' : ''}
-                {search && ` pour "${search}"`}
+                {t('reports.page.footerCount', { count: recentReports.length })}
+                {search && t('reports.page.footerSearch', { q: search })}
               </p>
             </div>
           )}
@@ -1348,14 +1400,14 @@ export default function Reports() {
         open={generateModalOpen}
         onClose={resetWizard}
         title={
-          genStep === 0 ? 'Generer un rapport'
-            : genStep === 1 ? `Etape 2/3 — Configuration`
-              : `Etape 3/3 — Generer`
+          genStep === 0 ? t('reports.page.wizard.title0')
+            : genStep === 1 ? t('reports.page.wizard.title1')
+              : t('reports.page.wizard.title2')
         }
         subtitle={
-          genStep === 0 ? 'Selectionnez un type de rapport'
-            : genStep === 1 ? 'Choisissez le format, la periode et les filtres'
-              : 'Verifiez et validez la generation'
+          genStep === 0 ? t('reports.page.wizard.sub0')
+            : genStep === 1 ? t('reports.page.wizard.sub1')
+              : t('reports.page.wizard.sub2')
         }
         wide
       >
@@ -1363,7 +1415,7 @@ export default function Reports() {
           {/* StepBar */}
           <div className="space-y-1.5">
             <StepBar step={genStep} total={3} />
-            <StepLabels labels={['Type', 'Configuration', 'Generer']} step={genStep} />
+            <StepLabels labels={[t('reports.page.wizard.stepType'), t('reports.page.wizard.stepConfig'), t('reports.page.wizard.stepGenerate')]} step={genStep} />
           </div>
 
           {/* ── Etape 0 : Selection du type ── */}
@@ -1383,8 +1435,8 @@ export default function Reports() {
                     {report.icon}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{report.title}</p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{report.description}</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{t(report.titleKey)}</p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{t(report.descriptionKey)}</p>
                     <div className="mt-2 flex flex-wrap gap-1">
                       {report.formats.map((fmt) => (
                         <span
@@ -1405,7 +1457,7 @@ export default function Reports() {
           {genStep === 1 && selectedReport && (
             <div className="space-y-5 animate-fade-in">
               {/* Format */}
-              <Field label="Format du fichier">
+              <Field label={t('reports.page.wizard.fileFormat')}>
                 <div className="flex flex-wrap gap-2">
                   {selectedReport.formats.map((fmt) => (
                     <button
@@ -1425,7 +1477,7 @@ export default function Reports() {
               </Field>
 
               {/* Periode */}
-              <Field label="Periode">
+              <Field label={t('reports.page.wizard.period')}>
                 <div className="flex flex-wrap gap-2">
                   {PERIOD_OPTIONS.map((p) => (
                     <button
@@ -1437,7 +1489,7 @@ export default function Reports() {
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
                       }`}
                     >
-                      {p.label}
+                      {t(p.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -1445,54 +1497,54 @@ export default function Reports() {
 
               {/* Filtres conditionnels selon le type de rapport */}
               {(genReportType === 'recouvrement' || genReportType === 'creances') && (
-                <Field label="Statut">
+                <Field label={t('reports.page.wizard.status')}>
                   <Select value={genStatusFilter} onChange={(e) => setGenStatusFilter(e.target.value)}>
-                    <option value="">Tous les statuts</option>
-                    <option value="OVERDUE">En retard</option>
-                    <option value="IN_COLLECTION">Recouvrement</option>
-                    <option value="PARTIALLY_PAID">Partiellement payee</option>
-                    <option value="PAID">Payee</option>
-                    <option value="DISPUTED">Contestee</option>
-                    <option value="SUSPENDED">Suspendue</option>
-                    <option value="CLOSED">Cloturee</option>
+                    <option value="">{t('reports.page.status.all')}</option>
+                    <option value="OVERDUE">{t('reports.page.debtStatus.OVERDUE')}</option>
+                    <option value="IN_COLLECTION">{t('reports.page.debtStatus.IN_COLLECTION')}</option>
+                    <option value="PARTIALLY_PAID">{t('reports.page.debtStatus.PARTIALLY_PAID')}</option>
+                    <option value="PAID">{t('reports.page.debtStatus.PAID')}</option>
+                    <option value="DISPUTED">{t('reports.page.debtStatus.DISPUTED')}</option>
+                    <option value="SUSPENDED">{t('reports.page.debtStatus.SUSPENDED')}</option>
+                    <option value="CLOSED">{t('reports.page.debtStatus.CLOSED')}</option>
                   </Select>
                 </Field>
               )}
 
               {genReportType === 'paiements' && (
-                <Field label="Mode de paiement">
+                <Field label={t('reports.page.wizard.method')}>
                   <Select value={genMethodFilter} onChange={(e) => setGenMethodFilter(e.target.value)}>
-                    <option value="">Tous les modes</option>
-                    <option value="CASH">Especes</option>
-                    <option value="BANK_TRANSFER">Virement</option>
-                    <option value="CHECK">Cheque</option>
-                    <option value="MOBILE_MONEY">Mobile Money</option>
+                    <option value="">{t('reports.page.method.all')}</option>
+                    <option value="CASH">{t('reports.page.method.CASH')}</option>
+                    <option value="BANK_TRANSFER">{t('reports.page.method.BANK_TRANSFER')}</option>
+                    <option value="CHECK">{t('reports.page.method.CHECK')}</option>
+                    <option value="MOBILE_MONEY">{t('reports.page.method.MOBILE_MONEY')}</option>
                   </Select>
                 </Field>
               )}
 
               {genReportType === 'declarations' && (
-                <Field label="Statut">
+                <Field label={t('reports.page.wizard.status')}>
                   <Select value={genStatusFilter} onChange={(e) => setGenStatusFilter(e.target.value)}>
-                    <option value="">Tous les statuts</option>
-                    <option value="DRAFT">Brouillon</option>
-                    <option value="SUBMITTED">Soumise</option>
-                    <option value="UNDER_REVIEW">En cours d'examen</option>
-                    <option value="VALIDATED">Validee</option>
-                    <option value="REJECTED">Rejetee</option>
-                    <option value="PAID">Payee</option>
-                    <option value="A_CORRIGER">A corriger</option>
+                    <option value="">{t('reports.page.status.all')}</option>
+                    <option value="DRAFT">{t('reports.page.declStatus.DRAFT')}</option>
+                    <option value="SUBMITTED">{t('reports.page.declStatus.SUBMITTED')}</option>
+                    <option value="UNDER_REVIEW">{t('reports.page.declStatus.UNDER_REVIEW')}</option>
+                    <option value="VALIDATED">{t('reports.page.declStatus.VALIDATED')}</option>
+                    <option value="REJECTED">{t('reports.page.declStatus.REJECTED')}</option>
+                    <option value="PAID">{t('reports.page.declStatus.PAID')}</option>
+                    <option value="A_CORRIGER">{t('reports.page.declStatus.A_CORRIGER')}</option>
                   </Select>
                 </Field>
               )}
 
               {genReportType === 'contribuables' && (
-                <Field label="Statut">
+                <Field label={t('reports.page.wizard.status')}>
                   <Select value={genStatusFilter} onChange={(e) => setGenStatusFilter(e.target.value)}>
-                    <option value="">Tous les statuts</option>
-                    <option value="ACTIVE">Actif</option>
-                    <option value="INACTIVE">Inactif</option>
-                    <option value="SUSPENDED">Suspendu</option>
+                    <option value="">{t('reports.page.status.all')}</option>
+                    <option value="ACTIVE">{t('reports.page.taxpayerStatus.ACTIVE')}</option>
+                    <option value="INACTIVE">{t('reports.page.taxpayerStatus.INACTIVE')}</option>
+                    <option value="SUSPENDED">{t('reports.page.taxpayerStatus.SUSPENDED')}</option>
                   </Select>
                 </Field>
               )}
@@ -1503,11 +1555,11 @@ export default function Reports() {
                   {selectedReport.icon}
                 </span>
                 <div className="min-w-0 text-sm">
-                  <p className="font-semibold text-slate-800 dark:text-slate-200">{selectedReport.title}</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-200">{t(selectedReport.titleKey)}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
                     {genFormat} &middot; {genPeriodLabel}
-                    {genStatusFilter && ` &middot; Statut: ${genStatusFilter}`}
-                    {genMethodFilter && ` &middot; Mode: ${genMethodFilter}`}
+                    {genStatusFilter && ` · ${t('reports.page.wizard.summaryStatus')}: ${genStatusLabel}`}
+                    {genMethodFilter && ` · ${t('reports.page.wizard.summaryMethod')}: ${methodLabels[genMethodFilter] ? t(methodLabels[genMethodFilter]) : genMethodFilter}`}
                   </p>
                 </div>
               </div>
@@ -1518,30 +1570,30 @@ export default function Reports() {
           {genStep === 2 && selectedReport && (
             <div className="space-y-5 animate-fade-in">
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">
-                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Resume du rapport</h4>
+                <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">{t('reports.page.wizard.summaryTitle')}</h4>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400">Type : </span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{selectedReport.title}</span>
+                    <span className="text-slate-500 dark:text-slate-400">{t('reports.page.wizard.summaryType')} : </span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{t(selectedReport.titleKey)}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400">Format : </span>
+                    <span className="text-slate-500 dark:text-slate-400">{t('reports.page.wizard.summaryFormat')} : </span>
                     <span className="font-medium text-slate-800 dark:text-slate-200">{genFormat}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400">Periode : </span>
+                    <span className="text-slate-500 dark:text-slate-400">{t('reports.page.wizard.summaryPeriod')} : </span>
                     <span className="font-medium text-slate-800 dark:text-slate-200">{genPeriodLabel}</span>
                   </div>
                   {genStatusFilter && (
                     <div>
-                      <span className="text-slate-500 dark:text-slate-400">Statut : </span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{genStatusFilter}</span>
+                      <span className="text-slate-500 dark:text-slate-400">{t('reports.page.wizard.summaryStatus')} : </span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{genStatusLabel}</span>
                     </div>
                   )}
                   {genMethodFilter && (
                     <div>
-                      <span className="text-slate-500 dark:text-slate-400">Mode : </span>
-                      <span className="font-medium text-slate-800 dark:text-slate-200">{genMethodFilter}</span>
+                      <span className="text-slate-500 dark:text-slate-400">{t('reports.page.wizard.summaryMethod')} : </span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{methodLabels[genMethodFilter] ? t(methodLabels[genMethodFilter]) : genMethodFilter}</span>
                     </div>
                   )}
                 </div>
@@ -1561,7 +1613,7 @@ export default function Reports() {
               <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20">
                 <Zap className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
                 <p className="text-sm text-amber-700 dark:text-amber-300">
-                  Le fichier sera genere et automatiquement telecharge apres la validation.
+                  {t('reports.page.wizard.notice')}
                 </p>
               </div>
             </div>
@@ -1572,7 +1624,7 @@ export default function Reports() {
             <div>
               {genStep > 0 && (
                 <Button variant="ghost" size="sm" onClick={() => setGenStep(genStep - 1)}>
-                  &larr; Precedent
+                  &larr; {t('reports.page.wizard.previous')}
                 </Button>
               )}
             </div>
@@ -1583,17 +1635,17 @@ export default function Reports() {
                   onClick={() => setGenStep(genStep + 1)}
                   disabled={genStep === 0 && !genReportType}
                 >
-                  Suivant &rarr;
+                  {t('reports.page.wizard.next')} &rarr;
                 </Button>
               ) : (
                 <>
                   <Button variant="secondary" size="sm" onClick={() => genReportType && handlePreview(genReportType)}>
                     <Eye className="h-4 w-4" />
-                    Apercu
+                    {t('reports.page.wizard.preview')}
                   </Button>
                   <Button size="sm" onClick={handleWizardGenerate}>
                     <Zap className="h-4 w-4" />
-                    Generer et telecharger
+                    {t('reports.page.wizard.generate')}
                   </Button>
                 </>
               )}
@@ -1607,7 +1659,7 @@ export default function Reports() {
         open={!!previewData}
         onClose={() => setPreviewData(null)}
         title={previewData?.title ?? ''}
-        subtitle={`${previewData?.rows.length ?? 0} ligne${(previewData?.rows.length ?? 0) > 1 ? 's' : ''} affichees (max 50)`}
+        subtitle={t('reports.page.preview.subtitle', { count: previewData?.rows.length ?? 0 })}
         wide
       >
         {previewData && (
@@ -1642,7 +1694,7 @@ export default function Reports() {
       <Modal
         open={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        title="Supprimer le rapport"
+        title={t('reports.page.delete.title')}
       >
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400">
@@ -1650,20 +1702,20 @@ export default function Reports() {
           </div>
           <div>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Voulez-vous supprimer le rapport <span className="font-semibold text-slate-800 dark:text-slate-200">"{deleteConfirm?.name}"</span> ?
+              {t('reports.page.delete.question', { name: deleteConfirm?.name ?? '' })}
             </p>
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              Cette action est reversible uniquement pour cette session.
+              {t('reports.page.delete.hint')}
             </p>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>
-            Annuler
+            {t('common.cancel')}
           </Button>
           <Button variant="danger" onClick={() => deleteConfirm && handleDelete(deleteConfirm.id)}>
             <Trash2 className="h-4 w-4" />
-            Supprimer
+            {t('common.delete')}
           </Button>
         </div>
       </Modal>
@@ -1744,6 +1796,7 @@ function ReportCardComponent({
   onPreview: () => void; onRegenerate: () => void
 }) {
   const { fmtNumber } = useLocaleFormatters()
+  const { t } = useI18n()
   const { isOpen: menuOpen, close: closeMenu, triggerProps, dropdownProps } = useDropdown()
 
   return (
@@ -1768,39 +1821,39 @@ function ReportCardComponent({
                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                    Apercu
+                    {t('reports.preview')}
                   </button>
                   <button
                     onClick={() => { onRegenerate(); closeMenu() }}
                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     <RotateCcw className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                    Regenerer
+                    {t('reports.regenerate')}
                   </button>
                   <button
                     onClick={() => { onExport(); closeMenu() }}
                     className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                   >
                     <Download className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                    Exporter
+                    {t('common.export')}
                   </button>
                 </div>
               </div>
             )}
           </div>
         </div>
-        <h3 className="mt-3 text-lg font-semibold text-white">{report.title}</h3>
+        <h3 className="mt-3 text-lg font-semibold text-white">{t(report.titleKey)}</h3>
       </div>
 
       {/* Contenu */}
       <div className="flex flex-1 flex-col px-5 py-4">
-        <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{report.description}</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-2">{t(report.descriptionKey)}</p>
 
         {/* Compteur de donnees + barre de progression */}
         {report.dataCount !== undefined && report.dataCount > 0 && (
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 dark:text-slate-500">{fmtNumber(report.dataCount)} lignes disponibles</span>
+              <span className="text-slate-400 dark:text-slate-500">{t('reports.page.card.lines', { count: fmtNumber(report.dataCount) })}</span>
               <span className="font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
                 {report.maxData ? Math.round((report.dataCount / report.maxData) * 100) : 0}%
               </span>
@@ -1834,7 +1887,7 @@ function ReportCardComponent({
         <div className="mt-3">
           <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            Disponible
+            {t('reports.page.card.available')}
           </span>
         </div>
 
@@ -1846,14 +1899,14 @@ function ReportCardComponent({
           >
             <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover/btn:opacity-100" />
             <Zap className="relative h-3.5 w-3.5 transition-transform duration-200 group-hover/btn:scale-110" />
-            <span className="relative">Generer</span>
+            <span className="relative">{t('reports.page.card.generate')}</span>
           </button>
           <button
             onClick={onExport}
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-600 shadow-sm transition-all duration-200 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-700 hover:shadow-md dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-violet-500 dark:hover:bg-violet-900/20 dark:hover:text-violet-400"
           >
             <FileDown className="h-3.5 w-3.5" />
-            Exporter
+            {t('common.export')}
           </button>
         </div>
       </div>
@@ -1868,6 +1921,7 @@ function RecentReportRow({
   report: RecentReport; onExport: () => void
   onPreview: () => void; onDelete: () => void
 }) {
+  const { t } = useI18n()
   const { isOpen: showMenu, close: closeMenu, triggerProps, dropdownProps } = useDropdown()
   return (
     <div className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
@@ -1901,7 +1955,7 @@ function RecentReportRow({
         <button
           onClick={onExport}
           className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-violet-400"
-          title="Telecharger"
+          title={t('reports.download')}
         >
           <Download className="h-4 w-4" />
         </button>
@@ -1919,14 +1973,14 @@ function RecentReportRow({
                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   <Eye className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                  Apercu
+                  {t('reports.preview')}
                 </button>
                 <button
                   onClick={() => { onExport(); closeMenu() }}
                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
                 >
                   <Download className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                  Telecharger
+                  {t('reports.download')}
                 </button>
                 <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                 <button
@@ -1934,7 +1988,7 @@ function RecentReportRow({
                   className="flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-[13px] font-medium text-rose-600 transition-colors hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20"
                 >
                   <Trash2 className="h-4 w-4 shrink-0" />
-                  Supprimer
+                  {t('common.delete')}
                 </button>
               </div>
             </div>

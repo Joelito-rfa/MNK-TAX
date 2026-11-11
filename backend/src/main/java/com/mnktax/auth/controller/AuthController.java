@@ -69,7 +69,10 @@ public class AuthController {
 
     @PostMapping("/register")
     @SecurityRequirements
-    @Operation(summary = "Demander un accès", description = "Soumet une demande d'inscription.")
+    @Operation(summary = "Demander un accès",
+            description = "Soumet une demande d'inscription pour un contribuable (role=TAXPAYER, requestType=INDIVIDUAL) "
+                    + "ou pour un agent de l'administration (TAX_AGENT, COLLECTION_AGENT, ACCOUNTANT). "
+                    + "L'organisation est facultative (défaut : Particulier).")
     public ResponseEntity<RegistrationRequestDto> register(@Valid @RequestBody RegisterRequest request,
                                                            HttpServletRequest httpRequest) {
         return ResponseEntity.ok(registrationService.register(request, httpRequest));

@@ -8,7 +8,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
-  Download,
   Edit3,
   Eye,
   FileText,
@@ -30,7 +29,7 @@ import {
   UserX,
 } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiDelete, apiPatch, apiPost, apiPut } from '../lib/api'
-import { downloadCsv } from '../lib/csv'
+import { ExportButton } from '../components/ExportButton'
 import { fmtDateTime } from '../lib/format'
 import { UserAvatar } from '../components/UserAvatar'
 import type { Page, Role, User as UserType } from '../types'
@@ -38,6 +37,7 @@ import { Button, Card, EmptyState } from '../components/ui'
 import RowActionPortal from '../components/RowActionPortal'
 import { useToast } from '../components/Toast'
 import { useAuth } from '../lib/auth'
+import { useI18n } from '../lib/i18n'
 
 
 /* ═══════════════════════════ Constantes ═══════════════════════════ */
@@ -51,48 +51,43 @@ const ROLE_COLORS: Record<string, { bg: string; text: string; icon: React.ReactN
   TAXPAYER: { bg: 'bg-sky-50 dark:bg-sky-900/20', text: 'text-sky-700 dark:text-sky-400', icon: <User className="h-4 w-4" /> },
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  SUPER_ADMIN: 'Super Admin',
-  ADMIN: 'Administrateur',
-  TAX_AGENT: 'Agent Fiscal',
-  COLLECTION_AGENT: 'Agent Recouvrement',
-  ACCOUNTANT: 'Comptable',
-  TAXPAYER: 'Contribuable',
-}
+const ROLE_CODES = ['SUPER_ADMIN', 'ADMIN', 'TAX_AGENT', 'COLLECTION_AGENT', 'ACCOUNTANT', 'TAXPAYER']
 
 const STATUS_OPTIONS = [
-  { id: 'all', label: 'Tous les statuts' },
-  { id: 'active', label: 'Actif' },
-  { id: 'inactive', label: 'Inactif' },
+  { id: 'all', labelKey: 'users.page.filter.allStatuses' },
+  { id: 'active', labelKey: 'users.page.filter.active' },
+  { id: 'inactive', labelKey: 'users.page.filter.inactive' },
 ]
 
 /* ═══════════════════════════ Helpers ═══════════════════════════ */
 
-function timeAgo(iso: string | null | undefined): string {
-  if (!iso) return 'Jamais connecte'
+function timeAgo(iso: string | null | undefined, t: (key: string, vars?: Record<string, string | number>) => string): string {
+  if (!iso) return t('users.page.lastLogin.never')
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return "A l'instant"
-  if (mins < 60) return `Il y a ${mins} min`
+  if (mins < 1) return t('users.page.lastLogin.now')
+  if (mins < 60) return t('users.page.lastLogin.minutes', { count: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `Il y a ${hours}h`
+  if (hours < 24) return t('users.page.lastLogin.hours', { count: hours })
   const days = Math.floor(hours / 24)
-  if (days < 7) return `Il y a ${days}j`
+  if (days < 7) return t('users.page.lastLogin.days', { count: days })
   return fmtDateTime(iso)
 }
 
-function getStatusInfo(u: UserType): { label: string; color: string; bg: string; icon: React.ReactNode } {
-  if (!u.enabled) return { label: 'Desactive', color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20', icon: <UserX className="h-3.5 w-3.5" /> }
-  return { label: 'Actif', color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20', icon: <UserCheck className="h-3.5 w-3.5" /> }
+function getStatusInfo(u: UserType, t: (key: string) => string): { label: string; color: string; bg: string; icon: React.ReactNode } {
+  if (!u.enabled) return { label: t('users.page.status.disabled'), color: 'text-red-600', bg: 'bg-red-50 dark:bg-red-900/20', icon: <UserX className="h-3.5 w-3.5" /> }
+  return { label: t('users.page.status.active'), color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20', icon: <UserCheck className="h-3.5 w-3.5" /> }
 }
 
 /* ═══════════════════════════ Main Component ═══════════════════════════ */
 
 export default function Users() {
   const { can } = useAuth()
+  const { t, has } = useI18n()
   const toast = useToast()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const roleLabel = (code?: string) => (code ? (has(`role.${code}`) ? t(`role.${code}`) : code) : '--')
 
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState('all')
@@ -135,8 +130,8 @@ export default function Users() {
     data.content.forEach((u) => {
       u.roles.forEach((r) => { counts[r] = (counts[r] ?? 0) + 1 })
     })
-    return Object.entries(ROLE_LABELS).map(([code, label]) => ({
-      code, label, count: counts[code] ?? 0, ...(ROLE_COLORS[code] ?? ROLE_COLORS.ADMIN),
+    return ROLE_CODES.map((code) => ({
+      code, label: roleLabel(code), count: counts[code] ?? 0, ...(ROLE_COLORS[code] ?? ROLE_COLORS.ADMIN),
     }))
   }, [data])
 
@@ -165,21 +160,12 @@ export default function Users() {
 
   const pagedUsers = useMemo(() => filteredUsers.slice(0, pageSize), [filteredUsers, pageSize])
 
-  const handleExport = () => {
-    if (filteredUsers.length === 0) {
-      toast.info('Aucun utilisateur a exporter')
-      return
-    }
-    downloadCsv(
-      `utilisateurs_${new Date().toISOString().slice(0, 10)}.csv`,
-      ['Identifiant', 'Nom', 'Prenom', 'Email', 'Telephone', 'Roles', 'Statut', 'Derniere connexion'],
-      filteredUsers.map((u) => [
-        u.username, u.lastName, u.firstName, u.email, u.phone,
-        u.roles.join(' / '), u.enabled ? 'Actif' : 'Desactive', u.lastLoginAt ?? '',
-      ]),
-    )
-    toast.success('Export termine')
-  }
+  /** Lignes d'export : les utilisateurs filtrés (la liste complète est déjà chargée). */
+  const exportUserRows = () =>
+    filteredUsers.map((u) => [
+      u.username, u.lastName, u.firstName, u.email, u.phone,
+      u.roles.join(' / '), u.enabled ? t('users.page.status.active') : t('users.page.status.disabled'), u.lastLoginAt ?? '',
+    ])
 
   /* -- Mutations -- */
   const toggleEnabled = useMutation({
@@ -187,7 +173,7 @@ export default function Users() {
       apiPatch(`/users/${id}/enabled?enabled=${enabled}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast.success('Statut mis a jour')
+      toast.success(t('users.page.toast.statusUpdated'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
@@ -197,7 +183,7 @@ export default function Users() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setDeleteConfirm(null)
-      toast.success('Utilisateur supprime')
+      toast.success(t('users.page.toast.deleted'))
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
@@ -218,20 +204,22 @@ export default function Users() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">
-            Gestion des utilisateurs
+            {t('users.page.title')}
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Gerez les comptes utilisateurs, les roles, les acces et les autorisations du systeme.
+            {t('users.page.subtitle')}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button variant="secondary" size="md" onClick={handleExport}>
-            <Download className="h-4 w-4" />
-            Exporter
-          </Button>
+          <ExportButton
+            filenameBase={`utilisateurs_${new Date().toISOString().slice(0, 10)}`}
+            title={t('users.page.title')}
+            headers={t('users.page.exportHeaders').split(',')}
+            rows={exportUserRows}
+          />
           <Button variant="secondary" size="md" onClick={() => navigate('/audit')}>
             <Activity className="h-4 w-4" />
-            Journal d'activite
+            {t('users.page.audit')}
           </Button>
           {can('USER_WRITE') && (
             <button
@@ -240,7 +228,7 @@ export default function Users() {
             >
               <span className="absolute inset-0 bg-brand-500 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
               <Plus className="relative h-4 w-4" />
-              <span className="relative">Nouvel utilisateur</span>
+              <span className="relative">{t('users.page.new')}</span>
             </button>
           )}
         </div>
@@ -249,21 +237,21 @@ export default function Users() {
       {/* === 2. KPI STATS === */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={<UsersIcon className="h-5 w-5" />} iconBg="bg-violet-50" iconColor="text-violet-600"
-          label="UTILISATEURS TOTAUX" value={stats.total} sub="Comptes enregistres" style={{ animationDelay: '0s' }} />
+          label={t('users.page.kpi.total')} value={stats.total} sub={t('users.page.kpi.totalSub')} style={{ animationDelay: '0s' }} />
         <StatCard icon={<CheckCircle2 className="h-5 w-5" />} iconBg="bg-emerald-50" iconColor="text-emerald-600"
-          label="UTILISATEURS ACTIFS" value={stats.active} sub="Comptes actifs"
-          delta={`${stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0}% du total`} deltaTone="up" style={{ animationDelay: '0.08s' }} />
+          label={t('users.page.kpi.active')} value={stats.active} sub={t('users.page.kpi.activeSub')}
+          delta={t('users.page.kpi.activeDelta', { pct: stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0 })} deltaTone="up" style={{ animationDelay: '0.08s' }} />
         <StatCard icon={<Clock className="h-5 w-5" />} iconBg="bg-blue-50" iconColor="text-blue-600"
-          label="EN ATTENTE" value={stats.waiting} sub="Comptes a valider" style={{ animationDelay: '0.16s' }} />
+          label={t('users.page.kpi.waiting')} value={stats.waiting} sub={t('users.page.kpi.waitingSub')} style={{ animationDelay: '0.16s' }} />
         <StatCard icon={<Lock className="h-5 w-5" />} iconBg="bg-amber-50" iconColor="text-amber-600"
-          label="DESACTIVES" value={stats.disabled} sub="Comptes inactifs"
-          delta={stats.disabled > 0 ? 'Attention' : 'Aucun'} deltaTone={stats.disabled > 0 ? 'down' : 'neutral'} style={{ animationDelay: '0.24s' }} />
+          label={t('users.page.kpi.disabled')} value={stats.disabled} sub={t('users.page.kpi.disabledSub')}
+          delta={stats.disabled > 0 ? t('users.page.kpi.warning') : t('users.page.kpi.none')} deltaTone={stats.disabled > 0 ? 'down' : 'neutral'} style={{ animationDelay: '0.24s' }} />
       </div>
 
       {/* === 3. ROLE DISTRIBUTION === */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-          Repartition par role
+          {t('users.page.roleDistribution')}
         </h2>
         <div className="flex flex-wrap gap-2">
           {roleDistribution.map((role) => (
@@ -296,7 +284,7 @@ export default function Users() {
           <div className="relative flex-1 min-w-[250px]">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher par nom, identifiant, email ou telephone..."
+              placeholder={t('users.page.searchPlaceholder')}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-400" />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-slate-400 hover:text-slate-600">
@@ -308,39 +296,39 @@ export default function Users() {
             <Shield className="h-4 w-4 text-slate-400" />
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
               className="bg-transparent text-sm text-slate-700 outline-none dark:text-slate-300">
-              {STATUS_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              {STATUS_OPTIONS.map((o) => <option key={o.id} value={o.id}>{t(o.labelKey)}</option>)}
             </select>
           </div>
           {hasActiveFilters && (
             <button onClick={resetFilters}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700">
               <RotateCcw className="h-3.5 w-3.5" />
-              Reinitialiser
+              {t('users.page.reset')}
             </button>
           )}
           <div className="flex-1" />
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-            <span className="text-xs">Afficher</span>
+            <span className="text-xs">{t('users.page.show')}</span>
             <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}
               className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-            <span className="text-xs">par page</span>
+            <span className="text-xs">{t('users.page.perPage')}</span>
           </div>
         </div>
 
         {/* === 5. USERS LIST === */}
         {pagedUsers.length === 0 ? (
           <div className="py-16">
-            <EmptyState icon={<UsersIcon className="h-10 w-10" />} title="Aucun utilisateur trouve"
-              subtitle={search ? `Aucun resultat pour "${search}"` : "Aucun compte utilisateur ne correspond a vos criteres."} />
+            <EmptyState icon={<UsersIcon className="h-10 w-10" />} title={t('users.page.emptyTitle')}
+              subtitle={search ? t('users.page.emptySearch', { q: search }) : t('users.page.emptySubtitle')} />
             <div className="mt-4 flex justify-center gap-2">
               <Button variant="secondary" onClick={resetFilters}>
-                <RotateCcw className="h-4 w-4" /> Reinitialiser les filtres
+                <RotateCcw className="h-4 w-4" /> {t('users.page.resetFilters')}
               </Button>
               {can('USER_WRITE') && (
                 <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                  <Plus className="h-4 w-4" /> Nouvel utilisateur
+                  <Plus className="h-4 w-4" /> {t('users.page.new')}
                 </Button>
               )}
             </div>
@@ -348,7 +336,7 @@ export default function Users() {
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
             {pagedUsers.map((user) => {
-              const status = getStatusInfo(user)
+              const status = getStatusInfo(user, t)
               const roleInfo = ROLE_COLORS[user.roles[0]] ?? ROLE_COLORS.ADMIN
               return (
                 <div key={user.id} className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-700/30">
@@ -379,7 +367,7 @@ export default function Users() {
                   <div className="hidden lg:block">
                     <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ${roleInfo.bg} ${roleInfo.text}`}>
                       {roleInfo.icon}
-                      {user.roles[0] ? ROLE_LABELS[user.roles[0]] ?? user.roles[0] : '--'}
+                      {roleLabel(user.roles[0])}
                     </span>
                   </div>
 
@@ -387,7 +375,7 @@ export default function Users() {
                   <div className="hidden xl:block">
                     <button onClick={() => setPermissionsUser(user)}
                       className="text-xs text-slate-500 hover:text-violet-600 dark:text-slate-400 dark:hover:text-violet-400 transition">
-                      {user.permissions.length} permissions
+                      {t('users.page.permissions', { count: user.permissions.length })}
                     </button>
                   </div>
 
@@ -401,7 +389,7 @@ export default function Users() {
 
                   {/* Last login */}
                   <div className="hidden lg:block text-right min-w-[100px]">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{timeAgo(user.lastLoginAt)}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{timeAgo(user.lastLoginAt, t)}</p>
                   </div>
 
                   {/* Actions */}
@@ -409,26 +397,26 @@ export default function Users() {
                     <div className="flex shrink-0 items-center gap-1">
                       <button onClick={() => setSelectedUser(user)}
                         className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-violet-600 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-violet-400"
-                        title="Voir le profil">
+                        title={t('users.page.action.view')}>
                         <Eye className="h-4 w-4" />
                       </button>
                       <RowActionPortal>
-                        <MenuItem icon={<Eye className="h-4 w-4" />} label="Voir le profil"
+                        <MenuItem icon={<Eye className="h-4 w-4" />} label={t('users.page.action.view')}
                           onClick={() => { setSelectedUser(user) }} />
-                        <MenuItem icon={<Edit3 className="h-4 w-4" />} label="Modifier"
+                        <MenuItem icon={<Edit3 className="h-4 w-4" />} label={t('users.page.action.edit')}
                           onClick={() => { setEditUser(user) }} />
-                        <MenuItem icon={<Shield className="h-4 w-4" />} label="Gerer les roles"
+                        <MenuItem icon={<Shield className="h-4 w-4" />} label={t('users.page.action.roles')}
                           onClick={() => { setPermissionsUser(user) }} />
-                        <MenuItem icon={<Key className="h-4 w-4" />} label="Reinitialiser le mot de passe"
+                        <MenuItem icon={<Key className="h-4 w-4" />} label={t('users.page.action.reset')}
                           onClick={() => { setResetUser(user) }} />
                         <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
                         <MenuItem
                           icon={user.enabled ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                          label={user.enabled ? 'Desactiver' : 'Activer'}
+                          label={user.enabled ? t('users.page.action.disable') : t('users.page.action.enable')}
                           onClick={() => { toggleEnabled.mutate({ id: user.id, enabled: !user.enabled }) }}
                           danger={user.enabled} />
                         {!user.roles.includes('SUPER_ADMIN') && (
-                          <MenuItem icon={<Trash2 className="h-4 w-4" />} label="Supprimer"
+                          <MenuItem icon={<Trash2 className="h-4 w-4" />} label={t('users.page.action.delete')}
                             onClick={() => { setDeleteConfirm(user) }} danger />
                         )}
                       </RowActionPortal>
@@ -443,8 +431,9 @@ export default function Users() {
         {pagedUsers.length > 0 && (
           <div className="border-t border-slate-200/70 px-5 py-3 dark:border-slate-700/50">
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              {filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''} affiche{filteredUsers.length > 1 ? 's' : ''}
-              {search && ` pour "${search}"`}
+              {search
+                ? t('users.page.countSearch', { count: filteredUsers.length, q: search })
+                : t('users.page.count', { count: filteredUsers.length })}
             </p>
           </div>
         )}
@@ -467,14 +456,14 @@ export default function Users() {
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">
                 <Trash2 className="h-6 w-6" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Supprimer l'utilisateur</h3>
+              <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{t('users.page.delete.title')}</h3>
               <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Etes-vous sur de vouloir supprimer <strong>{deleteConfirm.username}</strong> ({deleteConfirm.firstName} {deleteConfirm.lastName}) ? Cette action est irreversible.
+                {t('users.page.delete.message', { username: deleteConfirm.username, name: `${deleteConfirm.firstName} ${deleteConfirm.lastName}`.trim() })}
               </p>
             </div>
             <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-700">
-              <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>Annuler</Button>
-              <Button variant="danger" onClick={() => deleteUser.mutate(deleteConfirm.id)} loading={deleteUser.isPending}>Supprimer</Button>
+              <Button variant="secondary" onClick={() => setDeleteConfirm(null)}>{t('common.cancel')}</Button>
+              <Button variant="danger" onClick={() => deleteUser.mutate(deleteConfirm.id)} loading={deleteUser.isPending}>{t('common.delete')}</Button>
             </div>
           </div>
         </div>
@@ -486,12 +475,20 @@ export default function Users() {
 /* ═══════════════════════════ Sous-composants ═══════════════════════════ */
 
 function ResetPasswordModal({ user, onClose }: { user: UserType; onClose: () => void }) {
+  const { t } = useI18n()
   const toast = useToast()
-  const [tempPassword, setTempPassword] = useState<string | null>(null)
+  const [sent, setSent] = useState(false)
+  const [manualPassword, setManualPassword] = useState<string | null>(null)
 
   const reset = useMutation({
-    mutationFn: () => apiPost<{ temporaryPassword: string }>(`/users/${user.id}/reset-password`),
-    onSuccess: (data) => setTempPassword(data.temporaryPassword),
+    mutationFn: () =>
+      apiPost<{ delivery: 'EMAIL' | 'MANUAL'; temporaryPassword: string | null }>(
+        `/users/${user.id}/reset-password`,
+      ),
+    onSuccess: (data) => {
+      setSent(true)
+      setManualPassword(data?.temporaryPassword ?? null)
+    },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
@@ -502,35 +499,46 @@ function ResetPasswordModal({ user, onClose }: { user: UserType; onClose: () => 
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
             <Key className="h-6 w-6" />
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Reinitialiser le mot de passe</h3>
-          {tempPassword === null ? (
+          <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{t('users.page.reset.title')}</h3>
+          {!sent ? (
             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-              Un mot de passe temporaire sera genere pour <strong>{user.username}</strong>. L'utilisateur devra le changer a sa prochaine connexion.
+              {t('users.page.reset.intro', { username: user.username, email: user.email })}
             </p>
-          ) : (
+          ) : manualPassword ? (
             <div className="mt-3 space-y-2">
-              <p className="text-sm text-slate-500 dark:text-slate-400">Mot de passe temporaire genere (a communiquer par un canal securise) :</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {t('users.page.reset.manual')}
+              </p>
               <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-900/40">
-                <code className="flex-1 break-all font-mono text-sm text-slate-800 dark:text-slate-200">{tempPassword}</code>
+                <code className="flex-1 break-all font-mono text-sm text-slate-800 dark:text-slate-200">{manualPassword}</code>
                 <button
-                  onClick={() => { navigator.clipboard?.writeText(tempPassword); toast.success('Copie') }}
+                  onClick={() => { navigator.clipboard?.writeText(manualPassword); toast.success(t('users.page.reset.copied')) }}
                   className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-                  title="Copier"
+                  title={t('users.page.reset.copy')}
                 >
                   <FileText className="h-4 w-4" />
                 </button>
               </div>
             </div>
+          ) : (
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {t('users.page.reset.sent', { email: user.email })}
+              </p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {t('users.page.reset.security')}
+              </p>
+            </div>
           )}
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-700">
-          {tempPassword === null ? (
+          {!sent ? (
             <>
-              <Button variant="secondary" onClick={onClose}>Annuler</Button>
-              <Button variant="primary" onClick={() => reset.mutate()} loading={reset.isPending}>Reinitialiser</Button>
+              <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={() => reset.mutate()} loading={reset.isPending}>{t('users.page.reset.submit')}</Button>
             </>
           ) : (
-            <Button variant="primary" onClick={onClose}>Fermer</Button>
+            <Button variant="primary" onClick={onClose}>{t('common.close')}</Button>
           )}
         </div>
       </div>
@@ -594,8 +602,10 @@ function UserProfilePanel({ user, onClose, onEdit, onManageAccess }: {
   onEdit: (u: UserType) => void
   onManageAccess: (u: UserType) => void
 }) {
-  const status = getStatusInfo(user)
+  const { t, has } = useI18n()
+  const status = getStatusInfo(user, t)
   const roleInfo = ROLE_COLORS[user.roles[0]] ?? ROLE_COLORS.ADMIN
+  const roleLabel = (code?: string) => (code ? (has(`role.${code}`) ? t(`role.${code}`) : code) : '--')
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
@@ -607,7 +617,7 @@ function UserProfilePanel({ user, onClose, onEdit, onManageAccess }: {
               <p className="text-sm text-slate-500 dark:text-slate-400 font-mono">@{user.username}</p>
               <div className="mt-1 flex items-center gap-2">
                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${roleInfo.bg} ${roleInfo.text}`}>
-                  {roleInfo.icon} {user.roles[0] ? ROLE_LABELS[user.roles[0]] ?? user.roles[0] : '--'}
+                  {roleInfo.icon} {roleLabel(user.roles[0])}
                 </span>
                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${status.bg} ${status.color}`}>
                   {status.icon} {status.label}
@@ -621,13 +631,13 @@ function UserProfilePanel({ user, onClose, onEdit, onManageAccess }: {
         </div>
         <div className="px-6 py-5 space-y-5">
           <div className="grid grid-cols-2 gap-4">
-            <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={user.email || '--'} />
-            <InfoRow icon={<Phone className="h-4 w-4" />} label="Telephone" value={user.phone || '--'} />
-            <InfoRow icon={<CalendarDays className="h-4 w-4" />} label="Cree le" value={fmtDateTime(user.createdAt)} />
-            <InfoRow icon={<Clock className="h-4 w-4" />} label="Derniere connexion" value={timeAgo(user.lastLoginAt)} />
+            <InfoRow icon={<Mail className="h-4 w-4" />} label={t('tp.email')} value={user.email || '--'} />
+            <InfoRow icon={<Phone className="h-4 w-4" />} label={t('tp.phone')} value={user.phone || '--'} />
+            <InfoRow icon={<CalendarDays className="h-4 w-4" />} label={t('users.page.profile.created')} value={fmtDateTime(user.createdAt)} />
+            <InfoRow icon={<Clock className="h-4 w-4" />} label={t('users.page.profile.lastLogin')} value={timeAgo(user.lastLoginAt, t)} />
           </div>
           <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800/50">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">Permissions ({user.permissions.length})</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-2">{t('users.page.profile.permissions', { count: user.permissions.length })}</p>
             <div className="flex flex-wrap gap-1.5">
               {user.permissions.slice(0, 12).map((p) => (
                 <span key={p} className="inline-flex items-center rounded-lg bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-900/20 dark:text-violet-400">
@@ -635,16 +645,16 @@ function UserProfilePanel({ user, onClose, onEdit, onManageAccess }: {
                 </span>
               ))}
               {user.permissions.length > 12 && (
-                <span className="text-xs text-slate-400 dark:text-slate-500">+{user.permissions.length - 12} autres</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">{t('users.page.profile.more', { count: user.permissions.length - 12 })}</span>
               )}
             </div>
           </div>
           <div className="flex items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
             <Button variant="primary" size="sm" onClick={() => { onEdit(user) }}>
-              <Edit3 className="h-3.5 w-3.5" /> Modifier
+              <Edit3 className="h-3.5 w-3.5" /> {t('common.edit')}
             </Button>
             <Button variant="secondary" size="sm" onClick={() => onManageAccess(user)}>
-              <Shield className="h-3.5 w-3.5" /> Gerer les acces
+              <Shield className="h-3.5 w-3.5" /> {t('users.page.profile.manage')}
             </Button>
           </div>
         </div>
@@ -667,16 +677,18 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 
 /* -- Permissions Panel -- */
 function PermissionsPanel({ user, roles, onClose }: { user: UserType; roles: Role[]; onClose: () => void }) {
+  const { t, has } = useI18n()
   const [searchPerm, setSearchPerm] = useState('')
   const role = roles.find((r) => r.code === user.roles[0])
   const allPerms = role?.permissions ?? user.permissions
   const filtered = searchPerm ? allPerms.filter((p) => p.toLowerCase().includes(searchPerm.toLowerCase())) : allPerms
+  const roleLabel = (code?: string) => (code ? (has(`role.${code}`) ? t(`role.${code}`) : code) : t('users.page.perms.none'))
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm sm:p-8" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="relative w-full max-w-xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Roles et permissions</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('users.page.perms.title')}</h3>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{user.firstName} {user.lastName} ({user.username})</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700">
@@ -685,16 +697,16 @@ function PermissionsPanel({ user, roles, onClose }: { user: UserType; roles: Rol
         </div>
         <div className="px-6 py-5 space-y-4">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500 dark:text-slate-400">Role actuel :</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">{t('users.page.perms.current')}</span>
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 dark:bg-violet-900/20 dark:text-violet-400">
               <Shield className="h-4 w-4" />
-              {ROLE_LABELS[user.roles[0]] ?? user.roles[0] ?? 'Aucun role'}
+              {roleLabel(user.roles[0])}
             </span>
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input value={searchPerm} onChange={(e) => setSearchPerm(e.target.value)}
-              placeholder="Rechercher une permission..."
+              placeholder={t('users.page.perms.search')}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-400" />
           </div>
           <div className="max-h-80 overflow-y-auto space-y-1.5">
@@ -705,7 +717,7 @@ function PermissionsPanel({ user, roles, onClose }: { user: UserType; roles: Rol
               </label>
             ))}
             {filtered.length === 0 && (
-              <p className="py-4 text-center text-sm text-slate-400 dark:text-slate-500">Aucune permission trouvee</p>
+              <p className="py-4 text-center text-sm text-slate-400 dark:text-slate-500">{t('users.page.perms.empty')}</p>
             )}
           </div>
         </div>
@@ -716,7 +728,9 @@ function PermissionsPanel({ user, roles, onClose }: { user: UserType; roles: Rol
 
 /* -- Create User Modal : wizard 3 étapes -- */
 function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => void }) {
+  const { t, has } = useI18n()
   const [form, setForm] = useState({ username: '', firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '', roleCode: '' })
+  const roleLabel = (code?: string) => (code ? (has(`role.${code}`) ? t(`role.${code}`) : code) : '—')
   const [step, setStep] = useState(0)
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -727,7 +741,7 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
       email: form.email || undefined, phone: form.phone || undefined,
       password: form.password, roleCodes: form.roleCode ? [form.roleCode] : [],
     }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); onClose(); toast.success('Utilisateur cree') },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); onClose(); toast.success(t('users.page.create.created')) },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
@@ -735,7 +749,7 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
   const step0Valid = form.username.trim().length >= 3 && !!form.roleCode
   const step1Valid = form.password.length >= 6 && form.confirmPassword === form.password && emailValid
   const canSubmit = step0Valid && step1Valid
-  const roleName = roles.find((r) => r.code === form.roleCode)?.name ?? form.roleCode ?? '—'
+  const roleName = form.roleCode ? roleLabel(form.roleCode) : '—'
 
   function close() { setStep(0); onClose() }
   function next() {
@@ -748,14 +762,14 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
     if (canSubmit) create.mutate()
   }
 
-  const subtitles = ['Compte et rôle', 'Identité et sécurité', 'Vérification et validation']
+  const subtitles = [t('users.page.create.subtitle.account'), t('users.page.create.subtitle.identity'), t('users.page.create.subtitle.summary')]
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-2 backdrop-blur-sm sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="relative w-full max-w-6xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Étape {step + 1}/3 — Nouvel utilisateur</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('users.page.create.title', { step: step + 1 })}</h3>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitles[step]}</p>
           </div>
           <button onClick={close} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700"><X className="h-5 w-5" /></button>
@@ -771,7 +785,7 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
               ))}
             </div>
             <div className="mt-1.5 flex justify-between text-[11px] font-medium uppercase tracking-wide">
-              {['Compte', 'Sécurité', 'Récapitulatif'].map((label, i) => (
+              {[t('users.page.create.step.account'), t('users.page.create.step.security'), t('users.page.create.step.summary')].map((label, i) => (
                 <span key={label} className={i <= step ? 'text-brand-600 dark:text-brand-400' : 'text-slate-400'}>{label}</span>
               ))}
             </div>
@@ -780,12 +794,12 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
           {step === 0 && (
             <div className="space-y-4 animate-fade-in">
               <div className="grid grid-cols-2 gap-4">
-                <FieldInput label="Identifiant *" value={form.username} onChange={(v) => setForm({ ...form, username: v })} placeholder="ex: agent.nouveau" />
-                <FieldSelect label="Role *" value={form.roleCode} onChange={(v) => setForm({ ...form, roleCode: v })}
-                  options={[{ value: '', label: 'Selectionner...' }, ...roles.map((r) => ({ value: r.code, label: r.name }))]} />
+                <FieldInput label={t('users.page.create.username')} value={form.username} onChange={(v) => setForm({ ...form, username: v })} placeholder={t('users.page.create.usernamePlaceholder')} />
+                <FieldSelect label={t('users.page.create.role')} value={form.roleCode} onChange={(v) => setForm({ ...form, roleCode: v })}
+                  options={[{ value: '', label: t('users.page.create.select') }, ...roles.map((r) => ({ value: r.code, label: has(`role.${r.code}`) ? t(`role.${r.code}`) : r.name }))]} />
               </div>
               {!step0Valid && (
-                <p className="text-xs text-slate-400">Identifiant (min 3 caractères) et rôle requis pour continuer.</p>
+                <p className="text-xs text-slate-400">{t('users.page.create.usernameHint')}</p>
               )}
             </div>
           )}
@@ -793,37 +807,37 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
           {step === 1 && (
             <div className="space-y-4 animate-fade-in">
               <div className="grid grid-cols-2 gap-4">
-                <FieldInput label="Prenom" value={form.firstName} onChange={(v) => setForm({ ...form, firstName: v })} />
-                <FieldInput label="Nom" value={form.lastName} onChange={(v) => setForm({ ...form, lastName: v })} />
+                <FieldInput label={t('users.page.create.firstName')} value={form.firstName} onChange={(v) => setForm({ ...form, firstName: v })} />
+                <FieldInput label={t('users.page.create.lastName')} value={form.lastName} onChange={(v) => setForm({ ...form, lastName: v })} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FieldInput label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-                <FieldInput label="Telephone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+                <FieldInput label={t('users.page.create.email')} type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+                <FieldInput label={t('users.page.create.phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
               </div>
-              {!emailValid && <p className="text-xs text-rose-600">Format d'email invalide.</p>}
+              {!emailValid && <p className="text-xs text-rose-600">{t('users.page.create.emailInvalid')}</p>}
               <div className="grid grid-cols-2 gap-4">
-                <FieldInput label="Mot de passe *" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
-                <FieldInput label="Confirmer *" type="password" value={form.confirmPassword} onChange={(v) => setForm({ ...form, confirmPassword: v })} />
+                <FieldInput label={t('users.page.create.password')} type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} />
+                <FieldInput label={t('users.page.create.confirm')} type="password" value={form.confirmPassword} onChange={(v) => setForm({ ...form, confirmPassword: v })} />
               </div>
               {form.password && form.password.length < 6 && (
-                <p className="text-xs text-rose-600">Le mot de passe doit contenir au moins 6 caractères.</p>
+                <p className="text-xs text-rose-600">{t('users.page.create.passwordShort')}</p>
               )}
               {form.confirmPassword && form.confirmPassword !== form.password && (
-                <p className="text-xs text-rose-600">Les mots de passe ne correspondent pas.</p>
+                <p className="text-xs text-rose-600">{t('users.page.create.passwordMismatch')}</p>
               )}
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-4 animate-fade-in">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Récapitulatif</h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('users.page.create.summary')}</h4>
               <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
-                <div className="flex justify-between gap-4"><span className="text-slate-500">Identifiant</span><span className="font-mono font-medium text-slate-900 dark:text-slate-100">{form.username || '—'}</span></div>
-                <div className="flex justify-between gap-4"><span className="text-slate-500">Nom complet</span><span className="font-medium text-slate-900 dark:text-slate-100">{`${form.firstName} ${form.lastName}`.trim() || '—'}</span></div>
-                <div className="flex justify-between gap-4"><span className="text-slate-500">Email</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.email || '—'}</span></div>
-                <div className="flex justify-between gap-4"><span className="text-slate-500">Téléphone</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.phone || '—'}</span></div>
-                <div className="flex justify-between gap-4"><span className="text-slate-500">Rôle</span><span className="font-medium text-violet-600 dark:text-violet-400">{roleName}</span></div>
-                <div className="flex justify-between gap-4"><span className="text-slate-500">Mot de passe</span><span className="font-medium text-slate-900 dark:text-slate-100">••••••</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">{t('users.page.create.username').replace(' *', '')}</span><span className="font-mono font-medium text-slate-900 dark:text-slate-100">{form.username || '—'}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">{t('users.page.create.fullName')}</span><span className="font-medium text-slate-900 dark:text-slate-100">{`${form.firstName} ${form.lastName}`.trim() || '—'}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">{t('users.page.create.email')}</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.email || '—'}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">{t('users.page.create.phone')}</span><span className="font-medium text-slate-900 dark:text-slate-100">{form.phone || '—'}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">{t('users.page.create.roleField')}</span><span className="font-medium text-violet-600 dark:text-violet-400">{roleName}</span></div>
+                <div className="flex justify-between gap-4"><span className="text-slate-500">{t('users.page.create.password').replace(' *', '')}</span><span className="font-medium text-slate-900 dark:text-slate-100">••••••</span></div>
               </div>
             </div>
           )}
@@ -831,18 +845,18 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
           <div className="flex justify-between gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
             <div>
               {step > 0 && (
-                <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>← Précédent</Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setStep(step - 1)}>{t('users.page.create.back')}</Button>
               )}
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="secondary" onClick={close}>Annuler</Button>
+              <Button type="button" variant="secondary" onClick={close}>{t('common.cancel')}</Button>
               {step < 2 ? (
                 <Button type="submit" disabled={(step === 0 && !step0Valid) || (step === 1 && !step1Valid)}>
-                  Suivant →
+                  {t('users.page.create.next')}
                 </Button>
               ) : (
                 <Button type="submit" disabled={create.isPending || !canSubmit} loading={create.isPending}>
-                  <Plus className="h-4 w-4" /> Creer l'utilisateur
+                  <Plus className="h-4 w-4" /> {t('users.page.create.submit')}
                 </Button>
               )}
             </div>
@@ -855,6 +869,7 @@ function CreateUserModal({ roles, onClose }: { roles: Role[]; onClose: () => voi
 
 /* -- Edit User Modal -- */
 function EditUserModal({ user, roles, onClose }: { user: UserType; roles: Role[]; onClose: () => void }) {
+  const { t, has } = useI18n()
   const [form, setForm] = useState({ firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone ?? '', roleCode: user.roles[0] ?? '' })
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -865,7 +880,7 @@ function EditUserModal({ user, roles, onClose }: { user: UserType; roles: Role[]
       email: form.email || undefined, phone: form.phone || undefined,
       roleCodes: form.roleCode ? [form.roleCode] : [],
     }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); onClose(); toast.success('Utilisateur mis a jour') },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); onClose(); toast.success(t('users.page.edit.saved')) },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
   })
 
@@ -874,7 +889,7 @@ function EditUserModal({ user, roles, onClose }: { user: UserType; roles: Role[]
       <div className="relative w-full max-w-2xl rounded-2xl bg-white border border-slate-200 shadow-2xl dark:bg-slate-800 dark:border-slate-700">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Modifier : {user.username}</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t('users.page.edit.title', { username: user.username })}</h3>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{user.firstName} {user.lastName}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700"><X className="h-5 w-5" /></button>
@@ -884,19 +899,19 @@ function EditUserModal({ user, roles, onClose }: { user: UserType; roles: Role[]
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">{apiErrorMessage(update.error)}</div>
           )}
           <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Prenom" value={form.firstName} onChange={(v) => setForm({ ...form, firstName: v })} />
-            <FieldInput label="Nom" value={form.lastName} onChange={(v) => setForm({ ...form, lastName: v })} />
+            <FieldInput label={t('users.page.create.firstName')} value={form.firstName} onChange={(v) => setForm({ ...form, firstName: v })} />
+            <FieldInput label={t('users.page.create.lastName')} value={form.lastName} onChange={(v) => setForm({ ...form, lastName: v })} />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <FieldInput label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-            <FieldInput label="Telephone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+            <FieldInput label={t('users.page.create.email')} type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+            <FieldInput label={t('users.page.create.phone')} value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
           </div>
-          <FieldSelect label="Role" value={form.roleCode} onChange={(v) => setForm({ ...form, roleCode: v })}
-            options={roles.map((r) => ({ value: r.code, label: r.name }))} />
+          <FieldSelect label={t('users.page.create.roleField')} value={form.roleCode} onChange={(v) => setForm({ ...form, roleCode: v })}
+            options={roles.map((r) => ({ value: r.code, label: has(`role.${r.code}`) ? t(`role.${r.code}`) : r.name }))} />
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-700/50">
-            <Button type="button" variant="secondary" onClick={onClose}>Annuler</Button>
+            <Button type="button" variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
             <Button type="submit" disabled={update.isPending} loading={update.isPending}>
-              <Edit3 className="h-4 w-4" /> Enregistrer
+              <Edit3 className="h-4 w-4" /> {t('users.page.edit.save')}
             </Button>
           </div>
         </form>

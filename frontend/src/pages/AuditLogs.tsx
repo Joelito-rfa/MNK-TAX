@@ -4,6 +4,8 @@ import { apiGet } from '../lib/api'
 import type { AuditLog, Page } from '../types'
 import { Button, Card, EmptyState } from '../components/ui'
 import { UserAvatar } from '../components/UserAvatar'
+import { useI18n } from '../lib/i18n'
+import { ExportButton } from '../components/ExportButton'
 import {
   Activity,
   AlertTriangle,
@@ -31,27 +33,26 @@ import {
   X,
   ArrowUp,
   ArrowDown,
-  Download,
 } from 'lucide-react'
 
 /* ═══════════════════════════ Constantes ═══════════════════════════ */
 
-const ACTION_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  CREATE: { label: 'Creation', color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/30', icon: <Check className="h-3 w-3" /> },
-  UPDATE: { label: 'Modification', color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/30', icon: <Check className="h-3 w-3" /> },
-  DELETE: { label: 'Suppression', color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/30', icon: <Trash2 className="h-3 w-3" /> },
-  VALIDATE: { label: 'Validation', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', icon: <CheckCircle2 className="h-3 w-3" /> },
-  REJECT: { label: 'Rejet', color: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/30', icon: <AlertTriangle className="h-3 w-3" /> },
-  LOGIN: { label: 'Connexion', color: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-900/30', icon: <LogIn className="h-3 w-3" /> },
-  LOGIN_FAILED: { label: 'Echec connexion', color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/30', icon: <LogOut className="h-3 w-3" /> },
-  PAYMENT: { label: 'Paiement', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', icon: <CreditCard className="h-3 w-3" /> },
-  SUBMIT: { label: 'Soumission', color: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-900/30', icon: <Upload className="h-3 w-3" /> },
-  ADJUSTMENT: { label: 'Ajustement', color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/30', icon: <Check className="h-3 w-3" /> },
-  MARK_OVERDUE: { label: 'Marquage retard', color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/30', icon: <Clock className="h-3 w-3" /> },
-  RULE_CHANGE: { label: 'Modification regle', color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/30', icon: <Check className="h-3 w-3" /> },
-  PASSWORD_CHANGE: { label: 'Changement mot de passe', color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/30', icon: <Check className="h-3 w-3" /> },
-  ENABLE: { label: 'Activation', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', icon: <CheckCircle2 className="h-3 w-3" /> },
-  DISABLE: { label: 'Desactivation', color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/30', icon: <AlertTriangle className="h-3 w-3" /> },
+const ACTION_CONFIG: Record<string, { labelKey: string; color: string; bg: string; icon: React.ReactNode }> = {
+  CREATE: { labelKey: 'audit.action.CREATE', color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/30', icon: <Check className="h-3 w-3" /> },
+  UPDATE: { labelKey: 'audit.action.UPDATE', color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/30', icon: <Check className="h-3 w-3" /> },
+  DELETE: { labelKey: 'audit.action.DELETE', color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/30', icon: <Trash2 className="h-3 w-3" /> },
+  VALIDATE: { labelKey: 'audit.action.VALIDATE', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', icon: <CheckCircle2 className="h-3 w-3" /> },
+  REJECT: { labelKey: 'audit.action.REJECT', color: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-900/30', icon: <AlertTriangle className="h-3 w-3" /> },
+  LOGIN: { labelKey: 'audit.action.LOGIN', color: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-900/30', icon: <LogIn className="h-3 w-3" /> },
+  LOGIN_FAILED: { labelKey: 'audit.action.LOGIN_FAILED', color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/30', icon: <LogOut className="h-3 w-3" /> },
+  PAYMENT: { labelKey: 'audit.action.PAYMENT', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', icon: <CreditCard className="h-3 w-3" /> },
+  SUBMIT: { labelKey: 'audit.action.SUBMIT', color: 'text-violet-700 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-900/30', icon: <Upload className="h-3 w-3" /> },
+  ADJUSTMENT: { labelKey: 'audit.action.ADJUSTMENT', color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/30', icon: <Check className="h-3 w-3" /> },
+  MARK_OVERDUE: { labelKey: 'audit.action.MARK_OVERDUE', color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-900/30', icon: <Clock className="h-3 w-3" /> },
+  RULE_CHANGE: { labelKey: 'audit.action.RULE_CHANGE', color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/30', icon: <Check className="h-3 w-3" /> },
+  PASSWORD_CHANGE: { labelKey: 'audit.action.PASSWORD_CHANGE', color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/30', icon: <Check className="h-3 w-3" /> },
+  ENABLE: { labelKey: 'audit.action.ENABLE', color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/30', icon: <CheckCircle2 className="h-3 w-3" /> },
+  DISABLE: { labelKey: 'audit.action.DISABLE', color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-900/30', icon: <AlertTriangle className="h-3 w-3" /> },
 }
 
 const ENTITY_ICONS: Record<string, React.ReactNode> = {
@@ -88,43 +89,49 @@ const ENTITY_COLORS: Record<string, string> = {
   SYSTEM: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400',
 }
 
-const ENTITY_LABELS: Record<string, string> = {
-  DECLARATION: 'Declaration',
-  RECEIPT: 'Quittance',
-  DEBT: 'Creance',
-  PAYMENT: 'Paiement',
-  TAXPAYER: 'Contribuable',
-  ROLE: 'Role',
-  USER: 'Utilisateur',
-  AVATAR: 'Avatar',
-  PROFILE: 'Profil',
-  CONTROL: 'Controle',
-  COLLECTION: 'Recouvrement',
-  MESSAGE: 'Message',
-  RULE: 'Regle',
-  SYSTEM: 'Systeme',
-  ASSESSMENT: 'Imposition',
+const ENTITY_LABEL_KEYS: Record<string, string> = {
+  DECLARATION: 'audit.entity.DECLARATION',
+  RECEIPT: 'audit.entity.RECEIPT',
+  DEBT: 'audit.entity.DEBT',
+  PAYMENT: 'audit.entity.PAYMENT',
+  TAXPAYER: 'audit.entity.TAXPAYER',
+  ROLE: 'audit.entity.ROLE',
+  USER: 'audit.entity.USER',
+  AVATAR: 'audit.entity.AVATAR',
+  PROFILE: 'audit.entity.PROFILE',
+  CONTROL: 'audit.entity.CONTROL',
+  COLLECTION: 'audit.entity.COLLECTION',
+  MESSAGE: 'audit.entity.MESSAGE',
+  RULE: 'audit.entity.RULE',
+  SYSTEM: 'audit.entity.SYSTEM',
+  ASSESSMENT: 'audit.entity.ASSESSMENT',
 }
 
 const DATE_OPTIONS = [
-  { id: 'all', label: 'Toutes les dates' },
-  { id: 'today', label: "Aujourd'hui" },
-  { id: 'yesterday', label: 'Hier' },
-  { id: '7d', label: '7 derniers jours' },
-  { id: '30d', label: '30 derniers jours' },
+  { id: 'all', labelKey: 'audit.date.all' },
+  { id: 'today', labelKey: 'audit.date.today' },
+  { id: 'yesterday', labelKey: 'audit.date.yesterday' },
+  { id: '7d', labelKey: 'audit.date.7d' },
+  { id: '30d', labelKey: 'audit.date.30d' },
 ]
 
 const PAGE_SIZES = [10, 25, 50, 100]
 
 /* ═══════════════════════════ Helpers ═══════════════════════════ */
 
-function getActionConfig(action: string) {
-  return ACTION_CONFIG[action] ?? {
-    label: action,
-    color: 'text-slate-700 dark:text-slate-300',
-    bg: 'bg-slate-100 dark:bg-slate-700',
-    icon: <Activity className="h-3 w-3" />,
+type TFunc = (key: string, vars?: Record<string, string | number>) => string
+
+function getActionConfig(action: string, t: TFunc) {
+  const cfg = ACTION_CONFIG[action]
+  if (!cfg) {
+    return {
+      label: action,
+      color: 'text-slate-700 dark:text-slate-300',
+      bg: 'bg-slate-100 dark:bg-slate-700',
+      icon: <Activity className="h-3 w-3" />,
+    }
   }
+  return { ...cfg, label: t(cfg.labelKey) }
 }
 
 function getEntityIcon(entityType: string) {
@@ -135,8 +142,9 @@ function getEntityColor(entityType: string) {
   return ENTITY_COLORS[entityType] ?? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
 }
 
-function getEntityLabel(entityType: string) {
-  return ENTITY_LABELS[entityType] ?? entityType
+function getEntityLabel(entityType: string, t: TFunc) {
+  const key = ENTITY_LABEL_KEYS[entityType]
+  return key ? t(key) : entityType
 }
 
 function getDateRange(dateOption: string): { from?: string; to?: string } {
@@ -165,20 +173,18 @@ function getDateRange(dateOption: string): { from?: string; to?: string } {
   }
 }
 
-
-
-function formatDateShort(iso: string): string {
+function formatDateShort(iso: string, locale: string): string {
   if (!iso) return '--'
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+  return d.toLocaleDateString(locale === 'en' ? 'en-GB' : 'fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, locale: string): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return d.toLocaleTimeString(locale === 'en' ? 'en-GB' : 'fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function formatUserAgent(ua: string | null): string {
@@ -194,6 +200,7 @@ function copyToClipboard(text: string) {
 /* ═══════════════════════════ Main Component ═══════════════════════════ */
 
 export default function AuditLogs() {
+  const { t, locale } = useI18n()
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(25)
   const [search, setSearch] = useState('')
@@ -258,12 +265,15 @@ export default function AuditLogs() {
   /* -- Filtres actifs -- */
   const activeFilters = useMemo(() => {
     const filters: { key: string; label: string; value: string }[] = []
-    if (search.trim()) filters.push({ key: 'search', label: `Recherche: "${search}"`, value: search })
-    if (filterAction) filters.push({ key: 'action', label: `Action: ${ACTION_CONFIG[filterAction]?.label ?? filterAction}`, value: filterAction })
-    if (filterEntity) filters.push({ key: 'entity', label: `Entite: ${getEntityLabel(filterEntity)}`, value: filterEntity })
-    if (filterDate !== 'all') filters.push({ key: 'date', label: `Date: ${DATE_OPTIONS.find((d) => d.id === filterDate)?.label}`, value: filterDate })
+    if (search.trim()) filters.push({ key: 'search', label: `${t('common.search')}: "${search}"`, value: search })
+    if (filterAction) filters.push({ key: 'action', label: `${t('audit.page.action')}: ${getActionConfig(filterAction, t).label}`, value: filterAction })
+    if (filterEntity) filters.push({ key: 'entity', label: `${t('audit.page.entity')}: ${getEntityLabel(filterEntity, t)}`, value: filterEntity })
+    if (filterDate !== 'all') {
+      const opt = DATE_OPTIONS.find((d) => d.id === filterDate)
+      filters.push({ key: 'date', label: `${t('audit.page.date')}: ${opt ? t(opt.labelKey) : ''}`, value: filterDate })
+    }
     return filters
-  }, [search, filterAction, filterEntity, filterDate])
+  }, [search, filterAction, filterEntity, filterDate, t])
 
   const removeFilter = useCallback((key: string) => {
     switch (key) {
@@ -327,10 +337,10 @@ export default function AuditLogs() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">
-              Journal d'audit
+              {t('audit.title')}
             </h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Traçabilite des actions sensibles et des connexions
+              {t('audit.page.subtitle')}
             </p>
           </div>
         </div>
@@ -339,10 +349,10 @@ export default function AuditLogs() {
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-100 text-red-500 dark:bg-red-900/30 dark:text-red-400">
               <AlertTriangle className="h-6 w-6" />
             </div>
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Impossible de charger le journal d'audit</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500">Verifiez votre connexion puis reessayez.</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('audit.page.loadError')}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">{t('audit.page.loadErrorHint')}</p>
             <Button variant="secondary" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" /> Reessayer
+              <RefreshCw className="h-4 w-4" /> {t('audit.page.retry')}
             </Button>
           </div>
         </Card>
@@ -361,36 +371,35 @@ export default function AuditLogs() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-[28px] font-[650] leading-tight tracking-tight text-slate-900 dark:text-slate-50">
-              Journal d'audit
+              {t('audit.title')}
             </h1>
             <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
               <ShieldCheck className="h-3 w-3" />
-              Securise
+              {t('audit.page.secured')}
             </span>
           </div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Traçabilite des actions sensibles et des connexions
+            {t('audit.page.subtitle')}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="secondary" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" /> Actualiser
+            <RefreshCw className="h-4 w-4" /> {t('common.refresh')}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => {
-            if (!data) return
-            const csv = ['Date,Utilisateur,Action,Entite,IP'].concat(
-              data.content.map((l) => `"${l.createdAt}","${l.username}","${l.action}","${l.entityType} #${l.entityId}","${l.ipAddress || ''}"`),
-            ).join('\n')
-            const blob = new Blob([csv], { type: 'text/csv' })
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`
-            a.click()
-            URL.revokeObjectURL(url)
-          }}>
-            <Download className="h-4 w-4" /> Exporter
-          </Button>
+          <ExportButton
+            filenameBase={`audit-logs-${new Date().toISOString().slice(0, 10)}`}
+            title={t('audit.title')}
+            headers={t('audit.page.exportHeaders').split(',')}
+            rows={async () => {
+              const p = new URLSearchParams(params)
+              p.delete('page')
+              p.delete('size')
+              const rows = await apiGet<Page<AuditLog>>(`/audit-logs?${p.toString()}&size=9999`)
+              return rows.content.map((l) => [
+                l.createdAt, l.username, l.action, `${l.entityType} #${l.entityId}`, l.ipAddress || '',
+              ])
+            }}
+          />
         </div>
       </div>
 
@@ -398,12 +407,12 @@ export default function AuditLogs() {
       <div className="flex items-center gap-4 text-xs text-slate-400 dark:text-slate-500">
         <span className="inline-flex items-center gap-1.5">
           <FileClock className="h-3.5 w-3.5" />
-          <span className="font-medium text-slate-600 dark:text-slate-300">{totalElements}</span> evenement{totalElements !== 1 ? 's' : ''} enregistre{totalElements !== 1 ? 's' : ''}
+          <span className="font-medium text-slate-600 dark:text-slate-300">{t('audit.page.events', { count: totalElements })}</span>
         </span>
         {activeFilters.length > 0 && (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2 py-0.5 text-violet-600 dark:bg-violet-900/20 dark:text-violet-400">
             <Filter className="h-3 w-3" />
-            {activeFilters.length} filtre{activeFilters.length > 1 ? 's' : ''} actif{activeFilters.length > 1 ? 's' : ''}
+            {t('audit.page.activeFilters', { count: activeFilters.length })}
           </span>
         )}
       </div>
@@ -417,7 +426,7 @@ export default function AuditLogs() {
             <input
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(0) }}
-              placeholder="Rechercher un utilisateur, une action, une entite ou une reference..."
+              placeholder={t('audit.page.searchPlaceholder')}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-violet-400 focus:bg-white focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-violet-400"
             />
             {search && (
@@ -437,7 +446,7 @@ export default function AuditLogs() {
             }`}
           >
             <Filter className="h-4 w-4" />
-            Filtres
+            {t('audit.page.filters')}
             {activeFilters.length > 0 && (
               <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">
                 {activeFilters.length}
@@ -451,7 +460,7 @@ export default function AuditLogs() {
             <button onClick={resetFilters}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 transition">
               <X className="h-3.5 w-3.5" />
-              Reinitialiser
+              {t('audit.page.reset')}
             </button>
           )}
 
@@ -459,12 +468,12 @@ export default function AuditLogs() {
 
           {/* Page size */}
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-            <span className="text-xs">Afficher</span>
+            <span className="text-xs">{t('audit.page.show')}</span>
             <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(0) }}
               className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm text-slate-700 outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
-            <span className="text-xs">par page</span>
+            <span className="text-xs">{t('audit.page.perPage')}</span>
           </div>
         </div>
 
@@ -474,35 +483,35 @@ export default function AuditLogs() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Action */}
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Action</label>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('audit.page.action')}</label>
                 <select value={filterAction} onChange={(e) => { setFilterAction(e.target.value); setPage(0) }}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:focus:border-violet-400">
-                  <option value="">Toutes les actions</option>
+                  <option value="">{t('audit.page.allActions')}</option>
                   {Object.entries(ACTION_CONFIG).map(([key, cfg]) => (
-                    <option key={key} value={key}>{cfg.label}</option>
+                    <option key={key} value={key}>{t(cfg.labelKey)}</option>
                   ))}
                 </select>
               </div>
 
               {/* Entity */}
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Entite</label>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('audit.page.entity')}</label>
                 <select value={filterEntity} onChange={(e) => { setFilterEntity(e.target.value); setPage(0) }}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:focus:border-violet-400">
-                  <option value="">Toutes les entites</option>
-                  {Object.keys(ENTITY_LABELS).map((key) => (
-                    <option key={key} value={key}>{ENTITY_LABELS[key]}</option>
+                  <option value="">{t('audit.page.allEntities')}</option>
+                  {Object.keys(ENTITY_LABEL_KEYS).map((key) => (
+                    <option key={key} value={key}>{getEntityLabel(key, t)}</option>
                   ))}
                 </select>
               </div>
 
               {/* Date */}
               <div>
-                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Periode</label>
+                <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t('audit.page.period')}</label>
                 <select value={filterDate} onChange={(e) => { setFilterDate(e.target.value); setPage(0) }}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-violet-400 focus:ring-4 focus:ring-violet-500/10 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:focus:border-violet-400">
                   {DATE_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                    <option key={opt.id} value={opt.id}>{t(opt.labelKey)}</option>
                   ))}
                 </select>
               </div>
@@ -512,7 +521,7 @@ export default function AuditLogs() {
                 <button onClick={resetFilters}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700">
                   <X className="h-4 w-4" />
-                  Reinitialiser tout
+                  {t('audit.page.resetAll')}
                 </button>
               </div>
             </div>
@@ -533,7 +542,7 @@ export default function AuditLogs() {
               </span>
             ))}
             <button onClick={resetFilters} className="text-xs text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition">
-              Tout effacer
+              {t('audit.page.clearAll')}
             </button>
           </div>
         )}
@@ -542,7 +551,7 @@ export default function AuditLogs() {
         {selectedIds.size > 0 && (
           <div className="flex items-center justify-between border-b border-violet-200 bg-violet-50 px-5 py-2.5 dark:border-violet-800 dark:bg-violet-900/20">
             <p className="text-sm font-medium text-violet-700 dark:text-violet-400">
-              {selectedIds.size} evenement{selectedIds.size > 1 ? 's' : ''} selectionne{selectedIds.size > 1 ? 's' : ''}
+              {t('audit.page.selected', { count: selectedIds.size })}
             </p>
             <div className="flex items-center gap-2">
               <Button variant="secondary" size="sm" onClick={() => {
@@ -550,7 +559,7 @@ export default function AuditLogs() {
                 const text = logsToCopy.map((l) => `${l.createdAt} | ${l.username} | ${l.action} | ${l.entityType} #${l.entityId} | ${l.ipAddress || '--'}`).join('\n')
                 copyToClipboard(text)
               }}>
-                <Copy className="h-3.5 w-3.5" /> Copier
+                <Copy className="h-3.5 w-3.5" /> {t('audit.page.copy')}
               </Button>
               <button onClick={() => setSelectedIds(new Set())} className="rounded-lg p-1.5 text-violet-500 hover:bg-violet-100 dark:hover:bg-violet-800/50">
                 <X className="h-4 w-4" />
@@ -562,12 +571,12 @@ export default function AuditLogs() {
         {/* === 7. TABLE === */}
         {logs.length === 0 ? (
           <div className="py-16">
-            <EmptyState icon={<FileClock className="h-10 w-10" />} title="Aucun evenement trouve"
-              subtitle={activeFilters.length > 0 ? "Aucun evenement ne correspond aux criteres selectionnes." : "Le journal d'audit est vide."} />
+            <EmptyState icon={<FileClock className="h-10 w-10" />} title={t('audit.page.emptyTitle')}
+              subtitle={activeFilters.length > 0 ? t('audit.page.emptyFiltered') : t('audit.page.emptyJournal')} />
             {activeFilters.length > 0 && (
               <div className="mt-4 flex justify-center">
                 <Button variant="secondary" onClick={resetFilters}>
-                  <X className="h-4 w-4" /> Reinitialiser les filtres
+                  <X className="h-4 w-4" /> {t('audit.page.resetFilters')}
                 </Button>
               </div>
             )}
@@ -587,39 +596,39 @@ export default function AuditLogs() {
                   <th className="cursor-pointer select-none whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                     onClick={() => toggleSort('date')}>
                     <span className="inline-flex items-center gap-1.5">
-                      Date <SortIcon field="date" />
+                      {t('audit.page.date')} <SortIcon field="date" />
                     </span>
                   </th>
                   {/* User */}
                   <th className="cursor-pointer select-none whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                     onClick={() => toggleSort('user')}>
                     <span className="inline-flex items-center gap-1.5">
-                      Utilisateur <SortIcon field="user" />
+                      {t('audit.page.user')} <SortIcon field="user" />
                     </span>
                   </th>
                   {/* Action */}
                   <th className="cursor-pointer select-none whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                     onClick={() => toggleSort('action')}>
                     <span className="inline-flex items-center gap-1.5">
-                      Action <SortIcon field="action" />
+                      {t('audit.page.action')} <SortIcon field="action" />
                     </span>
                   </th>
                   {/* Entity */}
                   <th className="cursor-pointer select-none whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400"
                     onClick={() => toggleSort('entity')}>
                     <span className="inline-flex items-center gap-1.5">
-                      Entite <SortIcon field="entity" />
+                      {t('audit.page.entity')} <SortIcon field="entity" />
                     </span>
                   </th>
                   {/* IP */}
-                  <th className="whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">IP</th>
+                  <th className="whitespace-nowrap px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t('audit.page.ip')}</th>
                   {/* Actions */}
                   <th className="w-10 px-5 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
                 {sortedLogs.map((log) => {
-                  const actionCfg = getActionConfig(log.action)
+                  const actionCfg = getActionConfig(log.action, t)
                   const isSelected = selectedIds.has(log.id)
                   return (
                     <tr key={log.id}
@@ -640,10 +649,10 @@ export default function AuditLogs() {
                       <td className="px-5 py-3.5">
                         <div className="flex flex-col">
                           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                            {formatDateShort(log.createdAt)}
+                            {formatDateShort(log.createdAt, locale)}
                           </span>
                           <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
-                            {formatTime(log.createdAt)}
+                            {formatTime(log.createdAt, locale)}
                           </span>
                         </div>
                       </td>
@@ -663,7 +672,7 @@ export default function AuditLogs() {
                               {log.username || 'system'}
                             </p>
                             <p className="truncate text-[11px] text-slate-400 dark:text-slate-500">
-                              {log.userId ? 'Utilisateur' : 'Systeme'}
+                              {log.userId ? t('audit.page.userType') : t('audit.page.system')}
                             </p>
                           </div>
                         </div>
@@ -685,7 +694,7 @@ export default function AuditLogs() {
                           </span>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-300">
-                              {getEntityLabel(log.entityType)}
+                              {getEntityLabel(log.entityType, t)}
                             </p>
                             <p className="truncate text-[11px] font-mono text-slate-400 dark:text-slate-500">
                               #{log.entityId}
@@ -705,7 +714,7 @@ export default function AuditLogs() {
                       <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => setSelected(log)}
                           className="rounded-lg p-1.5 text-slate-400 opacity-0 transition-all duration-150 hover:bg-slate-100 hover:text-violet-600 group-hover:opacity-100 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-violet-400"
-                          aria-label="Voir les details">
+                          aria-label={t('audit.page.viewDetails')}>
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
                       </td>
@@ -721,8 +730,11 @@ export default function AuditLogs() {
         {totalPages > 1 && (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200/70 px-5 py-3 dark:border-slate-700/50">
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              {page * pageSize + 1}–{Math.min((page + 1) * pageSize, totalElements)} sur{' '}
-              <span className="font-medium text-slate-700 dark:text-slate-300">{totalElements}</span> evenements
+              {t('audit.page.range', {
+                from: page * pageSize + 1,
+                to: Math.min((page + 1) * pageSize, totalElements),
+                total: totalElements,
+              })}
             </p>
             <div className="flex items-center gap-1">
               <PaginationBtn disabled={page === 0} onClick={() => setPage(page - 1)}>
@@ -772,7 +784,8 @@ function PaginationBtn({ children, active = false, disabled = false, onClick }: 
 
 /* -- Audit Detail Drawer -- */
 function AuditDetailDrawer({ log, onClose, onFilterUser }: { log: AuditLog; onClose: () => void; onFilterUser: (u: string) => void }) {
-  const actionCfg = getActionConfig(log.action)
+  const { t, locale } = useI18n()
+  const actionCfg = getActionConfig(log.action, t)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -786,8 +799,8 @@ function AuditDetailDrawer({ log, onClose, onFilterUser }: { log: AuditLog; onCl
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-slate-200/70 px-6 py-5 dark:border-slate-700/50">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Journal d'audit</p>
-            <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Details de l'evenement</h3>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('audit.title')}</p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">{t('audit.page.detailsTitle')}</h3>
             <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${actionCfg.bg} ${actionCfg.color}`}>
               {actionCfg.icon}
               {actionCfg.label}
@@ -795,22 +808,22 @@ function AuditDetailDrawer({ log, onClose, onFilterUser }: { log: AuditLog; onCl
           </div>
           <button onClick={onClose}
             className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-700"
-            aria-label="Fermer">
+            aria-label={t('common.close')}>
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="px-6 py-5 space-y-6">
           {/* Informations generales */}
-          <Section title="Informations generales">
+          <Section title={t('audit.page.general')}>
             <InfoRow label="ID" value={`#${log.id}`} mono />
-            <InfoRow label="Date" value={
+            <InfoRow label={t('audit.page.date')} value={
               <div className="flex flex-col">
-                <span>{formatDateShort(log.createdAt)}</span>
-                <span className="font-mono text-[11px]">{formatTime(log.createdAt)}</span>
+                <span>{formatDateShort(log.createdAt, locale)}</span>
+                <span className="font-mono text-[11px]">{formatTime(log.createdAt, locale)}</span>
               </div>
             } />
-            <InfoRow label="Utilisateur" value={
+            <InfoRow label={t('audit.page.user')} value={
               <div className="flex items-center gap-2">
                 {log.userId ? (
                   <UserAvatar userId={log.userId} name={log.username ?? ''} size="sm" />
@@ -821,31 +834,31 @@ function AuditDetailDrawer({ log, onClose, onFilterUser }: { log: AuditLog; onCl
                 )}
                 <div>
                   <span className="font-medium">{log.username || 'system'}</span>
-                  <span className="ml-1 text-[11px] text-slate-400">{log.userId ? 'Utilisateur' : 'Systeme'}</span>
+                  <span className="ml-1 text-[11px] text-slate-400">{log.userId ? t('audit.page.userType') : t('audit.page.system')}</span>
                 </div>
               </div>
             } />
-            <InfoRow label="Action" value={log.action} mono />
-            <InfoRow label="Entite" value={
+            <InfoRow label={t('audit.page.action')} value={log.action} mono />
+            <InfoRow label={t('audit.page.entity')} value={
               <div className="flex items-center gap-2">
                 <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md ${getEntityColor(log.entityType)}`}>
                   {getEntityIcon(log.entityType)}
                 </span>
-                <span>{getEntityLabel(log.entityType)} <span className="font-mono text-[11px]">#{log.entityId}</span></span>
+                <span>{getEntityLabel(log.entityType, t)} <span className="font-mono text-[11px]">#{log.entityId}</span></span>
               </div>
             } />
-            <InfoRow label="Adresse IP" value={log.ipAddress || '--'} mono />
+            <InfoRow label={t('audit.page.ip')} value={log.ipAddress || '--'} mono />
           </Section>
 
           {/* Contexte */}
           {(log.oldValue || log.newValue || log.userAgent) && (
-            <Section title="Contexte">
+            <Section title={t('audit.page.context')}>
               {log.userAgent && (
-                <InfoRow label="Navigateur" value={<span className="break-all">{formatUserAgent(log.userAgent)}</span>} />
+                <InfoRow label={t('audit.page.browser')} value={<span className="break-all">{formatUserAgent(log.userAgent)}</span>} />
               )}
               {log.oldValue && (
                 <div>
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Valeur precedente</p>
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('audit.page.oldValue')}</p>
                   <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs font-mono text-slate-600 dark:bg-slate-700/50 dark:text-slate-400 break-all max-h-32 overflow-y-auto">
                     {log.oldValue}
                   </div>
@@ -853,7 +866,7 @@ function AuditDetailDrawer({ log, onClose, onFilterUser }: { log: AuditLog; onCl
               )}
               {log.newValue && (
                 <div>
-                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Nouvelle valeur</p>
+                  <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('audit.page.newValue')}</p>
                   <div className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-mono text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 break-all max-h-32 overflow-y-auto">
                     {log.newValue}
                   </div>
@@ -863,7 +876,7 @@ function AuditDetailDrawer({ log, onClose, onFilterUser }: { log: AuditLog; onCl
           )}
 
           {/* Donnees techniques */}
-          <Section title="Donnees techniques">
+          <Section title={t('audit.page.technical')}>
             <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-700/30">
               <pre className="text-[11px] font-mono text-slate-600 dark:text-slate-400 whitespace-pre-wrap break-all">
                 {JSON.stringify({
@@ -885,14 +898,14 @@ function AuditDetailDrawer({ log, onClose, onFilterUser }: { log: AuditLog; onCl
         {/* Actions */}
         <div className="flex items-center gap-2 border-t border-slate-200/70 px-6 py-4 dark:border-slate-700/50">
           <Button variant="secondary" size="sm" onClick={() => {
-            const text = `Date: ${log.createdAt}\nUtilisateur: ${log.username}\nAction: ${log.action}\nEntite: ${log.entityType} #${log.entityId}\nIP: ${log.ipAddress || '--'}\nUser-Agent: ${log.userAgent || '--'}`
+            const text = `${t('audit.page.date')}: ${log.createdAt}\n${t('audit.page.user')}: ${log.username}\n${t('audit.page.action')}: ${log.action}\n${t('audit.page.entity')}: ${log.entityType} #${log.entityId}\n${t('audit.page.ip')}: ${log.ipAddress || '--'}\nUser-Agent: ${log.userAgent || '--'}`
             copyToClipboard(text)
           }}>
-            <Copy className="h-3.5 w-3.5" /> Copier les details
+            <Copy className="h-3.5 w-3.5" /> {t('audit.page.copyDetails')}
           </Button>
           {log.username && log.username !== 'system' && (
             <Button variant="secondary" size="sm" onClick={() => onFilterUser(log.username)}>
-              <Filter className="h-3.5 w-3.5" /> Filtrer sur cet utilisateur
+              <Filter className="h-3.5 w-3.5" /> {t('audit.page.filterUser')}
             </Button>
           )}
         </div>

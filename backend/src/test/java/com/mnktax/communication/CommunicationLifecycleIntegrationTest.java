@@ -36,6 +36,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -164,7 +165,7 @@ class CommunicationLifecycleIntegrationTest {
     }
 
     @Test
-    @DisplayName("Email/SMS sans fournisseur : FAILED explicite, jamais de faux 'envoyé'")
+    @DisplayName("Email/SMS sans fournisseur : échec temporaire explicite puis FAILED, jamais de faux 'envoyé'")
     void missingProviderFailsExplicitly() {
         ComposeResult result = communicationService.compose(new ComposeRequest(
                 taxpayer.getId(), null, null, "SINGLE", null, null,
@@ -176,7 +177,11 @@ class CommunicationLifecycleIntegrationTest {
         List<MessageDelivery> deliveries = deliveryRepository.findByMessageId(message.getId());
         assertEquals(3, deliveries.size());
 
-        deliveries.forEach(d -> deliveryQueueService.selfProcess(d.getId()));
+        // La configuration manquante est considérée comme réparable : les tentatives
+        // immédiates sont épuisées puis la livraison passe en échec explicite.
+        for (int attempt = 0; attempt < 3; attempt++) {
+            deliveries.forEach(d -> deliveryQueueService.selfProcess(d.getId()));
+        }
 
         for (MessageDelivery delivery : deliveryRepository.findByMessageId(message.getId())) {
             switch (delivery.getChannel()) {
@@ -185,11 +190,14 @@ class CommunicationLifecycleIntegrationTest {
                     assertEquals(DeliveryStatus.FAILED, delivery.getStatus());
                     assertTrue(delivery.getLastError().contains("non configuré"),
                             "Erreur explicite attendue : " + delivery.getLastError());
+                    assertTrue(delivery.isLastErrorRetryable(),
+                            "Configuration absente = réparable : éligible à la relance automatique");
                 }
                 case SMS -> {
                     assertEquals(DeliveryStatus.FAILED, delivery.getStatus());
                     assertTrue(delivery.getLastError().contains("non configuré"),
                             "Erreur explicite attendue : " + delivery.getLastError());
+                    assertTrue(delivery.isLastErrorRetryable());
                 }
             }
         }
@@ -290,10 +298,104 @@ class CommunicationLifecycleIntegrationTest {
                 "La livraison IN_APP doit être synchronisée à READ");
     }
 
+    // ─── Logique des canaux du composeur ──────────────────────────
+
+    @Test
+    @DisplayName("Aperçu : le canal email sans fournisseur réel est signalé avant l'envoi")
+    void previewWarnsWhenEmailProviderMissing() {
+        var preview = communicationService.preview(new ComposeRequest(
+                taxpayer.getId(), null, null, "SINGLE", null, null,
+                List.of("IN_APP", "EMAIL"), "Objet", "Contenu.",
+                null, null, "NORMAL", "GENERAL", null, true,
+                null, null, null, null, null));
+
+        assertEquals(1, preview.recipientCount());
+        assertTrue(preview.warnings().stream()
+                        .anyMatch(w -> w.contains("email") && w.toLowerCase().contains("configur")),
+                "L'aperçu doit prévenir que le canal email échouera : " + preview.warnings());
+
+        // L'état des fournisseurs ne doit jamais annoncer un email « connecté »
+        // quand aucun envoi réel n'est possible.
+        var providers = communicationService.providersStatus();
+        var email = providers.providers().stream()
+                .filter(p -> "EMAIL".equals(p.channel())).findFirst().orElseThrow();
+        assertEquals("INCOMPLETE", email.status(),
+                "Sans fournisseur réel, le canal email ne doit pas être déclaré connecté");
+    }
+
+    @Test
+    @DisplayName("Canal site seul : le contribuable enregistré est ciblé, aucun contact saisi")
+    void siteChannelOnlyTargetsRegisteredTaxpayer() {
+        ComposeResult result = communicationService.compose(new ComposeRequest(
+                taxpayer.getId(), null, null, "SINGLE", null, null,
+                List.of("IN_APP"), "Site seul", "Notification interne.",
+                null, null, "NORMAL", "GENERAL", null, true,
+                null, null, null, null, null), null);
+
+        Message message = messageRepository.findById(result.messageId()).orElseThrow();
+        assertEquals(taxpayer.getId(), message.getTaxpayerId());
+        List<MessageDelivery> deliveries = deliveryRepository.findByMessageId(message.getId());
+        assertEquals(1, deliveries.size());
+        assertEquals(DeliveryChannel.IN_APP, deliveries.get(0).getChannel());
+    }
+
+    @Test
+    @DisplayName("Numéro saisi manuellement : il est prioritaire sur celui de la fiche")
+    void manualPhoneOverridesFilePhone() {
+        ComposeResult result = communicationService.compose(new ComposeRequest(
+                taxpayer.getId(), null, null, "SINGLE", null, null,
+                List.of("SMS"), "SMS saisi", "Votre relance.",
+                null, null, "NORMAL", "GENERAL", null, true,
+                null, "034 11 222 33", null, null, null), null);
+
+        Message message = messageRepository.findById(result.messageId()).orElseThrow();
+        List<MessageDelivery> deliveries = deliveryRepository.findByMessageId(message.getId());
+        assertEquals(1, deliveries.size());
+        assertEquals(DeliveryChannel.SMS, deliveries.get(0).getChannel());
+        assertEquals("+261341122233", deliveries.get(0).getRecipientAddress(),
+                "Le numéro saisi doit être normalisé et utilisé");
+    }
+
+    @Test
+    @DisplayName("Destinataire externe : le canal SMS accepte un numéro saisi sans fiche")
+    void externalSmsRecipient() {
+        ComposeResult result = communicationService.compose(new ComposeRequest(
+                null, null, null, "SINGLE", null, null,
+                List.of("SMS"), "SMS externe", "Message externe.",
+                null, null, "NORMAL", "GENERAL", null, true,
+                null, "034 55 666 77", null, null, "Partenaire"), null);
+
+        Message message = messageRepository.findById(result.messageId()).orElseThrow();
+        assertNull(message.getTaxpayerId(), "Un destinataire externe n'a pas de fiche");
+        List<MessageDelivery> deliveries = deliveryRepository.findByMessageId(message.getId());
+        assertEquals(1, deliveries.size());
+        assertEquals(DeliveryChannel.SMS, deliveries.get(0).getChannel());
+        assertEquals("+261345566677", deliveries.get(0).getRecipientAddress());
+    }
+
+    @Test
+    @DisplayName("Les trois canaux : email et numéro sont repris de la fiche du contribuable")
+    void allChannelsUseFileContact() {
+        ComposeResult result = communicationService.compose(new ComposeRequest(
+                taxpayer.getId(), null, null, "SINGLE", null, null,
+                List.of("IN_APP", "EMAIL", "SMS"), "Trois canaux", "Message multicanal.",
+                null, null, "NORMAL", "GENERAL", null, true,
+                null, null, null, null, null), null);
+
+        Message message = messageRepository.findById(result.messageId()).orElseThrow();
+        List<MessageDelivery> deliveries = deliveryRepository.findByMessageId(message.getId());
+        assertEquals(3, deliveries.size());
+        MessageDelivery email = deliveries.stream()
+                .filter(d -> d.getChannel() == DeliveryChannel.EMAIL).findFirst().orElseThrow();
+        MessageDelivery sms = deliveries.stream()
+                .filter(d -> d.getChannel() == DeliveryChannel.SMS).findFirst().orElseThrow();
+        assertEquals(taxpayer.getEmail(), email.getRecipientAddress());
+        assertEquals("+261349988877", sms.getRecipientAddress());
+    }
+
     @Test
     @DisplayName("Anti-doublon : une communication automatique récente est détectée")
-    void recentAutomaticDedup() {
-        communicationService.compose(new ComposeRequest(
+    void recentAutomaticDedup() {        communicationService.compose(new ComposeRequest(
                 taxpayer.getId(), null, null, "SINGLE", null, null,
                 List.of("IN_APP"), "Rappel", "Contenu.",
                 null, null, "NORMAL", "DECLARATION_DUE_SOON", null, true,

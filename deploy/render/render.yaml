@@ -17,7 +17,7 @@ services:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
       - key: SEED_DEMO
-        value: "true"
+        value: "false"
       - key: RATE_LIMIT_ENABLED
         value: "true"
       - key: RATE_LIMIT_PER_MINUTE
@@ -66,6 +66,12 @@ services:
         sync: false
       - key: MAIL_PASSWORD
         sync: false
+      - key: MAIL_SMTP_AUTH
+        value: "true"
+      - key: MAIL_SMTP_STARTTLS
+        value: "true"
+      - key: MAIL_SMTP_SSL
+        value: "false"
       - key: MAIL_FROM_ADDRESS
         value: "no-reply@mnk-tax.mg"
       - key: MAIL_FROM_NAME

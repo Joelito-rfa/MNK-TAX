@@ -16,16 +16,24 @@ public interface CollectionActionRepository extends JpaRepository<CollectionActi
 
     List<CollectionAction> findByDebtIdOrderByActionDateDesc(Long debtId);
 
-    @Query("""
+    @Query(value = """
             SELECT a FROM CollectionAction a
-            LEFT JOIN a.debt d
-            LEFT JOIN d.taxpayer t
+            JOIN FETCH a.debt d
+            JOIN FETCH d.taxpayer t
             WHERE (:debtId IS NULL OR a.debt.id = :debtId)
               AND (:taxpayerId IS NULL OR d.taxpayer.id = :taxpayerId)
               AND (:type IS NULL OR a.type = :type)
               AND (:q IS NULL OR LOWER(d.reference) LIKE LOWER(CONCAT('%', :q, '%'))
                     OR LOWER(t.nif) LIKE LOWER(CONCAT('%', :q, '%'))
                     OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%')))
+            """, countQuery = """
+            SELECT COUNT(a) FROM CollectionAction a
+            WHERE (:debtId IS NULL OR a.debt.id = :debtId)
+              AND (:taxpayerId IS NULL OR a.debt.taxpayer.id = :taxpayerId)
+              AND (:type IS NULL OR a.type = :type)
+              AND (:q IS NULL OR LOWER(a.debt.reference) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(a.debt.taxpayer.nif) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(a.debt.taxpayer.name) LIKE LOWER(CONCAT('%', :q, '%')))
             """)
     Page<CollectionAction> search(@Param("debtId") Long debtId,
                                   @Param("taxpayerId") Long taxpayerId,
@@ -36,6 +44,9 @@ public interface CollectionActionRepository extends JpaRepository<CollectionActi
     long countByDebtId(Long debtId);
 
     long countByType(CollectionActionType type);
+
+    /** Compte les actions dont le type appartient à l'ensemble donné (types de relance). */
+    long countByTypeIn(java.util.Collection<CollectionActionType> types);
 
     @Query("SELECT COUNT(a) FROM CollectionAction a")
     long countAll();
@@ -59,18 +70,27 @@ public interface CollectionActionRepository extends JpaRepository<CollectionActi
     List<CollectionAction> findLatestByDebtIds(@Param("debtIds") java.util.Collection<Long> debtIds);
 
     /**
-     * Dernière relance amiable (type REMINDER) de chaque créance d'une liste.
+     * Dernière relance amiable (types {@code REMINDER_ACTION_TYPES} : relance,
+     * suivi, SMS, notification, appel) de chaque créance d'une liste.
      * Sert au suivi fiscal : délai écoulé depuis la relance et alerte sur la
      * prochaine relance prévue. Au plus une ligne par créance.
      */
     @Query("""
             SELECT a FROM CollectionAction a
             WHERE a.debt.id IN :debtIds
-              AND a.type = com.mnktax.collection.entity.CollectionActionType.REMINDER
+              AND a.type IN (com.mnktax.collection.entity.CollectionActionType.REMINDER,
+                             com.mnktax.collection.entity.CollectionActionType.FOLLOW_UP,
+                             com.mnktax.collection.entity.CollectionActionType.SMS,
+                             com.mnktax.collection.entity.CollectionActionType.NOTIFICATION,
+                             com.mnktax.collection.entity.CollectionActionType.PHONE_CONTACT)
               AND NOT EXISTS (
                     SELECT a2 FROM CollectionAction a2
                     WHERE a2.debt = a.debt
-                      AND a2.type = com.mnktax.collection.entity.CollectionActionType.REMINDER
+                      AND a2.type IN (com.mnktax.collection.entity.CollectionActionType.REMINDER,
+                                      com.mnktax.collection.entity.CollectionActionType.FOLLOW_UP,
+                                      com.mnktax.collection.entity.CollectionActionType.SMS,
+                                      com.mnktax.collection.entity.CollectionActionType.NOTIFICATION,
+                                      com.mnktax.collection.entity.CollectionActionType.PHONE_CONTACT)
                       AND (a2.actionDate > a.actionDate
                            OR (a2.actionDate = a.actionDate AND a2.id > a.id))
               )
@@ -80,10 +100,15 @@ public interface CollectionActionRepository extends JpaRepository<CollectionActi
     /**
      * Nombre de créances non soldées dont la dernière relance amiable prévoit une
      * prochaine relance déjà dépassée : alimente l'alerte « relances en retard ».
+     * Couvre tous les types de relance amiable ({@code REMINDER_ACTION_TYPES}).
      */
     @Query("""
             SELECT COUNT(DISTINCT a.debt.id) FROM CollectionAction a
-            WHERE a.type = com.mnktax.collection.entity.CollectionActionType.REMINDER
+            WHERE a.type IN (com.mnktax.collection.entity.CollectionActionType.REMINDER,
+                             com.mnktax.collection.entity.CollectionActionType.FOLLOW_UP,
+                             com.mnktax.collection.entity.CollectionActionType.SMS,
+                             com.mnktax.collection.entity.CollectionActionType.NOTIFICATION,
+                             com.mnktax.collection.entity.CollectionActionType.PHONE_CONTACT)
               AND a.nextActionDate IS NOT NULL
               AND a.nextActionDate < :today
               AND a.debt.balance > 0
@@ -93,12 +118,26 @@ public interface CollectionActionRepository extends JpaRepository<CollectionActi
               AND NOT EXISTS (
                     SELECT a2 FROM CollectionAction a2
                     WHERE a2.debt = a.debt
-                      AND a2.type = com.mnktax.collection.entity.CollectionActionType.REMINDER
+                      AND a2.type IN (com.mnktax.collection.entity.CollectionActionType.REMINDER,
+                                      com.mnktax.collection.entity.CollectionActionType.FOLLOW_UP,
+                                      com.mnktax.collection.entity.CollectionActionType.SMS,
+                                      com.mnktax.collection.entity.CollectionActionType.NOTIFICATION,
+                                      com.mnktax.collection.entity.CollectionActionType.PHONE_CONTACT)
                       AND (a2.actionDate > a.actionDate
                            OR (a2.actionDate = a.actionDate AND a2.id > a.id))
               )
             """)
     long countOverdueReminders(@Param("today") LocalDate today);
+
+    /** Actions d'une créance avec créance + contribuable eagerly chargés (anti N+1 des DTO). */
+    @Query("""
+            SELECT a FROM CollectionAction a
+            JOIN FETCH a.debt d
+            JOIN FETCH d.taxpayer t
+            WHERE a.debt.id = :debtId
+            ORDER BY a.actionDate DESC
+            """)
+    List<CollectionAction> findByDebtIdWithDebtAndTaxpayer(@Param("debtId") Long debtId);
 
     @Query("""
             SELECT a FROM CollectionAction a

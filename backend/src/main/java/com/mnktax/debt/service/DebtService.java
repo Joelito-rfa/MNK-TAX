@@ -2,6 +2,7 @@ package com.mnktax.debt.service;
 
 import com.mnktax.assessment.entity.Assessment;
 import com.mnktax.administration.service.SystemParameterService;
+import com.mnktax.audit.service.AuditService;
 import com.mnktax.common.exception.BusinessException;
 import com.mnktax.common.exception.ResourceNotFoundException;
 import com.mnktax.common.util.ReferenceGenerator;
@@ -17,9 +18,11 @@ import com.mnktax.debt.entity.DebtHistory;
 import com.mnktax.debt.entity.DebtItem;
 import com.mnktax.debt.entity.DebtOrigin;
 import com.mnktax.debt.entity.DebtStatus;
+import com.mnktax.debt.entity.DisputeStatus;
 import com.mnktax.debt.entity.Interest;
 import com.mnktax.debt.entity.Penalty;
 import com.mnktax.debt.entity.TaxDebt;
+import com.mnktax.debt.repository.DebtDisputeRepository;
 import com.mnktax.debt.repository.DebtHistoryRepository;
 import com.mnktax.debt.repository.DebtItemRepository;
 import com.mnktax.debt.repository.InterestRepository;
@@ -69,6 +72,7 @@ public class DebtService {
     private final PenaltyRepository penaltyRepository;
     private final InterestRepository interestRepository;
     private final DebtHistoryRepository historyRepository;
+    private final DebtDisputeRepository disputeRepository;
     private final DeadlineRepository deadlineRepository;
     private final NotificationService notificationService;
     private final SystemParameterService parameterService;
@@ -76,19 +80,23 @@ public class DebtService {
     private final TaxpayerRepository taxpayerRepository;
     private final TaxTypeRepository taxTypeRepository;
     private final CommunicationEventEngine communicationEventEngine;
+    private final AuditService auditService;
 
     public DebtService(TaxDebtRepository debtRepository, DebtItemRepository itemRepository,
                        PenaltyRepository penaltyRepository, InterestRepository interestRepository,
-                       DebtHistoryRepository historyRepository, DeadlineRepository deadlineRepository,
+                       DebtHistoryRepository historyRepository, DebtDisputeRepository disputeRepository,
+                       DeadlineRepository deadlineRepository,
                        NotificationService notificationService, SystemParameterService parameterService,
                        DeclarationRepository declarationRepository,
                        TaxpayerRepository taxpayerRepository, TaxTypeRepository taxTypeRepository,
-                       @org.springframework.context.annotation.Lazy CommunicationEventEngine communicationEventEngine) {
+                       @org.springframework.context.annotation.Lazy CommunicationEventEngine communicationEventEngine,
+                       AuditService auditService) {
         this.debtRepository = debtRepository;
         this.itemRepository = itemRepository;
         this.penaltyRepository = penaltyRepository;
         this.interestRepository = interestRepository;
         this.historyRepository = historyRepository;
+        this.disputeRepository = disputeRepository;
         this.deadlineRepository = deadlineRepository;
         this.notificationService = notificationService;
         this.parameterService = parameterService;
@@ -96,6 +104,7 @@ public class DebtService {
         this.taxpayerRepository = taxpayerRepository;
         this.taxTypeRepository = taxTypeRepository;
         this.communicationEventEngine = communicationEventEngine;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -259,27 +268,61 @@ public class DebtService {
                                          DebtOrigin origin, DebtCollectionPriority priority, String center, String q) {
         List<TaxDebt> toMark = debtRepository.findToMarkOverdueFiltered(today, taxTypeCode, period, taxpayerId, origin, priority, center, q);
         List<String> details = new ArrayList<>();
+        List<MarkOverdueResult.OverdueMark> marks = new ArrayList<>();
+        BigDecimal totalPenalties = BigDecimal.ZERO;
+        BigDecimal totalInterest = BigDecimal.ZERO;
+        BigDecimal totalBalance = BigDecimal.ZERO;
+        int marked = 0;
         for (TaxDebt debt : toMark) {
-            applyLateCharges(debt);
             DebtStatus oldStatus = debt.getStatus();
-            debt.setStatus(DebtStatus.OVERDUE);
-            debt.setUpdatedAt(Instant.now());
-            debtRepository.save(debt);
-            addHistory(debt, "STATUS_CHANGE", "Statut changé vers EN_RETARD",
-                    oldStatus.name(), DebtStatus.OVERDUE.name());
-            // Communication automatique : créance en retard (règles configurables).
-            communicationEventEngine.onEvent(CommunicationEventType.DEBT_OVERDUE, debt.getTaxpayer(),
-                    java.util.Map.of("debt_reference", debt.getReference(),
-                            "amount", debt.getBalance().toPlainString(),
-                            "due_date", debt.getDueDate().toString()));
+            boolean alreadyOverdue = oldStatus == DebtStatus.OVERDUE;
+            BigDecimal penaltyBefore = debt.getPenaltyAmount();
+            BigDecimal interestBefore = debt.getInterestAmount();
+            applyLateCharges(debt, today);
+            BigDecimal penalty = debt.getPenaltyAmount().subtract(penaltyBefore);
+            BigDecimal interest = debt.getInterestAmount().subtract(interestBefore);
+
+            if (!alreadyOverdue) {
+                debt.setStatus(DebtStatus.OVERDUE);
+                debt.setUpdatedAt(Instant.now());
+                debtRepository.save(debt);
+                addHistory(debt, "STATUS_CHANGE", "Statut changé vers EN_RETARD",
+                        oldStatus.name(), DebtStatus.OVERDUE.name());
+                // Communication automatique : créance en retard (règles configurables).
+                communicationEventEngine.onEvent(CommunicationEventType.DEBT_OVERDUE, debt.getTaxpayer(),
+                        java.util.Map.of("debt_reference", debt.getReference(),
+                                "amount", debt.getBalance().toPlainString(),
+                                "due_date", debt.getDueDate().toString()));
+                marked++;
+            } else if (penalty.signum() == 0 && interest.signum() == 0) {
+                // Déjà en retard et déjà à jour de ses frais : rien à signaler.
+                continue;
+            }
+
+            long daysOverdue = Math.max(0, ChronoUnit.DAYS.between(debt.getDueDate(), today));
+            marks.add(new MarkOverdueResult.OverdueMark(debt.getId(), debt.getReference(),
+                    debt.getTaxpayer().getNif(), debt.getTaxpayer().getName(),
+                    debt.getBalance(), penalty, interest, daysOverdue, !alreadyOverdue));
+            totalPenalties = totalPenalties.add(penalty);
+            totalInterest = totalInterest.add(interest);
+            totalBalance = totalBalance.add(debt.getBalance());
             details.add(debt.getReference() + " (" + debt.getTaxpayer().getName()
-                    + ") — solde " + debt.getBalance());
+                    + ") — solde " + debt.getBalance()
+                    + (penalty.signum() > 0 ? ", pénalité +" + penalty : "")
+                    + (interest.signum() > 0 ? ", intérêts +" + interest : ""));
         }
-        return new MarkOverdueResult(toMark.size(), details);
+        int alreadyOverdue = marks.size() - marked;
+        return new MarkOverdueResult(marks.size(), marked, alreadyOverdue,
+                totalPenalties, totalInterest, totalBalance, marks, details);
     }
 
     @Transactional
     public void applyLateCharges(TaxDebt debt) {
+        applyLateCharges(debt, LocalDate.now());
+    }
+
+    @Transactional
+    public void applyLateCharges(TaxDebt debt, LocalDate asOf) {
         String penaltyCode = parameterService.findByKey(PARAM_PENALTY_CODE)
                 .map(p -> p.getValue()).orElse(FALLBACK_PENALTY_CODE);
         String interestCode = parameterService.findByKey(PARAM_INTEREST_CODE)
@@ -305,7 +348,7 @@ public class DebtService {
             BigDecimal rate = interestRepository.findByCode(interestCode)
                     .map(Interest::getRate)
                     .orElse(BigDecimal.valueOf(1));
-            long months = Math.max(1, ChronoUnit.MONTHS.between(debt.getDueDate(), LocalDate.now()));
+            long months = Math.max(1, ChronoUnit.MONTHS.between(debt.getDueDate(), asOf));
             BigDecimal interest = debt.getBalance().multiply(rate).multiply(BigDecimal.valueOf(months))
                     .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
             if (interest.signum() > 0) {
@@ -406,10 +449,12 @@ public class DebtService {
         debtRepository.save(debt);
         addHistory(debt, "ADJUSTMENT", "Ajustement appliqué : " + label,
                 null, amount + " MGA");
+        auditService.record("ADJUSTMENT", "DEBT", String.valueOf(debt.getId()),
+                null, amount + " MGA", http);
     }
 
     @Transactional
-    public void cancel(Long debtId) {
+    public void cancel(Long debtId, HttpServletRequest http) {
         TaxDebt debt = find(debtId);
         if (debt.getPaidAmount().signum() > 0) {
             throw new BusinessException("DEBT_HAS_PAYMENTS", "Impossible d'annuler une créance partiellement ou totalement payée.");
@@ -421,10 +466,12 @@ public class DebtService {
         debtRepository.save(debt);
         addHistory(debt, "CANCELLED", "Créance annulée",
                 oldStatus.name(), DebtStatus.CANCELLED.name());
+        auditService.record("CANCELLED", "DEBT", String.valueOf(debt.getId()),
+                oldStatus.name(), DebtStatus.CANCELLED.name(), http);
     }
 
     @Transactional
-    public void suspend(Long debtId, String reason) {
+    public void suspend(Long debtId, String reason, HttpServletRequest http) {
         TaxDebt debt = find(debtId);
         if (debt.getStatus() == DebtStatus.PAID || debt.getStatus() == DebtStatus.CANCELLED
                 || debt.getStatus() == DebtStatus.CLOSED) {
@@ -432,28 +479,59 @@ public class DebtService {
                     "On ne peut pas suspendre une créance " + debt.getStatus() + ".");
         }
         DebtStatus oldStatus = debt.getStatus();
+        // On mémorise le statut antérieur pour le restaurer à la réactivation
+        // (une double suspension ne doit pas écraser le statut d'origine).
+        if (oldStatus != DebtStatus.SUSPENDED) {
+            debt.setPreviousStatus(oldStatus);
+        }
         debt.setStatus(DebtStatus.SUSPENDED);
         debt.setSuspendedAt(Instant.now());
         debt.setUpdatedAt(Instant.now());
         debtRepository.save(debt);
         addHistory(debt, "SUSPENDED", "Créance suspendue" + (reason != null ? " : " + reason : ""),
                 oldStatus.name(), DebtStatus.SUSPENDED.name());
+        auditService.record("SUSPENDED", "DEBT", String.valueOf(debt.getId()),
+                oldStatus.name(), DebtStatus.SUSPENDED.name(), http);
     }
 
     @Transactional
-    public void resume(Long debtId) {
+    public void resume(Long debtId, HttpServletRequest http) {
         TaxDebt debt = find(debtId);
         if (debt.getStatus() != DebtStatus.SUSPENDED) {
             throw new BusinessException("DEBT_NOT_SUSPENDED", "Cette créance n'est pas suspendue.");
         }
-        DebtStatus previous = debt.getDueDate().isBefore(LocalDate.now())
-                ? DebtStatus.OVERDUE : DebtStatus.ISSUED;
-        debt.setStatus(previous);
+        DebtStatus restored = resolveResumeStatus(debt);
+        debt.setStatus(restored);
+        debt.setPreviousStatus(null);
         debt.setSuspendedAt(null);
         debt.setUpdatedAt(Instant.now());
         debtRepository.save(debt);
         addHistory(debt, "RESUMED", "Créance réactivée",
-                DebtStatus.SUSPENDED.name(), previous.name());
+                DebtStatus.SUSPENDED.name(), restored.name());
+        auditService.record("RESUMED", "DEBT", String.valueOf(debt.getId()),
+                DebtStatus.SUSPENDED.name(), restored.name(), http);
+    }
+
+    /**
+     * Statut à rétablir après suspension : le statut mémorisé à la
+     * suspension (phase recouvrement, paiement partiel, contentieux…),
+     * corrigé en OVERDUE si l'échéance est passée. Sans statut mémorisé
+     * (créance suspendue avant V41), recalcul fidèle aux montants réels,
+     * dans la même logique que {@link #reopenFromDispute(Long)}.
+     */
+    private DebtStatus resolveResumeStatus(TaxDebt debt) {
+        DebtStatus previous = debt.getPreviousStatus();
+        if (previous == null) {
+            if (debt.getPaidAmount().signum() > 0) {
+                return DebtStatus.PARTIALLY_PAID;
+            }
+            return debt.getDueDate().isBefore(LocalDate.now())
+                    ? DebtStatus.OVERDUE : DebtStatus.ISSUED;
+        }
+        if (previous == DebtStatus.ISSUED && debt.getDueDate().isBefore(LocalDate.now())) {
+            return DebtStatus.OVERDUE;
+        }
+        return previous;
     }
 
     /**
@@ -505,7 +583,7 @@ public class DebtService {
     }
 
     @Transactional
-    public void close(Long debtId, String reason) {
+    public void close(Long debtId, String reason, HttpServletRequest http) {
         TaxDebt debt = find(debtId);
         if (debt.getStatus() == DebtStatus.PAID || debt.getStatus() == DebtStatus.CANCELLED) {
             throw new BusinessException("DEBT_TRANSITION_INVALID",
@@ -518,10 +596,12 @@ public class DebtService {
         debtRepository.save(debt);
         addHistory(debt, "CLOSED", "Créance clôturée" + (reason != null ? " : " + reason : ""),
                 oldStatus.name(), DebtStatus.CLOSED.name());
+        auditService.record("CLOSED", "DEBT", String.valueOf(debt.getId()),
+                oldStatus.name(), DebtStatus.CLOSED.name(), http);
     }
 
     @Transactional
-    public void setInCollection(Long debtId) {
+    public void setInCollection(Long debtId, HttpServletRequest http) {
         TaxDebt debt = find(debtId);
         if (debt.getStatus() == DebtStatus.PAID) {
             throw new BusinessException("DEBT_ALREADY_PAID", "Une dette payée ne peut pas être relancée.");
@@ -529,12 +609,20 @@ public class DebtService {
         if (debt.getStatus() == DebtStatus.CLOSED || debt.getStatus() == DebtStatus.CANCELLED) {
             throw new BusinessException("DEBT_CLOSED", "Cette créance est clôturée.");
         }
+        // Un acte formel sur une créance en litige ouvert la ferait basculer
+        // en recouvrement pendant que le contestation reste ouverte : contradiction.
+        if (disputeRepository.existsByDebtIdAndStatus(debt.getId(), DisputeStatus.OPEN)) {
+            throw new BusinessException("DISPUTE_OPEN",
+                    "Un litige est ouvert sur cette créance : résolvez-le avant de poursuivre.");
+        }
         DebtStatus oldStatus = debt.getStatus();
         debt.setStatus(DebtStatus.IN_COLLECTION);
         debt.setUpdatedAt(Instant.now());
         debtRepository.save(debt);
         addHistory(debt, "IN_COLLECTION", "Créance envoyée en recouvrement",
                 oldStatus.name(), DebtStatus.IN_COLLECTION.name());
+        auditService.record("IN_COLLECTION", "DEBT", String.valueOf(debt.getId()),
+                oldStatus.name(), DebtStatus.IN_COLLECTION.name(), http);
         notificationService.notifyCollectionNotice(
                 debt.getTaxpayer() != null ? debt.getTaxpayer().getUserId() : null,
                 debt.getReference(), debt.getBalance());
@@ -547,7 +635,7 @@ public class DebtService {
     }
 
     @Transactional
-    public void updatePriority(Long debtId, DebtCollectionPriority priority) {
+    public void updatePriority(Long debtId, DebtCollectionPriority priority, HttpServletRequest http) {
         TaxDebt debt = find(debtId);
         DebtCollectionPriority old = debt.getCollectionPriority();
         debt.setCollectionPriority(priority);
@@ -555,6 +643,8 @@ public class DebtService {
         debtRepository.save(debt);
         addHistory(debt, "PRIORITY_CHANGED", "Priorité de recouvrement modifiée",
                 old.name(), priority.name());
+        auditService.record("PRIORITY_CHANGED", "DEBT", String.valueOf(debt.getId()),
+                old.name(), priority.name(), http);
     }
 
     @Transactional

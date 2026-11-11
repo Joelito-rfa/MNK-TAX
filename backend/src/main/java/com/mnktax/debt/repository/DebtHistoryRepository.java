@@ -15,15 +15,22 @@ public interface DebtHistoryRepository extends JpaRepository<DebtHistory, Long> 
 
     long countByDebtId(Long debtId);
 
-    @Query("""
+    @Query(value = """
             SELECT h FROM DebtHistory h
-            LEFT JOIN h.debt d
-            LEFT JOIN d.taxpayer t
+            JOIN FETCH h.debt d
+            JOIN FETCH d.taxpayer t
             WHERE (:debtId IS NULL OR h.debt.id = :debtId)
               AND (:eventType IS NULL OR UPPER(h.eventType) = UPPER(:eventType))
               AND (:q IS NULL OR LOWER(d.reference) LIKE LOWER(CONCAT('%', :q, '%'))
                     OR LOWER(t.nif) LIKE LOWER(CONCAT('%', :q, '%'))
                     OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%')))
+            """, countQuery = """
+            SELECT COUNT(h) FROM DebtHistory h
+            WHERE (:debtId IS NULL OR h.debt.id = :debtId)
+              AND (:eventType IS NULL OR UPPER(h.eventType) = UPPER(:eventType))
+              AND (:q IS NULL OR LOWER(h.debt.reference) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(h.debt.taxpayer.nif) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(h.debt.taxpayer.name) LIKE LOWER(CONCAT('%', :q, '%')))
             """)
     Page<DebtHistory> search(@Param("debtId") Long debtId,
                              @Param("eventType") String eventType,

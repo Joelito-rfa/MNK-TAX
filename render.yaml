@@ -19,7 +19,7 @@ services:
       - key: RECEIPT_BASE_URL
         value: https://mnk-tax-frontend.onrender.com
       - key: SEED_DEMO
-        value: "true"
+        value: "false"
       - key: SERVER_PORT
         value: "10000"
       # Planificateur
@@ -54,6 +54,12 @@ services:
         sync: false
       - key: MAIL_PASSWORD
         sync: false
+      - key: MAIL_SMTP_AUTH
+        value: "true"
+      - key: MAIL_SMTP_STARTTLS
+        value: "true"
+      - key: MAIL_SMTP_SSL
+        value: "false"
       - key: MAIL_FROM_ADDRESS
         value: "no-reply@mnk-tax.mg"
       - key: MAIL_FROM_NAME

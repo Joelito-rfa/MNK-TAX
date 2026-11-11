@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
 import {
   Ban, Banknote, Download, Eye, FileText, Filter,
   Link2, RefreshCw, Search, Shield, Wallet, X,
 
 } from 'lucide-react'
-import { apiErrorMessage, apiGet } from '../lib/api'
-import { downloadCsv } from '../lib/csv'
+import { apiGet } from '../lib/api'
+import { ExportButton } from '../components/ExportButton'
 import { fmtDate, fmtMGA, fmtNumber } from '../lib/format'
 import { useAuth } from '../lib/auth'
 import type { Page, Receipt } from '../types'
@@ -15,7 +14,6 @@ import {
   Button, Card, EmptyState, Modal, PageHeader, Pagination,
   Select, Spinner, StatCard, StatusBadge, Table, Td, Th,
 } from '../components/ui'
-import { useToast } from '../components/Toast'
 import { useReceiptDetail, useReceipts, useReceiptStats, useTaxTypesRef } from '../features/receipt/api/queries'
 import { useCancelReceipt, useDownloadReceipt, useRefundReceipt, useReplaceReceipt } from '../features/receipt/api/mutations'
 import RowActionPortal from '../components/RowActionPortal'
@@ -51,7 +49,6 @@ const [showFilters, setShowFilters] = useState(false)
   const [detail, setDetail] = useState<Receipt | null>(null)
   const [sortField, setSortField] = useState('issuedAt')
   const [sortDir, setSortDir] = useState('desc')
-  const toast = useToast()
   const downloadReceipt = useDownloadReceipt()
 
   const params = new URLSearchParams({ page: String(page), size: String(size), sort: `${sortField},${sortDir}` })
@@ -82,27 +79,20 @@ const [showFilters, setShowFilters] = useState(false)
     setPage(0)
   }
 
-  const exportCsv = useMutation({
-    mutationFn: async () => {
-      const p = new URLSearchParams({ size: '9999' })
-      if (status) p.set('status', status)
-      if (taxType) p.set('taxTypeCode', taxType)
-      if (method) p.set('method', method)
-      if (q) p.set('q', q)
-      const rows = await apiGet<Page<Receipt>>(`/receipts?${p.toString()}`)
-      downloadCsv(
-        `quittances_${new Date().toISOString().slice(0, 10)}.csv`,
-        ['N°', 'Référence', 'Contribuable', 'NIF', 'Impôt', 'Période', 'Montant', 'Mode', 'Statut', 'Émise le'],
-        rows.content.map((r) => [
-          r.receiptNumber, r.reference, r.taxpayerName, r.nif, r.taxTypeCode,
-          r.period, r.amount, methodLabels[r.method] ?? r.method,
-          statusLabels[r.status] ?? r.status, r.issuedAt,
-        ]),
-      )
-    },
-    onSuccess: () => toast.success('Export terminé'),
-    onError: (err: Error) => toast.error(apiErrorMessage(err)),
-  })
+  /** Toutes les quittances correspondant aux filtres actifs (hors pagination). */
+  const exportReceiptRows = async () => {
+    const p = new URLSearchParams({ size: '9999' })
+    if (status) p.set('status', status)
+    if (taxType) p.set('taxTypeCode', taxType)
+    if (method) p.set('method', method)
+    if (q) p.set('q', q)
+    const rows = await apiGet<Page<Receipt>>(`/receipts?${p.toString()}`)
+    return rows.content.map((r) => [
+      r.receiptNumber, r.reference, r.taxpayerName, r.nif, r.taxTypeCode,
+      r.period, r.amount, methodLabels[r.method] ?? r.method,
+      statusLabels[r.status] ?? r.status, r.issuedAt,
+    ])
+  }
 
   const SortIcon = ({ field }: { field: string }) => {
     if (sortField !== field) return <span className="ml-1 text-slate-300 dark:text-slate-600">↕</span>
@@ -116,9 +106,12 @@ const [showFilters, setShowFilters] = useState(false)
         subtitle="Registre sécurisé des quittances fiscales — traçables et vérifiables"
         actions={
           <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => exportCsv.mutate()} disabled={exportCsv.isPending}>
-              <Download className="h-4 w-4" /> Exporter
-            </Button>
+            <ExportButton
+              filenameBase={`quittances_${new Date().toISOString().slice(0, 10)}`}
+              title="Quittances"
+              headers={['N°', 'Référence', 'Contribuable', 'NIF', 'Impôt', 'Période', 'Montant', 'Mode', 'Statut', 'Émise le']}
+              rows={exportReceiptRows}
+            />
           </div>
         }
       />

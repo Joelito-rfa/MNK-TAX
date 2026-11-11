@@ -10,7 +10,6 @@ import {
   Check,
   ChevronRight,
   Copy,
-  Download,
   Filter,
   File,
   Grid3X3,
@@ -52,6 +51,8 @@ import {
 } from '../components/ui'
 import { useToast } from '../components/Toast'
 import { useI18n } from '../lib/i18n'
+import { ExportButton } from '../components/ExportButton'
+import ImportTaxpayersModal from '../components/ImportTaxpayersModal'
 
 /* ── Schemas ── */
 const createSchema = z.object({
@@ -133,6 +134,7 @@ export default function Taxpayers() {
   const [sortKey, setSortKey] = useState('')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [createOpen, setCreateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [createStep, setCreateStep] = useState(0)
   const [selectedTaxpayer, setSelectedTaxpayer] = useState<number | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'cards'>('list')
@@ -231,28 +233,17 @@ export default function Taxpayers() {
     setPage(0)
   }
 
-  function exportCsv() {
+  /** Tous les contribuables correspondant aux filtres actifs (hors pagination). */
+  async function exportTaxpayerRows() {
     const p = new URLSearchParams(params)
     p.delete('page')
     p.delete('size')
     p.delete('sort')
-    fetchTaxpayers(`${p.toString()}&size=9999`).then((rows) => {
-      const csv = [
-        tr('tp.csv.header'),
-        ...rows.content.map(
-          (row) =>
-            `${row.nif},"${row.name}",${typeLabel(row.type, tr)},"${row.phone || ''}","${row.email || ''}",${row.status},${row.taxCenterCode ?? ''},${row.taxRegimeCode ?? ''}`
-        ),
-      ].join('\n')
-      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = tr('tp.csv.filename', { date: new Date().toISOString().slice(0, 10) })
-      a.click()
-      URL.revokeObjectURL(url)
-      toast.success(tr('tp.csv.done'))
-    })
+    const rows = await fetchTaxpayers(`${p.toString()}&size=9999`)
+    return rows.content.map((row) => [
+      row.nif, row.name, typeLabel(row.type, tr), row.phone || '', row.email || '',
+      row.status, row.taxCenterCode ?? '', row.taxRegimeCode ?? '',
+    ])
   }
 
   /* ── Skeleton ── */
@@ -292,10 +283,13 @@ export default function Taxpayers() {
             >
               <RefreshCw className="h-4 w-4" /> {tr('tp.refresh')}
             </Button>
-            <Button variant="secondary" size="sm" onClick={exportCsv}>
-              <Download className="h-4 w-4" /> {tr('tp.export')}
-            </Button>
-            <Button variant="ghost" size="sm">
+            <ExportButton
+              filenameBase={tr('tp.csv.filename', { date: new Date().toISOString().slice(0, 10) }).replace(/\.csv$/i, '')}
+              title={tr('tp.title')}
+              headers={tr('tp.csv.header').split(',')}
+              rows={exportTaxpayerRows}
+            />
+            <Button variant="ghost" size="sm" onClick={() => setImportOpen(true)}>
               <File className="h-4 w-4" /> {tr('tp.import')}
             </Button>
             <Button
@@ -1015,6 +1009,15 @@ export default function Taxpayers() {
           </div>
         </form>
       </Modal>
+
+      {/* ── Import Modal ── */}
+      {importOpen && (
+        <ImportTaxpayersModal
+          onClose={() => setImportOpen(false)}
+          taxCenters={taxCenters ?? []}
+          taxRegimes={taxRegimes ?? []}
+        />
+      )}
 
       {/* ── Taxpayer Profile Drawer ── */}
       {selectedTaxpayer !== null && (

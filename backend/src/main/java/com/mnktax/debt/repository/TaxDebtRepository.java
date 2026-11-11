@@ -30,6 +30,17 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
     @Query("SELECT d FROM TaxDebt d WHERE d.id = :id")
     Optional<TaxDebt> findByIdForUpdate(@Param("id") Long id);
 
+    /** Créance avec contribuable et référentiels chargés (anti N+1 du détail recouvrement). */
+    @Query("""
+            SELECT d FROM TaxDebt d
+            JOIN FETCH d.taxpayer t
+            LEFT JOIN FETCH t.taxCenter
+            LEFT JOIN FETCH t.taxRegime
+            LEFT JOIN FETCH d.taxType
+            WHERE d.id = :id
+            """)
+    Optional<TaxDebt> findByIdWithRelations(@Param("id") Long id);
+
     @Query("""
             SELECT d FROM TaxDebt d
             LEFT JOIN d.taxpayer t
@@ -73,8 +84,10 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
             "AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.CANCELLED, com.mnktax.debt.entity.DebtStatus.CLOSED, com.mnktax.debt.entity.DebtStatus.PAID)")
     List<com.mnktax.taxpayer.entity.Taxpayer> findTaxpayersWithOverdueDebt(@Param("today") LocalDate today);
 
+    /** Créances échues à traiter : les créances déjà OVERDUE sont incluses afin de compléter
+     *  d'éventuelles pénalités/intérêts manquants (l'application des frais est idempotente). */
     @Query("SELECT d FROM TaxDebt d WHERE d.balance > 0 AND d.dueDate < :today " +
-            "AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.OVERDUE, com.mnktax.debt.entity.DebtStatus.IN_COLLECTION, com.mnktax.debt.entity.DebtStatus.DISPUTED, com.mnktax.debt.entity.DebtStatus.SUSPENDED)")
+            "AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.IN_COLLECTION, com.mnktax.debt.entity.DebtStatus.DISPUTED, com.mnktax.debt.entity.DebtStatus.SUSPENDED)")
     List<TaxDebt> findToMarkOverdue(@Param("today") LocalDate today);
 
     @Query("""
@@ -82,7 +95,7 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
             LEFT JOIN d.taxpayer t
             WHERE d.balance > 0
               AND d.dueDate < :today
-              AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.OVERDUE, com.mnktax.debt.entity.DebtStatus.IN_COLLECTION, com.mnktax.debt.entity.DebtStatus.DISPUTED, com.mnktax.debt.entity.DebtStatus.SUSPENDED)
+              AND d.status NOT IN (com.mnktax.debt.entity.DebtStatus.IN_COLLECTION, com.mnktax.debt.entity.DebtStatus.DISPUTED, com.mnktax.debt.entity.DebtStatus.SUSPENDED)
               AND (:taxTypeCode IS NULL OR d.taxType.code = :taxTypeCode)
               AND (:period IS NULL OR d.period = :period)
               AND (:taxpayerId IS NULL OR d.taxpayer.id = :taxpayerId)
@@ -251,7 +264,11 @@ public interface TaxDebtRepository extends JpaRepository<TaxDebt, Long> {
               AND (:hasReminder = false
                     OR EXISTS (SELECT a FROM com.mnktax.collection.entity.CollectionAction a
                                WHERE a.debt = d
-                                 AND a.type = com.mnktax.collection.entity.CollectionActionType.REMINDER))
+                                 AND a.type IN (com.mnktax.collection.entity.CollectionActionType.REMINDER,
+                                                com.mnktax.collection.entity.CollectionActionType.FOLLOW_UP,
+                                                com.mnktax.collection.entity.CollectionActionType.SMS,
+                                                com.mnktax.collection.entity.CollectionActionType.NOTIFICATION,
+                                                com.mnktax.collection.entity.CollectionActionType.PHONE_CONTACT)))
               AND (:balanceMin IS NULL OR d.balance >= :balanceMin)
               AND (:balanceMax IS NULL OR d.balance <= :balanceMax)
               AND (:dueFrom IS NULL OR d.dueDate >= :dueFrom)

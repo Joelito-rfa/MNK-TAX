@@ -1,0 +1,11 @@
+-- ============================================================
+-- V39 : destinataire sans compte utilisateur
+-- ============================================================
+-- Les relances automatiques (créances impayées, tranches en retard)
+-- partent vers la VRAIE adresse email du contribuable même lorsque
+-- celui-ci n'a pas de compte utilisateur (pas de boîte interne).
+--
+-- recipient_id = NULL signifie "destinataire sans compte" : le canal
+-- EMAIL porte alors l'adresse réelle (messages.recipient_email) et la
+-- livraison est tracée dans message_deliveries.
+ALTER TABLE messages ALTER COLUMN recipient_id DROP NOT NULL;

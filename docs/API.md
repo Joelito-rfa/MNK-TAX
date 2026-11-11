@@ -43,7 +43,7 @@ Codes d'erreur métier : `400` (validation), `403` (permission), `401` (non auth
 | GET | `/api/auth/admin/registrations/stats` | auth admin | Statistiques des demandes |
 | GET | `/api/auth/admin/registrations/{id}` | auth admin | Détail d'une demande |
 | POST | `/api/auth/admin/registrations/{id}/assign` | auth admin | Prendre en charge la demande |
-| POST | `/api/auth/admin/registrations/{id}/approve` | auth admin | Approuver (`{roleCode?}`) et créer le compte |
+| POST | `/api/auth/admin/registrations/{id}/approve` | auth admin | Approuver (`{roleCode?}`), créer le compte et envoyer le mot de passe temporaire par email |
 | POST | `/api/auth/admin/registrations/{id}/reject` | auth admin | Rejeter (`{reason}`) |
 
 ## Utilisateurs & rôles
@@ -57,12 +57,18 @@ Codes d'erreur métier : `400` (validation), `403` (permission), `401` (non auth
 | PUT | `/api/users/{id}` | `USER_WRITE` | Mise à jour |
 | PATCH | `/api/users/{id}/enabled` | `USER_WRITE` | Activer/désactiver (`?enabled=true\|false`) |
 | DELETE | `/api/users/{id}` | `USER_WRITE` | Supprimer (interdit pour les comptes système) |
-| POST | `/api/users/{id}/reset-password` | `USER_RESET_PASSWORD` | Génère un mot de passe temporaire (`mustChangePassword`) → `{temporaryPassword}` |
+| POST | `/api/users/{id}/reset-password` | `USER_RESET_PASSWORD` | Réinitialise le mot de passe (`mustChangePassword`), révoque les sessions et l'envoie par email → `200` `{delivery: "EMAIL", temporaryPassword: null}` ; sans SMTP configuré → `{delivery: "MANUAL", temporaryPassword: "…"}` pour remise manuelle |
 | POST | `/api/users/change-password` | auth | Changer son mot de passe |
 | GET | `/api/roles` | `ROLE_READ` | Liste des rôles |
 | POST | `/api/roles` | `ROLE_WRITE` | Créer un rôle |
 | PUT | `/api/roles/{id}/permissions` | `ROLE_WRITE` | Réécrit les permissions d'un rôle non système |
 | DELETE | `/api/roles/{id}` | `ROLE_WRITE` | Supprimer un rôle non système |
+
+> Les mots de passe temporaires (réinitialisation ou approbation d'inscription) sont générés côté
+> serveur et transmis par email dès qu'un fournisseur réel est configuré. Sans SMTP, la
+> réinitialisation renvoie le secret (`delivery: "MANUAL"`) pour remise manuelle, tandis que
+> l'approbation d'inscription échoue explicitement (rollback) au lieu de créer un compte
+> inaccessible.
 
 ## Contribuables
 
@@ -72,6 +78,7 @@ Codes d'erreur métier : `400` (validation), `403` (permission), `401` (non auth
 | GET | `/api/taxpayers/stats` | `TAXPAYER_READ` | Statistiques |
 | GET | `/api/taxpayers/next-nif` | `TAXPAYER_READ` | Prochain NIF disponible |
 | GET | `/api/taxpayers/contacts` | `TAXPAYER_READ` | Contacts (`q`) |
+| GET | `/api/taxpayers/contacts/all` | `MESSAGE_WRITE` | Tous les contribuables enregistrés (sélection dans le composeur) |
 | GET | `/api/taxpayers/{id}` | `TAXPAYER_READ` | Détail complet (adresses, activités, centre, régime) |
 | GET | `/api/taxpayers/{id}/contact` | `TAXPAYER_READ` | Fiche contact |
 | GET | `/api/taxpayers/nif/{nif}` | `TAXPAYER_READ` | Recherche par NIF |
@@ -326,12 +333,20 @@ Motifs : `VAT_CREDIT`, `OVERPAYMENT`, `OTHER`. Statuts : `PENDING`, `UNDER_REVIE
 | ------- | --- | ---------- | ----------- |
 | POST | `/api/communication/preview` | `MESSAGE_WRITE` | Aperçu d'une campagne (destinataires, conformité) |
 | POST | `/api/communication/send` | `MESSAGE_WRITE` | Envoyer (IN_APP/EMAIL/SMS) |
+
+ Corps de `/api/communication/preview` et `/api/communication/send` :
+ `taxpayerId` (contribuable enregistré), `channels`, `emailOverride` (email saisi),
+ `phoneOverride` (numéro saisi, normalisé en E.164), `externalName` (destinataire sans fiche),
+ `updateContact` (met à jour la fiche avec le contact saisi), `senderEmail`, `templateCode`,
+ `subject`, `content`, `priority`, `scheduledAt`, `requireConfirmation`.
+ Logique des canaux : `IN_APP` exige un contributeur enregistré ; `EMAIL` / `SMS` acceptent un
+ contact saisi (sans fiche) ; `IN_APP+EMAIL+SMS` reprend l'email et le numéro de la fiche.
 | POST | `/api/communication/templates/render` | `MESSAGE_WRITE` | Rendre un modèle avec variables |
 | GET | `/api/communication/my-messages` | `MESSAGE_READ` | Mes messages reçus |
 | POST | `/api/communication/my-messages/{id}/read` | `MESSAGE_READ` | Marquer comme lu |
 | GET | `/api/communication/sent` | `MESSAGE_MANAGE` | Messages envoyés + livraisons |
 | GET | `/api/communication/messages/{id}/deliveries` | `MESSAGE_MANAGE` | Détail des livraisons |
-| POST | `/api/communication/messages/{id}/retry` | `MESSAGE_MANAGE` | Relancer l'envoi |
+| POST | `/api/communication/messages/{id}/retry` | `MESSAGE_MANAGE` | Relancer manuellement les livraisons en échec |
 | POST | `/api/communication/messages/{id}/cancel` | `MESSAGE_MANAGE` | Annuler |
 | GET | `/api/communication/stats` | `MESSAGE_MANAGE` | Statistiques d'envoi |
 | GET | `/api/communication/providers` | `MESSAGE_MANAGE` | État des fournisseurs (SMTP, SMS, démo) |

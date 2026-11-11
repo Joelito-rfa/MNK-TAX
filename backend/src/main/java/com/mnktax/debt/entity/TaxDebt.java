@@ -107,6 +107,11 @@ public class TaxDebt {
     @Column(name = "collection_priority", nullable = false, length = 15)
     private DebtCollectionPriority collectionPriority;
 
+    /** Statut avant la suspension courante, restauré à la réactivation. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "previous_status", length = 20)
+    private DebtStatus previousStatus;
+
     @Column(name = "observations")
     private String observations;
 

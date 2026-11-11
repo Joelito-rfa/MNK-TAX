@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ChevronLeft, FileWarning, History, Info, Pause, Play, ScrollText, Send, Wallet, XCircle } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, FileWarning, History, Info, Pause, Play, Scale, ScrollText, Send, Wallet, XCircle } from 'lucide-react'
 import { apiErrorMessage, apiGet, apiPatch, apiPost } from '../lib/api'
+import { useAuth } from '../lib/auth'
+import { invalidateCollectionData } from '../features/collection/api/keys'
 import { fmtDate, fmtMGA, timeAgo } from '../lib/format'
-import type { CollectionAction, CollectionHistory, CollectionNotice, DebtCollectionPriority, DebtHistoryEntry, Page, Payment, TaxDebt } from '../types'
+import type { CollectionAction, CollectionDetail, CollectionHistory, CollectionNotice, DebtCollectionPriority, DebtHistoryEntry, Page, Payment, TaxDebt } from '../types'
 import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, Modal, Select, Spinner, StatusBadge, Table, Td, Textarea, Th } from '../components/ui'
+import { ExportButton } from '../components/ExportButton'
 import { useToast } from '../components/Toast'
 
 const itemLabels: Record<string, string> = {
@@ -54,6 +57,12 @@ const priorityLabels: Record<string, string> = {
   URGENT: 'Urgente',
 }
 
+const disputeDecisionLabels: Record<string, string> = {
+  SUSTAINED: 'Confirmé',
+  REJECTED: 'Rejeté',
+  WITHDRAWN: 'Retiré',
+}
+
 const historyEventTypeLabels: Record<string, string> = {
   CREATED: 'Création',
   STATUS_CHANGE: 'Changement de statut',
@@ -88,6 +97,9 @@ export default function DebtDetail() {
   const [obsEditing, setObsEditing] = useState(false)
   const queryClient = useQueryClient()
   const toast = useToast()
+  const { can } = useAuth()
+  const canWrite = can('DEBT_WRITE')
+  const invalidateAll = () => invalidateCollectionData(queryClient)
 
   const { data: debt, isLoading } = useQuery({
     queryKey: ['debt', debtId],
@@ -107,6 +119,13 @@ export default function DebtDetail() {
     enabled: !!debtId,
   })
 
+  // Même clé/endpoint que le tiroir DetailDrawer : cache partagé page ↔ tiroir.
+  const { data: collectionDetail } = useQuery({
+    queryKey: ['collection-detail', debtId],
+    queryFn: () => apiGet<CollectionDetail>(`/collection/detail/${debtId}`),
+    enabled: !!debtId,
+  })
+
   const { data: payments } = useQuery({
     queryKey: ['debt-payments', debtId],
     queryFn: () => apiGet<Page<Payment>>(`/payments?debtId=${debtId}&size=50`),
@@ -122,6 +141,7 @@ export default function DebtDetail() {
       queryClient.invalidateQueries({ queryKey: ['debts'] })
       queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      invalidateAll()
       if (vars.op === 'cancel') toast.success('Créance annulée')
       else if (vars.op === 'in-collection') toast.success('Créance envoyée en recouvrement')
       else {
@@ -143,6 +163,8 @@ export default function DebtDetail() {
       queryClient.invalidateQueries({ queryKey: ['debts'] })
       queryClient.invalidateQueries({ queryKey: ['debt-stats'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      // Le paiement solde des tranches d'échéancier côté serveur : plans + paiements à rafraîchir.
+      invalidateAll()
       setPaymentOpen(false)
       setPayAmount('')
       toast.success('Paiement enregistré')
@@ -156,6 +178,7 @@ export default function DebtDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['debt-collection-history', debtId] })
       queryClient.invalidateQueries({ queryKey: ['debts'] })
+      invalidateAll()
       setNoticeOpen(false)
       toast.success('Mise en demeure émise')
     },
@@ -168,6 +191,7 @@ export default function DebtDetail() {
       queryClient.invalidateQueries({ queryKey: ['debt', debtId] })
       queryClient.invalidateQueries({ queryKey: ['debt-history', debtId] })
       queryClient.invalidateQueries({ queryKey: ['debts'] })
+      invalidateAll()
       toast.success('Créance suspendue')
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
@@ -179,6 +203,7 @@ export default function DebtDetail() {
       queryClient.invalidateQueries({ queryKey: ['debt', debtId] })
       queryClient.invalidateQueries({ queryKey: ['debt-history', debtId] })
       queryClient.invalidateQueries({ queryKey: ['debts'] })
+      invalidateAll()
       toast.success('Créance réactivée')
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
@@ -190,6 +215,7 @@ export default function DebtDetail() {
       queryClient.invalidateQueries({ queryKey: ['debt', debtId] })
       queryClient.invalidateQueries({ queryKey: ['debt-history', debtId] })
       queryClient.invalidateQueries({ queryKey: ['debts'] })
+      invalidateAll()
       toast.success('Créance clôturée')
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
@@ -211,6 +237,7 @@ export default function DebtDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['debt', debtId] })
       queryClient.invalidateQueries({ queryKey: ['debt-history', debtId] })
+      invalidateAll()
       toast.success('Priorité modifiée')
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err)),
@@ -224,6 +251,7 @@ export default function DebtDetail() {
   const canResume = debt.status === 'SUSPENDED'
   const actions = collectionHistory?.actions ?? []
   const notices = collectionHistory?.notices ?? []
+  const disputes = collectionDetail?.disputes ?? []
   const paymentsList = payments?.content ?? []
   const historyEntries = debtHistory ?? []
 
@@ -255,7 +283,7 @@ export default function DebtDetail() {
             </p>
           )}
         </div>
-        {canAct && (
+        {canAct && canWrite && (
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" onClick={() => setNoticeOpen(true)}>
               <FileWarning className="h-4 w-4" /> Mise en demeure
@@ -278,7 +306,7 @@ export default function DebtDetail() {
             </Button>
           </div>
         )}
-        {canResume && (
+        {canResume && canWrite && (
           <Button onClick={() => resumeMutation.mutate()} disabled={resumeMutation.isPending}>
             <Play className="h-4 w-4" /> Réactiver
           </Button>
@@ -345,7 +373,7 @@ export default function DebtDetail() {
                 </tbody>
               </Table>
 
-              {canAct && (
+              {canAct && canWrite && (
                 <div className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 dark:border-slate-700/50 pt-4">
                   <div className="min-w-40 flex-1">
                     <Field label="Libellé d'ajustement">
@@ -406,21 +434,23 @@ export default function DebtDetail() {
                 <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Contribuable</label>
                 <p className="mt-1 text-sm text-slate-900 dark:text-slate-100">{debt.taxpayerName} (NIF {debt.nif})</p>
               </div>
-              <div>
-                <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Priorité de recouvrement</label>
-                <div className="mt-1">
-                  <Select
-                    value={debt.collectionPriority}
-                    onChange={(e) => updatePriorityMutation.mutate(e.target.value as DebtCollectionPriority)}
-                    disabled={updatePriorityMutation.isPending}
-                  >
-                    <option value="LOW">Basse</option>
-                    <option value="NORMAL">Normale</option>
-                    <option value="HIGH">Haute</option>
-                    <option value="URGENT">Urgente</option>
-                  </Select>
+              {canWrite && (
+                <div>
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Priorité de recouvrement</label>
+                  <div className="mt-1">
+                    <Select
+                      value={debt.collectionPriority}
+                      onChange={(e) => updatePriorityMutation.mutate(e.target.value as DebtCollectionPriority)}
+                      disabled={updatePriorityMutation.isPending}
+                    >
+                      <option value="LOW">Basse</option>
+                      <option value="NORMAL">Normale</option>
+                      <option value="HIGH">Haute</option>
+                      <option value="URGENT">Urgente</option>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+              )}
               <div>
                 <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Observations</label>
                 {obsEditing ? (
@@ -441,10 +471,12 @@ export default function DebtDetail() {
                 ) : (
                   <div className="mt-1 flex items-start gap-2">
                     <p className="flex-1 text-sm text-slate-700 dark:text-slate-300">{debt.observations || 'Aucune observation'}</p>
-                    <button onClick={() => { setObservations(debt.observations ?? ''); setObsEditing(true) }}
-                      className="text-xs text-brand-600 hover:underline">
-                      Modifier
-                    </button>
+                    {canWrite && (
+                      <button onClick={() => { setObservations(debt.observations ?? ''); setObsEditing(true) }}
+                        className="text-xs text-brand-600 hover:underline">
+                        Modifier
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -474,7 +506,26 @@ export default function DebtDetail() {
       {/* Tab: Paiements */}
       {tab === 'paiements' && (
         <Card>
-          <CardHeader title="Paiements affectés" subtitle={`${paymentsList.length} paiement(s)`} />
+          <CardHeader
+            title="Paiements affectés"
+            subtitle={`${paymentsList.length} paiement(s)`}
+            actions={
+              <ExportButton
+                filenameBase={`paiements_${new Date().toISOString().slice(0, 10)}`}
+                title="Paiements affectés"
+                headers={['Référence', 'Date', 'Montant', 'Mode', 'Alloué', 'Statut', 'Quittance']}
+                rows={paymentsList.map((p) => [
+                  p.reference,
+                  p.paymentDate,
+                  p.amount,
+                  methodLabels[p.method] ?? p.method,
+                  p.allocatedAmount,
+                  p.status,
+                  p.receiptReference ?? '—',
+                ])}
+              />
+            }
+          />
           {paymentsList.length === 0 ? (
             <EmptyState icon={<Wallet className="h-8 w-8" />} title="Aucun paiement" subtitle="Les encaissements affectés à cette créance apparaîtront ici." />
           ) : (
@@ -526,7 +577,20 @@ export default function DebtDetail() {
             </div>
           </Card>
           <Card>
-            <CardHeader title="Mises en demeure" subtitle={`${notices.length} mise(s) en demeure`} />
+            <CardHeader
+              title="Mises en demeure"
+              subtitle={`${notices.length} mise(s) en demeure`}
+              actions={
+                <ExportButton
+                  filenameBase={`mises-en-demeure_${new Date().toISOString().slice(0, 10)}`}
+                  title="Mises en demeure"
+                  headers={['N°', 'Type', 'Date', 'Statut', 'Contenu']}
+                  rows={notices.map((n) => [
+                    n.noticeNumber, n.noticeType, n.noticeDate, n.status, n.content || '',
+                  ])}
+                />
+              }
+            />
             {notices.length === 0 ? (
               <EmptyState icon={<FileWarning className="h-8 w-8" />} title="Aucune mise en demeure" />
             ) : (
@@ -548,13 +612,57 @@ export default function DebtDetail() {
               </Table>
             )}
           </Card>
+          <Card>
+            <CardHeader title="Litiges" subtitle={`${disputes.length} litige(s)`} />
+            {disputes.length === 0 ? (
+              <EmptyState icon={<Scale className="h-8 w-8" />} title="Aucun litige" subtitle="Aucun litige déclaré sur cette créance." />
+            ) : (
+              <Table>
+                <thead className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50">
+                  <tr>
+                    <Th>Motif</Th>
+                    <Th>Statut</Th>
+                    <Th>Décision</Th>
+                    <Th>Notes</Th>
+                    <Th>Date</Th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-700/50">
+                  {disputes.map((d) => (
+                    <tr key={d.id} className="transition hover:bg-slate-50/60 dark:hover:bg-slate-700/50">
+                      <Td className="max-w-md text-slate-700 dark:text-slate-300">{d.reason}</Td>
+                      <Td><StatusBadge value={d.status} /></Td>
+                      <Td>{d.decision ? disputeDecisionLabels[d.decision] ?? d.decision : '—'}</Td>
+                      <Td className="max-w-md truncate text-slate-500 dark:text-slate-400">{d.decisionNotes || '—'}</Td>
+                      <Td>{fmtDate(d.contestationDate)}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </Card>
         </div>
       )}
 
       {/* Tab: Historique */}
       {tab === 'historique' && (
         <Card>
-          <CardHeader title="Chronologie des événements" subtitle={`${historyEntries.length} événement(s)`} />
+          <CardHeader
+            title="Chronologie des événements"
+            subtitle={`${historyEntries.length} événement(s)`}
+            actions={
+              <ExportButton
+                filenameBase={`chronologie_${new Date().toISOString().slice(0, 10)}`}
+                title="Chronologie des événements"
+                headers={['Événement', 'Date', 'Auteur', 'Description', 'Ancien', 'Nouveau']}
+                rows={historyEntries.map((h) => [
+                  historyEventTypeLabels[h.eventType] ?? h.eventType,
+                  h.eventDate, h.performedBy ?? '', h.description,
+                  h.oldValue ?? '', h.newValue ?? '',
+                ])}
+              />
+            }
+          />
           <div className="px-5 py-4">
             {historyEntries.length === 0 ? (
               <EmptyState icon={<History className="h-8 w-8" />} title="Aucun événement" />

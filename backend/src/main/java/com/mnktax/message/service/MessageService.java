@@ -146,7 +146,7 @@ public class MessageService {
         if (userId == null) throw new BusinessException("UNAUTHORIZED", "Non autorisé.");
         Message message = messageRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "Message introuvable."));
-        if (!message.getSenderId().equals(userId) && !message.getRecipientId().equals(userId)) {
+        if (!userId.equals(message.getSenderId()) && !userId.equals(message.getRecipientId())) {
             throw new BusinessException("MESSAGE_ACCESS_DENIED", "Accès refusé à ce message.");
         }
         return enrichDto(message, userId);
@@ -159,7 +159,7 @@ public class MessageService {
         List<Message> messages = messageRepository.findByThreadIdOrderByCreatedAtAsc(threadId);
         if (messages.isEmpty()) throw new BusinessException("THREAD_NOT_FOUND", "Conversation introuvable.");
         Message first = messages.get(0);
-        if (!first.getSenderId().equals(userId) && !first.getRecipientId().equals(userId)) {
+        if (!userId.equals(first.getSenderId()) && !userId.equals(first.getRecipientId())) {
             throw new BusinessException("THREAD_ACCESS_DENIED", "Accès refusé à cette conversation.");
         }
         return messages.stream().map(m -> enrichDto(m, userId)).toList();
@@ -249,7 +249,7 @@ public class MessageService {
         Long userId = SecurityUtils.currentUserId();
         if (userId == null) return;
         Message message = messageRepository.findById(id)
-                .filter(m -> m.getRecipientId().equals(userId) || m.getSenderId().equals(userId))
+                .filter(m -> userId.equals(m.getRecipientId()) || userId.equals(m.getSenderId()))
                 .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "Message introuvable."));
         if (!message.isRead()) {
             message.setRead(true);
@@ -290,7 +290,7 @@ public class MessageService {
         Long userId = SecurityUtils.currentUserId();
         if (userId == null) return;
         Message message = messageRepository.findById(id)
-                .filter(m -> m.getRecipientId().equals(userId))
+                .filter(m -> userId.equals(m.getRecipientId()))
                 .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "Message introuvable."));
         message.setArchivedAt(Instant.now());
         message.setProcessingStatus(MessageProcessingStatus.ARCHIVED);
@@ -304,7 +304,7 @@ public class MessageService {
         Long userId = SecurityUtils.currentUserId();
         if (userId == null) return;
         Message message = messageRepository.findById(id)
-                .filter(m -> m.getRecipientId().equals(userId))
+                .filter(m -> userId.equals(m.getRecipientId()))
                 .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "Message introuvable."));
         message.setArchivedAt(null);
         message.setProcessingStatus(MessageProcessingStatus.WAITING_RESPONSE);
@@ -318,7 +318,7 @@ public class MessageService {
         Long userId = SecurityUtils.currentUserId();
         if (userId == null) return;
         Message message = messageRepository.findById(id)
-                .filter(m -> m.getRecipientId().equals(userId) || m.getSenderId().equals(userId))
+                .filter(m -> userId.equals(m.getRecipientId()) || userId.equals(m.getSenderId()))
                 .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "Message introuvable."));
         message.setProcessingStatus(MessageProcessingStatus.CLOSED);
         message.setClosedAt(Instant.now());
@@ -332,7 +332,7 @@ public class MessageService {
         Long userId = SecurityUtils.currentUserId();
         if (userId == null) return;
         Message message = messageRepository.findById(id)
-                .filter(m -> m.getRecipientId().equals(userId) || m.getSenderId().equals(userId))
+                .filter(m -> userId.equals(m.getRecipientId()) || userId.equals(m.getSenderId()))
                 .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "Message introuvable."));
         message.setProcessingStatus(MessageProcessingStatus.WAITING_RESPONSE);
         message.setClosedAt(null);
@@ -351,7 +351,7 @@ public class MessageService {
         Message message = messageRepository.findById(messageId)
                 .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "Message introuvable."));
         // IDOR check: only sender or recipient can attach
-        if (!message.getSenderId().equals(userId) && !message.getRecipientId().equals(userId)) {
+        if (!userId.equals(message.getSenderId()) && !userId.equals(message.getRecipientId())) {
             throw new BusinessException("MESSAGE_ACCESS_DENIED", "Accès refusé à ce message.");
         }
 
@@ -407,7 +407,7 @@ public class MessageService {
         // IDOR check: verify user has access to the parent message
         Message message = messageRepository.findById(attachment.getMessageId())
                 .orElseThrow(() -> new BusinessException("MESSAGE_NOT_FOUND", "Message parent introuvable."));
-        if (!message.getSenderId().equals(userId) && !message.getRecipientId().equals(userId)) {
+        if (!userId.equals(message.getSenderId()) && !userId.equals(message.getRecipientId())) {
             throw new BusinessException("MESSAGE_ACCESS_DENIED", "Accès refusé à cette pièce jointe.");
         }
 
@@ -426,7 +426,8 @@ public class MessageService {
     // ─── Internal helpers ────────────────────────────────────────
 
     private MessageDto enrichDto(Message m, Long currentUserId) {
-        String recipientName = userRepository.findById(m.getRecipientId())
+        String recipientName = m.getRecipientId() == null ? null
+                : userRepository.findById(m.getRecipientId())
                 .map(u -> (u.getFirstName() + " " + u.getLastName()).trim())
                 .filter(s -> !s.isBlank())
                 .orElse(null);
